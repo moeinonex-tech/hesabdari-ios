@@ -1,0 +1,687 @@
+{
+ "_doc": "سناریوهای طلایی کمیسیون مرحله‌ای. تاریخ‌ها همه در مهر ۱۴۰۵ (jm=7) هستند و d = روز ماه. درصد پیش‌فرض ۱۰. ترتیب گام‌ها = ترتیب ثبت واقعی (ts صعودی). seed = ردیف‌هایی که قبل از همه‌ی گام‌ها در داده بوده‌اند.",
+ "defaults": {
+  "percent": 10,
+  "accountId": "aT",
+  "accountName": "پروژه آزمون",
+  "jy": 1405,
+  "jm": 7
+ },
+ "scenarios": [
+  {
+   "id": "G01",
+   "title": "پایه‌ی ساده بدون پرداخت",
+   "classification": "parity",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "سیمان پرتلند",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "میلگرد آجدار",
+     "toman": 2500000,
+     "d": 3
+    }
+   ]
+  },
+  {
+   "id": "G02",
+   "title": "تسویه‌ی کامل؛ ردیف کمیسیون در پایه‌ی مرحله‌ی بعد حساب نمی‌شود",
+   "classification": "parity",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "سیمان پرتلند",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "میلگرد آجدار",
+     "toman": 2000000,
+     "d": 2
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 300000,
+     "d": 3
+    },
+    {
+     "op": "add",
+     "key": "E3",
+     "desc": "دستمزد آرماتوربند",
+     "toman": 500000,
+     "d": 4
+    }
+   ]
+  },
+  {
+   "id": "G03",
+   "title": "تسویه‌ی ناقص و انتقال کسری به مراحل بعد",
+   "classification": "balance-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "بتن آماده",
+     "toman": 2000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 150000,
+     "d": 2
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "قالب‌بندی",
+     "toman": 1000000,
+     "d": 3
+    },
+    {
+     "op": "settle",
+     "key": "S2",
+     "amount": 100000,
+     "d": 4
+    }
+   ]
+  },
+  {
+   "id": "G04",
+   "title": "پرداخت بیشتر از طلب: اضافه به‌عنوان بستانکاری از کمیسیون بعدی کم می‌شود (قاعده‌ی مصوب ۲)",
+   "classification": "balance-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "آجر فشاری",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 60000,
+     "d": 2
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "ماسه شسته",
+     "toman": 1000000,
+     "d": 3
+    },
+    {
+     "op": "settle",
+     "key": "S2",
+     "amount": 200000,
+     "d": 4
+    }
+   ]
+  },
+  {
+   "id": "G05",
+   "title": "ویرایش مبلغ پرداخت، کسری را دوباره حساب نمی‌کند (رفتار ۳ — حفظ)",
+   "classification": "parity-kept-anomaly",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "تیرآهن ۱۴",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 100000,
+     "d": 2
+    },
+    {
+     "op": "edit",
+     "key": "S1",
+     "toman": 40000
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "جوشکاری",
+     "toman": 500000,
+     "d": 3
+    }
+   ]
+  },
+  {
+   "id": "G06",
+   "title": "پرداخت با تاریخ عقب‌تر (مثال گزارش: ۱ / ۱۰ / پرداخت روز ۵) — رفتار ۱",
+   "classification": "coverage-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "هزینه‌ی ۱ میلیونی",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "هزینه‌ی ۲ میلیونی",
+     "toman": 2000000,
+     "d": 10
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 300000,
+     "d": 5
+    }
+   ]
+  },
+  {
+   "id": "G07",
+   "title": "هزینه‌ای که بعد از پرداخت با تاریخ قدیمی ثبت شده — رفتار ۲",
+   "classification": "coverage-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "گچ",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 100000,
+     "d": 5
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "خاک دیرثبت",
+     "toman": 800000,
+     "d": 3
+    }
+   ]
+  },
+  {
+   "id": "G08",
+   "title": "ثبت به ترتیبی غیر از ترتیب تاریخ، قبل از پرداخت",
+   "classification": "parity",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "ردیف روز نهم",
+     "toman": 1000000,
+     "d": 9
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "ردیف روز دوم",
+     "toman": 1000000,
+     "d": 2
+    },
+    {
+     "op": "add",
+     "key": "E3",
+     "desc": "ردیف روز پنجم",
+     "toman": 1000000,
+     "d": 5
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 300000,
+     "d": 10
+    }
+   ]
+  },
+  {
+   "id": "G09",
+   "title": "چند پرداخت در یک روز و هزینه‌ی همان روز بعد از پرداخت",
+   "classification": "parity",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "لوله پلی‌اتیلن",
+     "toman": 1000000,
+     "d": 5
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 100000,
+     "d": 5
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "اتصالات لوله",
+     "toman": 1000000,
+     "d": 5
+    },
+    {
+     "op": "settle",
+     "key": "S2",
+     "amount": 100000,
+     "d": 5
+    },
+    {
+     "op": "add",
+     "key": "E3",
+     "desc": "شیرآلات",
+     "toman": 400000,
+     "d": 5
+    }
+   ]
+  },
+  {
+   "id": "G10",
+   "title": "تغییر درصد بین مراحل",
+   "classification": "parity",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "کاشی",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 100000,
+     "d": 2
+    },
+    {
+     "op": "percent",
+     "value": 20
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "سرامیک",
+     "toman": 1000000,
+     "d": 3
+    }
+   ]
+  },
+  {
+   "id": "G11",
+   "title": "حذف ردیف پرداخت و برگرداندن آن",
+   "classification": "parity",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "رنگ ساختمانی",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 100000,
+     "d": 2
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "بتونه",
+     "toman": 1000000,
+     "d": 3
+    },
+    {
+     "op": "del",
+     "key": "S1"
+    },
+    {
+     "op": "undo"
+    }
+   ]
+  },
+  {
+   "id": "G12",
+   "title": "ویرایش مبلغ و حذف هزینه‌ی تحت پوشش بعد از پرداخت",
+   "classification": "parity",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "عایق رطوبتی",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "ایزوگام",
+     "toman": 1000000,
+     "d": 2
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 200000,
+     "d": 3
+    },
+    {
+     "op": "edit",
+     "key": "E1",
+     "toman": 3000000
+    },
+    {
+     "op": "del",
+     "key": "E2"
+    },
+    {
+     "op": "add",
+     "key": "E3",
+     "desc": "قیرگونی",
+     "toman": 500000,
+     "d": 4
+    }
+   ]
+  },
+  {
+   "id": "G13",
+   "title": "جابه‌جایی تاریخ هزینه‌ی تحت پوشش به بعد از تاریخ پرداخت",
+   "classification": "coverage-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "در و پنجره",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 100000,
+     "d": 5
+    },
+    {
+     "op": "edit",
+     "key": "E1",
+     "d": 8
+    }
+   ]
+  },
+  {
+   "id": "G14",
+   "title": "جابه‌جایی تاریخ هزینه‌ی باز به قبل از تاریخ پرداخت",
+   "classification": "coverage-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "سنگ نما",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 100000,
+     "d": 5
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "ملات نما",
+     "toman": 600000,
+     "d": 7
+    },
+    {
+     "op": "edit",
+     "key": "E2",
+     "d": 2
+    }
+   ]
+  },
+  {
+   "id": "G15",
+   "title": "تنخواه بیرون از پایه؛ ردیف چک در انتظار داخل پایه؛ چک برگشتی حذف می‌شود",
+   "classification": "parity",
+   "seed": [
+    {
+     "key": "T1",
+     "type": "tankhah",
+     "desc": "دریافت تنخواه",
+     "toman": 5000000,
+     "d": 1
+    }
+   ],
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "مصالح متفرقه",
+     "toman": 1000000,
+     "d": 2
+    },
+    {
+     "op": "linkCheck",
+     "key": "C1",
+     "amount": 2000000,
+     "d": 4,
+     "party": "مصالح‌فروشی نمونه"
+    },
+    {
+     "op": "bounceCheck",
+     "key": "C1"
+    }
+   ]
+  },
+  {
+   "id": "G16",
+   "title": "چکی که قبل از پرداخت ثبت شده ولی سررسیدش بعد از تاریخ پرداخت است",
+   "classification": "coverage-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "مصالح",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "linkCheck",
+     "key": "C1",
+     "amount": 2000000,
+     "d": 20,
+     "party": "پیمانکار جزء نمونه"
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 300000,
+     "d": 5
+    }
+   ]
+  },
+  {
+   "id": "G17",
+   "title": "درصد صفر + پرداخت: کل مبلغ بستانکاری می‌شود (پیامد قاعده‌ی مصوب ۲)",
+   "classification": "balance-rule",
+   "percent": 0,
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "هزینه‌ی بی‌کمیسیون",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 50000,
+     "d": 2
+    }
+   ]
+  },
+  {
+   "id": "G18",
+   "title": "گردکردن نیم (Math.round)",
+   "classification": "parity",
+   "percent": 3,
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "خرید کوچک ۱۵۰",
+     "toman": 150,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 4,
+     "d": 2
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "خرید کوچک ۵۰",
+     "toman": 50,
+     "d": 3
+    }
+   ]
+  },
+  {
+   "id": "G19",
+   "title": "سه مرحله با کسری انباشته",
+   "classification": "balance-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "مرحله یک",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 70000,
+     "d": 2
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "مرحله دو",
+     "toman": 2000000,
+     "d": 3
+    },
+    {
+     "op": "settle",
+     "key": "S2",
+     "amount": 150000,
+     "d": 4
+    },
+    {
+     "op": "add",
+     "key": "E3",
+     "desc": "مرحله سه",
+     "toman": 3000000,
+     "d": 5
+    },
+    {
+     "op": "settle",
+     "key": "S3",
+     "amount": 300000,
+     "d": 6
+    }
+   ]
+  },
+  {
+   "id": "G20",
+   "title": "پرداخت دوم بعد از پرداختِ تاریخ‌عقب (ادامه‌ی G06): اثر روی مبلغ محاسبه‌شده و کسری",
+   "classification": "coverage-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "هزینه‌ی ۱ میلیونی",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "هزینه‌ی ۲ میلیونی",
+     "toman": 2000000,
+     "d": 10
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 300000,
+     "d": 5
+    },
+    {
+     "op": "add",
+     "key": "E3",
+     "desc": "هزینه‌ی نیم میلیونی",
+     "toman": 500000,
+     "d": 12
+    },
+    {
+     "op": "settle",
+     "key": "S2",
+     "amount": 50000,
+     "d": 12
+    }
+   ]
+  },
+  {
+   "id": "G21",
+   "title": "پرداخت بعد از هزینه‌ی دیرثبت (ادامه‌ی G07): اثر روی شرح و مبلغ محاسبه‌شده",
+   "classification": "coverage-rule",
+   "steps": [
+    {
+     "op": "add",
+     "key": "E1",
+     "desc": "گچ",
+     "toman": 1000000,
+     "d": 1
+    },
+    {
+     "op": "settle",
+     "key": "S1",
+     "amount": 100000,
+     "d": 5
+    },
+    {
+     "op": "add",
+     "key": "E2",
+     "desc": "خاک دیرثبت",
+     "toman": 800000,
+     "d": 3
+    },
+    {
+     "op": "settle",
+     "key": "S2",
+     "amount": 80000,
+     "d": 6
+    }
+   ]
+  }
+ ]
+}

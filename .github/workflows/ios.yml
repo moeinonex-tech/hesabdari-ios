@@ -1,0 +1,100 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: "Build and upload to TestFlight"
+        type: boolean
+        default: true
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-tests:
+    name: HesabCore parity tests
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Test (Jalali 25,933 days + commission G01–G21)
+        run: swift test --package-path HesabCore
+
+  testflight:
+    name: Archive and upload to TestFlight
+    needs: core-tests
+    # Runs only when the owner enables it (repository variable TESTFLIGHT_ENABLED=true),
+    # and never for pull requests. Saves macOS minutes.
+    if: >-
+      github.event_name != 'pull_request' &&
+      vars.TESTFLIGHT_ENABLED == 'true' &&
+      (github.event_name == 'push' || inputs.testflight)
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      BUNDLE_ID: ${{ vars.BUNDLE_ID }}
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check configuration
+        run: |
+          missing=""
+          [ -n "$BUNDLE_ID" ] || missing="$missing BUNDLE_ID(variable)"
+          [ -n "$TEAM_ID" ] || missing="$missing APPLE_TEAM_ID"
+          [ -n "$ASC_KEY_ID" ] || missing="$missing ASC_KEY_ID"
+          [ -n "$ASC_ISSUER_ID" ] || missing="$missing ASC_ISSUER_ID"
+          if [ -n "$missing" ]; then echo "::error::Missing:$missing"; exit 1; fi
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Write App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          [ -n "$ASC_KEY_P8" ] || { echo "::error::Missing ASC_KEY_P8"; exit 1; }
+          printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project Hesabdari.xcodeproj \
+            -scheme Hesabdari \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Hesabdari.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }}
+
+      - name: Export and upload to App Store Connect
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Hesabdari.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Remove key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
