@@ -55,6 +55,19 @@ public final class HesabStore {
     /// Replaces everything with `state` in ONE transaction: either all of it is stored or nothing changes.
     public func replaceAll(with state: [String: JSONValue], sourceExportedAtJalali: String?, reportLines: [String]) throws {
         try dbQueue.write { db in
+            try Self.write(state, db)
+            let iso = ISO8601DateFormatter().string(from: Date())
+            try db.execute(sql: "INSERT INTO import_log(importedAt, sourceExportedAtJalali, report) VALUES (?, ?, ?)",
+                           arguments: [iso, sourceExportedAtJalali, reportLines.joined(separator: "\n")])
+        }
+    }
+
+    /// Saves the state after a change (add / edit / delete / payment) in ONE transaction.
+    public func save(_ state: [String: JSONValue]) throws {
+        try dbQueue.write { db in try Self.write(state, db) }
+    }
+
+    static func write(_ state: [String: JSONValue], _ db: Database) throws {
             try db.execute(sql: "DELETE FROM record")
             try db.execute(sql: "DELETE FROM root")
             for key in state.keys.sorted() {
@@ -69,10 +82,6 @@ public final class HesabStore {
                                    arguments: [key, try JSONCoding.string(value)])
                 }
             }
-            let iso = ISO8601DateFormatter().string(from: Date())
-            try db.execute(sql: "INSERT INTO import_log(importedAt, sourceExportedAtJalali, report) VALUES (?, ?, ?)",
-                           arguments: [iso, sourceExportedAtJalali, reportLines.joined(separator: "\n")])
-        }
     }
 
     // MARK: read

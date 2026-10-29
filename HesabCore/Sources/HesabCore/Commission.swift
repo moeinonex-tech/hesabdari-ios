@@ -165,8 +165,9 @@ public struct CommissionLedger: Sendable {
 
     /// Records a commission payment and returns the settlement.
     @discardableResult
-    public mutating func settle(key: String, amount: Int, date: JalaliDate) -> Settlement {
-        let ts = nextTs()
+    public mutating func settle(key: String, amount: Int, date: JalaliDate, ts explicitTs: Int? = nil) -> Settlement {
+        let ts = explicitTs ?? nextTs()
+        clock = max(clock, ts)
         let st = stage()
         let calc = accrued(for: st.openBase)
         let before = st.pastShortfall

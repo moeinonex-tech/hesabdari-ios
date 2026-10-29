@@ -26,7 +26,7 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
-      - name: Test (Jalali, commission G01–G22, backup import)
+      - name: Test (Jalali, commission, import, ledger ops)
         run: |
           set -o pipefail
           swift test --package-path HesabCore 2>&1 | tee "$RUNNER_TEMP/test.log"

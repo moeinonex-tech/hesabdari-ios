@@ -18,13 +18,32 @@ struct HesabdariApp: App {
 // MARK: - model
 
 struct LedgerRowVM: Identifiable {
-    let id: String
+    let id: String              // list identity
+    let rowId: String           // record id
     let number: Int
     let desc: String
+    let dateValue: JalaliDate
     let date: String
     let toman: Int
     let kind: Kind
+    let isLinked: Bool
+    let category: String
+    let subcategory: String
+    let payMethod: String?
+    let cardId: String?
+    let partyId: String?
     enum Kind { case expense, tankhah, commission }
+}
+
+struct Choice: Identifiable, Hashable {
+    let id: String
+    let label: String
+}
+
+struct UndoItem: Identifiable {
+    let id = UUID()
+    let message: String
+    let previous: [String: JSONValue]
 }
 
 struct ExportFile: Identifiable {
@@ -147,10 +166,107 @@ final class AppModel: ObservableObject {
             let d = ImportAnalyzer.date(e["date"])
             let kind: LedgerRowVM.Kind = e["commissionSettlementId"]?.idString != nil ? .commission
                 : (e["type"]?.stringValue == "tankhah" ? .tankhah : .expense)
-            return LedgerRowVM(id: (e["id"]?.idString ?? "") + "#\(i)", number: i + 1,
-                               desc: e["desc"]?.stringValue ?? "",
+            let rid = e["id"]?.idString ?? ""
+            return LedgerRowVM(id: rid + "#\(i)", rowId: rid, number: i + 1,
+                               desc: e["desc"]?.stringValue ?? "", dateValue: d,
                                date: Money.persianDigits("\(d.jy)/\(d.jm)/\(d.jd)"),
-                               toman: ImportAnalyzer.toman(e), kind: kind)
+                               toman: ImportAnalyzer.toman(e), kind: kind,
+                               isLinked: e["linked"]?["kind"]?.stringValue != nil,
+                               category: e["category"]?.stringValue ?? "",
+                               subcategory: e["subcategory"]?.stringValue ?? "",
+                               payMethod: e["payMethod"]?.stringValue, cardId: e["cardId"]?.idString,
+                               partyId: e["partyId"]?.idString)
+        }
+    }
+
+    // MARK: changes (each one saved in one transaction)
+
+    @Published var undo: UndoItem?
+    private var unlockedUntil = Date.distantPast
+
+    private func apply(_ newState: [String: JSONValue], undoMessage: String? = nil) -> Bool {
+        guard let store else { return false }
+        let previous = state
+        do {
+            try store.save(newState)
+            state = newState
+            if let m = undoMessage {
+                let item = UndoItem(message: m, previous: previous)
+                undo = item
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                    if self?.undo?.id == item.id { self?.undo = nil }
+                }
+            }
+            return true
+        } catch {
+            errorMessage = "ذخیره نشد و هیچ چیزی تغییر نکرد: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private func run(_ op: () throws -> [String: JSONValue], undoMessage: String? = nil) -> Bool {
+        do { return apply(try op(), undoMessage: undoMessage) }
+        catch let e as LedgerError { errorMessage = e.message; return false }
+        catch { errorMessage = error.localizedDescription; return false }
+    }
+
+    func add(_ input: ExpenseInput) -> Bool { run { try LedgerOps.addExpense(state, input).state } }
+    func edit(rowId: String, _ input: ExpenseInput) -> Bool { run { try LedgerOps.editExpense(state, id: rowId, input) } }
+    func delete(rowId: String) -> Bool { run({ try LedgerOps.deleteExpense(state, id: rowId) }, undoMessage: "حذف شد") }
+    func settle(accountId: String, amount: Int, date: JalaliDate) -> Bool {
+        run { try LedgerOps.settleCommission(state, accountId: accountId, amount: amount, date: date).state }
+    }
+
+    func performUndo() {
+        guard let u = undo else { return }
+        undo = nil
+        _ = apply(u.previous)
+    }
+
+    /// What the commission balance would be after a payment (preview only, nothing is saved).
+    func previewRemaining(accountId: String, amount: Int, date: JalaliDate) -> Int? {
+        guard amount > 0, let r = try? LedgerOps.settleCommission(state, accountId: accountId, amount: amount, date: date),
+              let a = r.state["accounts"]?.arrayValue?.first(where: { $0["id"]?.idString == accountId }) else { return nil }
+        return ImportAnalyzer.accountSummary(a, expenses: r.state["expenses"]?.arrayValue ?? []).remaining
+    }
+
+    // edit lock (web: rows 8+ days old need the password; one unlock lasts 15 minutes)
+
+    func isLocked(_ date: JalaliDate) -> Bool {
+        LedgerOps.isEditLocked(rowDate: date, today: Self.today, password: state["editLockPassword"]?.stringValue,
+                               sessionUnlocked: Date() < unlockedUntil)
+    }
+
+    func unlock(password: String) -> Bool {
+        guard let p = state["editLockPassword"]?.stringValue, !p.isEmpty, password == p else { return false }
+        unlockedUntil = Date().addingTimeInterval(LedgerOps.unlockSeconds)
+        return true
+    }
+
+    // lists for the form
+
+    var ledgerCategories: [String] { (state["ledgerCategories"]?.arrayValue ?? []).compactMap(\.stringValue) }
+    func subcategories(of category: String) -> [String] {
+        (state["ledgerSubcategories"]?[category]?.arrayValue ?? []).compactMap(\.stringValue)
+    }
+    var activeCards: [Choice] {
+        (state["cards"]?.arrayValue ?? []).compactMap { c -> Choice? in
+            guard let id = c["id"]?.idString, !(c["archived"]?.isTruthy ?? false) else { return nil }
+            let bank = c["bankName"]?.stringValue ?? ""
+            let last4 = c["last4"]?.stringValue ?? ""
+            return Choice(id: id, label: bank + " •" + Money.persianDigits(last4))
+        }
+    }
+    func defaultCard(accountId: String) -> String? {
+        if let last = state["lastCardByAccount"]?[accountId]?.idString, activeCards.contains(where: { $0.id == last }) { return last }
+        let cards = state["cards"]?.arrayValue ?? []
+        if let def = cards.first(where: { $0["isDefault"]?.isTruthy == true && !($0["archived"]?.isTruthy ?? false) })?["id"]?.idString { return def }
+        return activeCards.first?.id
+    }
+    var tankhahParties: [Choice] {
+        (state["tankhahParties"]?.arrayValue ?? []).compactMap { p -> Choice? in
+            guard let id = p["id"]?.idString else { return nil }
+            return Choice(id: id, label: p["name"]?.stringValue ?? "")
         }
     }
 }
@@ -167,4 +283,30 @@ enum Fmt {
     }
     static func percent(_ p: Double) -> String { Money.persianDigits(Money.jsNumberString(p)) + "٪" }
     static func count(_ n: Int) -> String { Money.persianDigits(n) }
+
+    /// Accepts Persian, Arabic and Latin digits; ignores separators (web stripDigits).
+    static func parseAmount(_ text: String) -> Int {
+        var digits = ""
+        for ch in text.unicodeScalars {
+            switch ch.value {
+            case 0x30...0x39: digits.unicodeScalars.append(ch)
+            case 0x6F0...0x6F9: digits.unicodeScalars.append(Unicode.Scalar(ch.value - 0x6F0 + 0x30)!)
+            case 0x660...0x669: digits.unicodeScalars.append(Unicode.Scalar(ch.value - 0x660 + 0x30)!)
+            default: break
+            }
+        }
+        return Int(digits.prefix(15)) ?? 0
+    }
+
+    static let gregorian = Calendar(identifier: .gregorian)
+
+    static func jalali(_ date: Date) -> JalaliDate {
+        let c = gregorian.dateComponents([.year, .month, .day], from: date)
+        return Jalali.toJalali(c.year ?? 2000, c.month ?? 1, c.day ?? 1)
+    }
+
+    static func date(_ j: JalaliDate) -> Date {
+        let g = Jalali.toGregorian(j)
+        return gregorian.date(from: DateComponents(year: g.gy, month: g.gm, day: g.gd, hour: 12)) ?? Date()
+    }
 }
