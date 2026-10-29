@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import HesabCore
 
-/// Replays the 21 Phase 1 scenarios (G01–G21) and compares every step with
+/// Replays the 22 Phase 1 scenarios (G01–G22) and compares every step with
 /// Goldens/commission_corrected.json (generated in Phase 1; the same model reproduces
 /// the real web app 1326/1326 in "web" mode, and the approved-rule numbers were checked by hand).
 final class CommissionParityTests: XCTestCase {
@@ -35,7 +35,7 @@ final class CommissionParityTests: XCTestCase {
         let jy = try XCTUnwrap(int(defaults["jy"])), jm = try XCTUnwrap(int(defaults["jm"]))
         let J = { (d: Int) in JalaliDate(jy: jy, jm: jm, jd: d) }
         let gScen = try XCTUnwrap(g["scenarios"] as? [[String: Any]])
-        XCTAssertEqual(gScen.count, 21)
+        XCTAssertEqual(gScen.count, 22)
 
         for gs in gScen {
             let id = try XCTUnwrap(gs["id"] as? String)

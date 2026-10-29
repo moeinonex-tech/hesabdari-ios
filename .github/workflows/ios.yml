@@ -26,7 +26,7 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
-      - name: Test (Jalali 25,933 days + commission G01–G21)
+      - name: Test (Jalali 25,933 days + commission G01–G22)
         run: swift test --package-path HesabCore
 
   testflight:

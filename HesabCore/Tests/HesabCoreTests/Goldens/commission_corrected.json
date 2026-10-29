@@ -1,6 +1,6 @@
 {
  "generatedBy": "model/build_expected.js (mode corrected; model validated against oracle in mode web)",
- "rule": "iOS approved rules (2026-10-28/29). (1) coverage: a payment covers every expense entered before it (ts); each expense counted once; the financial date never moves an expense between stages. (2) balance: one running commission balance; due = commission of newly covered expenses + previous balance; balanceAfter = due - paid (debt carries, overpayment is credit that reduces the next commission); stored as a delta in remainingForStage so the web sum equals the balance. Editing a payment amount still does not recompute (kept).",
+ "rule": "iOS approved rules (2026-10-28/29). (1) coverage: a payment covers every expense entered before it (ts); each expense counted once; the financial date never moves an expense between stages. (2) balance: one running commission balance; due = commission of newly covered expenses + previous balance; balanceAfter = due - paid (debt carries, overpayment is credit that reduces the next commission); stored as a delta in remainingForStage so the web sum equals the balance. (3) D16 (approved 2026-10-29): editing a payment amount recomputes the balance of that payment and every later one (entry order); calculatedAmount is kept; the row text suffix is rewritten.",
  "source": {
   "file": "/home/claude/app.html",
   "md5": "80e0be42399b1410a518d4c43a8deb72"
@@ -1183,8 +1183,8 @@
   },
   {
    "id": "G05",
-   "title": "ویرایش مبلغ پرداخت، کسری را دوباره حساب نمی‌کند (رفتار ۳ — حفظ)",
-   "classification": "parity-kept-anomaly",
+   "title": "ویرایش مبلغ پرداخت: مانده دوباره حساب می‌شود (D16 مصوب). وب حساب نمی‌کند",
+   "classification": "d16-rule",
    "steps": [
     {
      "step": "initial",
@@ -1330,8 +1330,8 @@
      "percent": 10,
      "openBase": 0,
      "accrued": 0,
-     "pastShortfall": 0,
-     "remaining": 0,
+     "pastShortfall": 60000,
+     "remaining": 60000,
      "settled": 40000,
      "nextRowNumber": 3,
      "lastRow": null,
@@ -1356,7 +1356,7 @@
       {
        "key": "S1",
        "kind": "commission",
-       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (تیرآهن ۱۴) تسویه کامل",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (تیرآهن ۱۴) — مبلغ ۶۰.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است",
        "toman": 40000,
        "date": {
         "jy": 1405,
@@ -1377,9 +1377,9 @@
         "jd": 2
        },
        "calculatedAmount": 100000,
-       "remainingForStage": 0,
-       "isFull": true,
-       "balanceAfter": 0
+       "remainingForStage": 60000,
+       "isFull": false,
+       "balanceAfter": 60000
       }
      ],
      "commissionIncomes": [
@@ -1410,8 +1410,8 @@
      "percent": 10,
      "openBase": 500000,
      "accrued": 50000,
-     "pastShortfall": 0,
-     "remaining": 50000,
+     "pastShortfall": 60000,
+     "remaining": 110000,
      "settled": 40000,
      "nextRowNumber": 4,
      "lastRow": {
@@ -1440,7 +1440,7 @@
       {
        "key": "S1",
        "kind": "commission",
-       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (تیرآهن ۱۴) تسویه کامل",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (تیرآهن ۱۴) — مبلغ ۶۰.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است",
        "toman": 40000,
        "date": {
         "jy": 1405,
@@ -1473,9 +1473,9 @@
         "jd": 2
        },
        "calculatedAmount": 100000,
-       "remainingForStage": 0,
-       "isFull": true,
-       "balanceAfter": 0
+       "remainingForStage": 60000,
+       "isFull": false,
+       "balanceAfter": 60000
       }
      ],
      "commissionIncomes": [
@@ -6797,6 +6797,659 @@
         "jy": 1405,
         "jm": 7,
         "jd": 6
+       },
+       "category": "کمیسیون",
+       "subcategory": "پروژه آزمون",
+       "accountId": "personal",
+       "accountName": "پروژه آزمون"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "G22",
+   "title": "ویرایش مبلغ پرداخت اول وقتی پرداخت دوم بعد از آن ثبت شده: مانده‌ی هر دو از نو (D16)",
+   "classification": "d16-rule",
+   "steps": [
+    {
+     "step": "initial",
+     "percent": 10,
+     "openBase": 0,
+     "accrued": 0,
+     "pastShortfall": 0,
+     "remaining": 0,
+     "settled": 0,
+     "nextRowNumber": 1,
+     "lastRow": null,
+     "ledgerTotal": 0,
+     "entryOrder": [],
+     "rows": [],
+     "settlements": [],
+     "commissionIncomes": []
+    },
+    {
+     "step": {
+      "op": "add",
+      "key": "E1",
+      "desc": "سیمان",
+      "toman": 1000000,
+      "d": 1
+     },
+     "percent": 10,
+     "openBase": 1000000,
+     "accrued": 100000,
+     "pastShortfall": 0,
+     "remaining": 100000,
+     "settled": 0,
+     "nextRowNumber": 2,
+     "lastRow": {
+      "num": 1,
+      "desc": "سیمان"
+     },
+     "ledgerTotal": 1000000,
+     "entryOrder": [
+      "E1"
+     ],
+     "rows": [
+      {
+       "key": "E1",
+       "kind": "expense",
+       "desc": "سیمان",
+       "toman": 1000000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 1
+       },
+       "subcategory": "عمومی"
+      }
+     ],
+     "settlements": [],
+     "commissionIncomes": []
+    },
+    {
+     "step": {
+      "op": "settle",
+      "key": "S1",
+      "amount": 100000,
+      "d": 2
+     },
+     "percent": 10,
+     "openBase": 0,
+     "accrued": 0,
+     "pastShortfall": 0,
+     "remaining": 0,
+     "settled": 100000,
+     "nextRowNumber": 3,
+     "lastRow": null,
+     "ledgerTotal": 1100000,
+     "entryOrder": [
+      "E1",
+      "S1"
+     ],
+     "rows": [
+      {
+       "key": "E1",
+       "kind": "expense",
+       "desc": "سیمان",
+       "toman": 1000000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 1
+       },
+       "subcategory": "عمومی"
+      },
+      {
+       "key": "S1",
+       "kind": "commission",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (سیمان) تسویه کامل",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "subcategory": null
+      }
+     ],
+     "settlements": [
+      {
+       "key": "S1",
+       "row": "S1",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "calculatedAmount": 100000,
+       "remainingForStage": 0,
+       "isFull": true,
+       "balanceAfter": 0
+      }
+     ],
+     "commissionIncomes": [
+      {
+       "settlement": "S1",
+       "desc": "دریافت کمیسیون از پروژه آزمون",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "category": "کمیسیون",
+       "subcategory": "پروژه آزمون",
+       "accountId": "personal",
+       "accountName": "پروژه آزمون"
+      }
+     ]
+    },
+    {
+     "step": {
+      "op": "add",
+      "key": "E2",
+      "desc": "گچ",
+      "toman": 500000,
+      "d": 3
+     },
+     "percent": 10,
+     "openBase": 500000,
+     "accrued": 50000,
+     "pastShortfall": 0,
+     "remaining": 50000,
+     "settled": 100000,
+     "nextRowNumber": 4,
+     "lastRow": {
+      "num": 3,
+      "desc": "گچ"
+     },
+     "ledgerTotal": 1600000,
+     "entryOrder": [
+      "E1",
+      "S1",
+      "E2"
+     ],
+     "rows": [
+      {
+       "key": "E1",
+       "kind": "expense",
+       "desc": "سیمان",
+       "toman": 1000000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 1
+       },
+       "subcategory": "عمومی"
+      },
+      {
+       "key": "S1",
+       "kind": "commission",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (سیمان) تسویه کامل",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "subcategory": null
+      },
+      {
+       "key": "E2",
+       "kind": "expense",
+       "desc": "گچ",
+       "toman": 500000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 3
+       },
+       "subcategory": "عمومی"
+      }
+     ],
+     "settlements": [
+      {
+       "key": "S1",
+       "row": "S1",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "calculatedAmount": 100000,
+       "remainingForStage": 0,
+       "isFull": true,
+       "balanceAfter": 0
+      }
+     ],
+     "commissionIncomes": [
+      {
+       "settlement": "S1",
+       "desc": "دریافت کمیسیون از پروژه آزمون",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "category": "کمیسیون",
+       "subcategory": "پروژه آزمون",
+       "accountId": "personal",
+       "accountName": "پروژه آزمون"
+      }
+     ]
+    },
+    {
+     "step": {
+      "op": "settle",
+      "key": "S2",
+      "amount": 50000,
+      "d": 4
+     },
+     "percent": 10,
+     "openBase": 0,
+     "accrued": 0,
+     "pastShortfall": 0,
+     "remaining": 0,
+     "settled": 150000,
+     "nextRowNumber": 5,
+     "lastRow": null,
+     "ledgerTotal": 1650000,
+     "entryOrder": [
+      "E1",
+      "S1",
+      "E2",
+      "S2"
+     ],
+     "rows": [
+      {
+       "key": "E1",
+       "kind": "expense",
+       "desc": "سیمان",
+       "toman": 1000000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 1
+       },
+       "subcategory": "عمومی"
+      },
+      {
+       "key": "S1",
+       "kind": "commission",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (سیمان) تسویه کامل",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "subcategory": null
+      },
+      {
+       "key": "E2",
+       "kind": "expense",
+       "desc": "گچ",
+       "toman": 500000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 3
+       },
+       "subcategory": "عمومی"
+      },
+      {
+       "key": "S2",
+       "kind": "commission",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۳\" (گچ) تسویه کامل",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
+       },
+       "subcategory": null
+      }
+     ],
+     "settlements": [
+      {
+       "key": "S1",
+       "row": "S1",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "calculatedAmount": 100000,
+       "remainingForStage": 0,
+       "isFull": true,
+       "balanceAfter": 0
+      },
+      {
+       "key": "S2",
+       "row": "S2",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
+       },
+       "calculatedAmount": 50000,
+       "remainingForStage": 0,
+       "isFull": true,
+       "balanceAfter": 0
+      }
+     ],
+     "commissionIncomes": [
+      {
+       "settlement": "S1",
+       "desc": "دریافت کمیسیون از پروژه آزمون",
+       "toman": 100000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "category": "کمیسیون",
+       "subcategory": "پروژه آزمون",
+       "accountId": "personal",
+       "accountName": "پروژه آزمون"
+      },
+      {
+       "settlement": "S2",
+       "desc": "دریافت کمیسیون از پروژه آزمون",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
+       },
+       "category": "کمیسیون",
+       "subcategory": "پروژه آزمون",
+       "accountId": "personal",
+       "accountName": "پروژه آزمون"
+      }
+     ]
+    },
+    {
+     "step": {
+      "op": "edit",
+      "key": "S1",
+      "toman": 40000
+     },
+     "percent": 10,
+     "openBase": 0,
+     "accrued": 0,
+     "pastShortfall": 60000,
+     "remaining": 60000,
+     "settled": 90000,
+     "nextRowNumber": 5,
+     "lastRow": null,
+     "ledgerTotal": 1590000,
+     "entryOrder": [
+      "E1",
+      "S1",
+      "E2",
+      "S2"
+     ],
+     "rows": [
+      {
+       "key": "E1",
+       "kind": "expense",
+       "desc": "سیمان",
+       "toman": 1000000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 1
+       },
+       "subcategory": "عمومی"
+      },
+      {
+       "key": "S1",
+       "kind": "commission",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (سیمان) — مبلغ ۶۰.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است",
+       "toman": 40000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "subcategory": "تسویه"
+      },
+      {
+       "key": "E2",
+       "kind": "expense",
+       "desc": "گچ",
+       "toman": 500000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 3
+       },
+       "subcategory": "عمومی"
+      },
+      {
+       "key": "S2",
+       "kind": "commission",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۳\" (گچ) — مبلغ ۶۰.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
+       },
+       "subcategory": null
+      }
+     ],
+     "settlements": [
+      {
+       "key": "S1",
+       "row": "S1",
+       "toman": 40000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "calculatedAmount": 100000,
+       "remainingForStage": 60000,
+       "isFull": false,
+       "balanceAfter": 60000
+      },
+      {
+       "key": "S2",
+       "row": "S2",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
+       },
+       "calculatedAmount": 50000,
+       "remainingForStage": 0,
+       "isFull": false,
+       "balanceAfter": 60000
+      }
+     ],
+     "commissionIncomes": [
+      {
+       "settlement": "S1",
+       "desc": "دریافت کمیسیون از پروژه آزمون",
+       "toman": 40000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "category": "کمیسیون",
+       "subcategory": "پروژه آزمون",
+       "accountId": "personal",
+       "accountName": "پروژه آزمون"
+      },
+      {
+       "settlement": "S2",
+       "desc": "دریافت کمیسیون از پروژه آزمون",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
+       },
+       "category": "کمیسیون",
+       "subcategory": "پروژه آزمون",
+       "accountId": "personal",
+       "accountName": "پروژه آزمون"
+      }
+     ]
+    },
+    {
+     "step": {
+      "op": "add",
+      "key": "E3",
+      "desc": "کاشی",
+      "toman": 200000,
+      "d": 5
+     },
+     "percent": 10,
+     "openBase": 200000,
+     "accrued": 20000,
+     "pastShortfall": 60000,
+     "remaining": 80000,
+     "settled": 90000,
+     "nextRowNumber": 6,
+     "lastRow": {
+      "num": 5,
+      "desc": "کاشی"
+     },
+     "ledgerTotal": 1790000,
+     "entryOrder": [
+      "E1",
+      "S1",
+      "E2",
+      "S2",
+      "E3"
+     ],
+     "rows": [
+      {
+       "key": "E1",
+       "kind": "expense",
+       "desc": "سیمان",
+       "toman": 1000000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 1
+       },
+       "subcategory": "عمومی"
+      },
+      {
+       "key": "S1",
+       "kind": "commission",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۱\" (سیمان) — مبلغ ۶۰.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است",
+       "toman": 40000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "subcategory": "تسویه"
+      },
+      {
+       "key": "E2",
+       "kind": "expense",
+       "desc": "گچ",
+       "toman": 500000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 3
+       },
+       "subcategory": "عمومی"
+      },
+      {
+       "key": "S2",
+       "kind": "commission",
+       "desc": "پرداخت کمیسیون تا ردیف هزینه \"۳\" (گچ) — مبلغ ۶۰.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
+       },
+       "subcategory": null
+      },
+      {
+       "key": "E3",
+       "kind": "expense",
+       "desc": "کاشی",
+       "toman": 200000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 5
+       },
+       "subcategory": "عمومی"
+      }
+     ],
+     "settlements": [
+      {
+       "key": "S1",
+       "row": "S1",
+       "toman": 40000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "calculatedAmount": 100000,
+       "remainingForStage": 60000,
+       "isFull": false,
+       "balanceAfter": 60000
+      },
+      {
+       "key": "S2",
+       "row": "S2",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
+       },
+       "calculatedAmount": 50000,
+       "remainingForStage": 0,
+       "isFull": false,
+       "balanceAfter": 60000
+      }
+     ],
+     "commissionIncomes": [
+      {
+       "settlement": "S1",
+       "desc": "دریافت کمیسیون از پروژه آزمون",
+       "toman": 40000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 2
+       },
+       "category": "کمیسیون",
+       "subcategory": "پروژه آزمون",
+       "accountId": "personal",
+       "accountName": "پروژه آزمون"
+      },
+      {
+       "settlement": "S2",
+       "desc": "دریافت کمیسیون از پروژه آزمون",
+       "toman": 50000,
+       "date": {
+        "jy": 1405,
+        "jm": 7,
+        "jd": 4
        },
        "category": "کمیسیون",
        "subcategory": "پروژه آزمون",

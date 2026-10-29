@@ -1,3 +1,5 @@
+import Foundation
+
 // Commission engine with the two rules the owner approved (2026-10-28/29).
 //
 // (1) Coverage: a payment covers every expense entered before it (by entry order `ts`).
@@ -8,8 +10,8 @@
 //     The balance is stored as a delta in `remainingForStage`, so the web app (which
 //     sums remainingForStage) shows the same balance when it restores an iOS backup.
 //
-// Kept from the web app on purpose (decision D16 still open): editing the amount of a
-// payment does not recompute calculatedAmount / remainingForStage / isFull.
+// D16 (approved): editing the amount of a payment recomputes the balance of that payment
+// and every later one; calculatedAmount is kept.
 //
 // The golden reference is phase1/expected/commission_corrected.json.
 
@@ -175,17 +177,7 @@ public struct CommissionLedger: Sendable {
             let pct = Money.persianDigits(Money.jsNumberString(percent))
             descBase = percent != 0 ? "پرداخت کمیسیون (\(pct)٪)" : "پرداخت کمیسیون"
         }
-        let desc: String
-        if balanceAfter > 0 {
-            let amountText = Money.persianDigits(Money.format(balanceAfter))
-            desc = "\(descBase) — مبلغ \(amountText) از تسویه این مرحله از کمیسیون باقی مانده است"
-        } else if balanceAfter < 0 {
-            // wording PROPOSED, not yet approved by the owner
-            let amountText = Money.persianDigits(Money.format(-balanceAfter))
-            desc = "\(descBase) تسویه کامل — مبلغ \(amountText) اضافه پرداخت، از کمیسیون بعدی کم می‌شود"
-        } else {
-            desc = "\(descBase) تسویه کامل"
-        }
+        let desc = Self.balanceText(descBase, balanceAfter)
 
         let s = Settlement(key: key, toman: amount, date: date, ts: ts, calculatedAmount: calc,
                            remainingForStage: rem, isFull: isFull, balanceAfter: balanceAfter)
@@ -211,6 +203,49 @@ public struct CommissionLedger: Sendable {
             for j in incomes.indices where incomes[j].settlement == c {
                 incomes[j].toman = r.toman
                 incomes[j].date = r.date
+            }
+            if toman != nil, let edited = settlements.first(where: { $0.key == c }) {
+                recomputeBalance(from: edited)
+            }
+        }
+    }
+
+    // MARK: D16 (approved 2026-10-29)
+
+    /// Row text for a payment: base + balance suffix (debt / full / credit).
+    static func balanceText(_ base: String, _ balanceAfter: Int) -> String {
+        if balanceAfter > 0 {
+            let amountText = Money.persianDigits(Money.format(balanceAfter))
+            return "\(base) — مبلغ \(amountText) از تسویه این مرحله از کمیسیون باقی مانده است"
+        } else if balanceAfter < 0 {
+            // wording PROPOSED, not yet approved by the owner
+            let amountText = Money.persianDigits(Money.format(-balanceAfter))
+            return "\(base) تسویه کامل — مبلغ \(amountText) اضافه پرداخت، از کمیسیون بعدی کم می‌شود"
+        }
+        return "\(base) تسویه کامل"
+    }
+
+    static let balanceSuffix = " — مبلغ [۰-۹.]+ از تسویه این مرحله از کمیسیون باقی مانده است$| تسویه کامل — مبلغ [۰-۹.]+ اضافه پرداخت، از کمیسیون بعدی کم می‌شود$| تسویه کامل$"
+
+    /// Editing a payment amount recomputes the balance of that payment and of every later payment
+    /// (entry order). calculatedAmount is kept (the percent at that time is not stored); earlier payments
+    /// are untouched; the balance suffix of each affected row text is rewritten.
+    private mutating func recomputeBalance(from edited: Settlement) {
+        let liveKeys = Set(rows.compactMap(\.commission))
+        let order = settlements.indices.filter { liveKeys.contains(settlements[$0].key) }
+            .sorted { settlements[$0].ts < settlements[$1].ts }
+        var before = order.filter { settlements[$0].ts < edited.ts }.reduce(0) { $0 + settlements[$1].remainingForStage }
+        for si in order where settlements[si].ts >= edited.ts {
+            let due = settlements[si].calculatedAmount + before
+            let ba = due - settlements[si].toman
+            settlements[si].balanceAfter = ba
+            settlements[si].isFull = settlements[si].toman >= due
+            settlements[si].remainingForStage = ba - before
+            before = ba
+            if let ri = rows.firstIndex(where: { $0.commission == settlements[si].key }),
+               let range = rows[ri].desc.range(of: Self.balanceSuffix, options: .regularExpression) {
+                let base = String(rows[ri].desc[..<range.lowerBound])
+                rows[ri].desc = Self.balanceText(base, ba)
             }
         }
     }

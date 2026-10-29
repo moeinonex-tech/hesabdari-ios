@@ -14,8 +14,8 @@ The native SwiftUI port of the web app «دفتر حساب». Builds run in the 
 
 | File | Source | md5 |
 |---|---|---|
-| `commission_corrected.json` | phase1 `model/build_expected.js`. In web mode the model matches the real web app 1326/1326. The approved-rule values were checked by hand. | `90213e2c73ef388bd82e69412ab5b456` |
-| `commission_scenarios.json` | phase1 scenarios G01–G21 | `0b5e899edc126e585f5ed29d36ab608c` |
+| `commission_corrected.json` | phase1 `model/build_expected.js`. In web mode the model matches the real web app 1326/1326. The approved-rule values were checked by hand. | `2162b4a219301bf4535346da3172fe84` |
+| `commission_scenarios.json` | phase1 scenarios G01–G22 | `8d9bb7dabbc6eda082f0069333348683` |
 | `jalali_days.csv` | The web app's own functions for 1990–2060. 0 mismatches against ICU. | `47a3749ea9ed39b134b1f1486d672587` |
 
 Reference web app: `app.html`, md5 `80e0be42399b1410a518d4c43a8deb72`.
@@ -28,7 +28,8 @@ Reference web app: `app.html`, md5 `80e0be42399b1410a518d4c43a8deb72`.
    - Overpayment becomes credit that reduces the next commission.
    - A full settlement leaves the balance at 0.
    - The balance is stored as a delta in `remainingForStage`, so the web app shows the same balance when it restores an iOS backup.
+3. **D16 (approved):** editing a payment amount recomputes the balance of that payment and every later one. `calculatedAmount` is kept.
 
 ## Open decisions
 
-D1–D4, D9, D14 and D16 are listed in phase1 `DECISIONS.md`. One is still visible in this code: editing a payment amount does not recompute the balance (D16, currently kept as in the web app).
+D1–D4, D9 and D14 are listed in phase1 `DECISIONS.md`. They affect import of existing data, not this engine.
