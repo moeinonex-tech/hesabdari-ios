@@ -6,11 +6,13 @@ import HesabStore
 struct HesabdariApp: App {
     @StateObject private var model = AppModel()
 
+    init() {
+        AppFont.configureUIKit()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView(model: model)
-                .environment(\.layoutDirection, .rightToLeft)
-                .environment(\.locale, Locale(identifier: "fa_IR"))
         }
     }
 }

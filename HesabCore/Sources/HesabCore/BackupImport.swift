@@ -352,7 +352,7 @@ public enum ImportAnalyzer {
 // MARK: - export
 
 public enum BackupExporter {
-    static let months = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"]
+    public static let months = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"]
 
     /// Web `formatJalaliDate`: «۸ آبان ۱۴۰۵».
     public static func formatJalali(_ d: JalaliDate) -> String {

@@ -13,7 +13,7 @@ packages:
 
 settings:
   base:
-    MARKETING_VERSION: "0.3.0"
+    MARKETING_VERSION: "0.4.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: "${TEAM_ID}"
@@ -25,6 +25,8 @@ targets:
     sources:
       - App/Sources
       - App/Assets.xcassets
+      - path: App/Fonts
+        buildPhase: resources
     dependencies:
       - package: HesabCore
         product: HesabCore
@@ -50,4 +52,9 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
+        UIAppFonts:
+          - Vazirmatn-Regular.ttf
+          - Vazirmatn-Medium.ttf
+          - Vazirmatn-Bold.ttf
+          - Vazirmatn-ExtraBold.ttf
         NSFaceIDUsageDescription: برای باز کردن دفتر حساب با Face ID
