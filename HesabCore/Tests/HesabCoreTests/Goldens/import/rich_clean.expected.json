@@ -1,0 +1,33 @@
+{
+ "source": {
+  "app": "app.html",
+  "md5": "80e0be42399b1410a518d4c43a8deb72"
+ },
+ "valid": true,
+ "summary": [
+  "حساب‌های دفتر: ۱",
+  "ردیف‌های دفتر حساب: ۶",
+  "هزینه‌های شخصی: ۱",
+  "درآمدها: ۲",
+  "چک‌ها: ۱",
+  "بدهکار/طلبکار: ۱ نفر (۱ قسط)",
+  "قرارها: ۱",
+  "کارت‌ها: ۱"
+ ],
+ "accounts": [
+  {
+   "id": "aT",
+   "name": "پروژه آزمون",
+   "rows": 6,
+   "expenseTotal": 3170111,
+   "tankhahTotal": 3000000,
+   "percent": 10,
+   "openBase": 2070000,
+   "accrued": 207000,
+   "pastShortfall": 0,
+   "settled": 100000
+  }
+ ],
+ "personalTotal": 400000,
+ "incomeTotal": 5100000
+}

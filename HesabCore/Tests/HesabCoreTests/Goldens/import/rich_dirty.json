@@ -1,0 +1,463 @@
+{
+  "__appBackup": "hesabdari-full",
+  "version": 1,
+  "exportedAtIso": "2026-10-20T06:30:00.000Z",
+  "exportedAtJalali": "۲۸ مهر ۱۴۰۵",
+  "state": {
+    "accounts": [
+      {
+        "id": "aT",
+        "name": "پروژه آزمون",
+        "commissionPercent": 10,
+        "commissionEnabled": true,
+        "budget": 20000000,
+        "xFutureAccount": true,
+        "commissionSettlements": [
+          {
+            "id": "s1",
+            "toman": 100000,
+            "date": {
+              "jy": 1405,
+              "jm": 7,
+              "jd": 5
+            },
+            "ts": 1760000005000,
+            "expenseId": "eS1",
+            "calculatedAmount": 100000,
+            "remainingForStage": 0,
+            "isFull": true
+          }
+        ]
+      }
+    ],
+    "activeAccountId": "aT",
+    "mainTab": "ledger",
+    "expenses": [
+      {
+        "id": "e1",
+        "accountId": "aT",
+        "type": "expense",
+        "desc": "سیمان",
+        "toman": 1000000,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 1
+        },
+        "ts": 1760000001000,
+        "category": "مصالح",
+        "subcategory": "سیمان",
+        "payMethod": "hamrahbank",
+        "xFutureRow": "keep-me",
+        "partyId": null
+      },
+      {
+        "id": "eS1",
+        "accountId": "aT",
+        "type": "expense",
+        "desc": "پرداخت کمیسیون تسویه کامل",
+        "toman": 100000,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 5
+        },
+        "ts": 1760000005000,
+        "category": "کمیسیون",
+        "commissionSettlementId": "s1",
+        "partyId": null
+      },
+      {
+        "id": "eTk",
+        "accountId": "aT",
+        "type": "tankhah",
+        "desc": "تنخواه",
+        "toman": 3000000,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 2
+        },
+        "ts": 1760000002000,
+        "partyId": "tp1"
+      },
+      {
+        "id": "eNoTs",
+        "accountId": "aT",
+        "type": "expense",
+        "desc": "ردیف بدون ts",
+        "toman": 250000,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 3
+        },
+        "category": "مصالح",
+        "partyId": null
+      },
+      {
+        "id": "eDup",
+        "accountId": "aT",
+        "type": "expense",
+        "desc": "تکراری الف",
+        "toman": 111,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 4
+        },
+        "ts": 1760000004000,
+        "category": "مصالح",
+        "subcategory": "x",
+        "partyId": null
+      },
+      {
+        "id": "eDup",
+        "accountId": "aT",
+        "type": "expense",
+        "desc": "تکراری ب",
+        "toman": 222,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 4
+        },
+        "ts": 1760000004500,
+        "category": "مصالح",
+        "subcategory": "x",
+        "partyId": null
+      },
+      {
+        "id": "eChk",
+        "accountId": "aT",
+        "type": "expense",
+        "desc": "چک آهن",
+        "toman": 2000000,
+        "date": {
+          "jy": 1405,
+          "jm": 8,
+          "jd": 10
+        },
+        "ts": 1760000006000,
+        "payMethod": "check",
+        "linked": {
+          "kind": "check",
+          "status": "pending",
+          "checkId": "c1"
+        },
+        "partyId": null
+      }
+    ],
+    "personalExpenses": [
+      {
+        "id": "p1",
+        "desc": "خرید خانه",
+        "toman": 400000,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 6
+        },
+        "ts": 1760000007000,
+        "category": "خانه",
+        "subcategory": "لوازم"
+      }
+    ],
+    "incomes": [
+      {
+        "id": "i1",
+        "desc": "دریافت کمیسیون از پروژه آزمون",
+        "toman": 100000,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 5
+        },
+        "ts": 1760000005001,
+        "category": "کمیسیون",
+        "subcategory": "پروژه آزمون",
+        "accountId": "personal",
+        "accountName": "پروژه آزمون",
+        "source": "commission",
+        "commissionSettlementId": "s1"
+      },
+      {
+        "id": "i2",
+        "desc": "حقوق",
+        "toman": 5000000,
+        "date": {
+          "jy": 1405,
+          "jm": 7,
+          "jd": 1
+        },
+        "ts": 1760000000500,
+        "category": "حقوق",
+        "subcategory": "ماهانه",
+        "accountId": "aT",
+        "accountName": "پروژه آزمون",
+        "source": "manual",
+        "commissionSettlementId": null
+      }
+    ],
+    "reminderChecks": [
+      {
+        "id": "c1",
+        "amount": 2000000,
+        "party": "آهن‌فروشی",
+        "dueDate": {
+          "jy": 1405,
+          "jm": 8,
+          "jd": 10
+        },
+        "status": "pending",
+        "accountId": "aT",
+        "linkedExpenseId": "eChk",
+        "muted": false,
+        "alertShown3d": false,
+        "checkNumber": "987",
+        "bankName": "ملت",
+        "xFutureCheck": 1,
+        "calendarAdded": false,
+        "calendarEventId": null,
+        "calendarSeq": 0,
+        "category": "",
+        "tankhahAccountId": null,
+        "sourceKind": "expense",
+        "direction": "pay"
+      }
+    ],
+    "reminderPersons": [
+      {
+        "id": "pp1",
+        "name": "طلبکار",
+        "type": "creditor",
+        "installments": [
+          {
+            "id": "ii1",
+            "amount": 300000,
+            "description": "قسط",
+            "dueDate": {
+              "jy": 1405,
+              "jm": 8,
+              "jd": 1
+            },
+            "paid": false,
+            "paidDate": null,
+            "accountId": null,
+            "linkedExpenseId": null,
+            "muted": false,
+            "alertShown3d": true
+          }
+        ]
+      }
+    ],
+    "appointments": [
+      {
+        "id": "apt1",
+        "title": "جلسه با کارفرما",
+        "date": {
+          "jy": 1405,
+          "jm": 8,
+          "jd": 3
+        },
+        "time": "10:30",
+        "note": "",
+        "kind": "work",
+        "apptType": "meeting",
+        "projectId": "aT",
+        "done": false,
+        "projectManualName": "",
+        "location": {
+          "label": "",
+          "lat": null,
+          "lng": null
+        }
+      }
+    ],
+    "parties": [
+      {
+        "id": "party1",
+        "fullName": "آهن‌فروشی",
+        "nationalCode": "",
+        "mobile": "",
+        "cardNumber": "",
+        "accountNumber": "",
+        "iban": "",
+        "bankName": "",
+        "createdAt": 1
+      }
+    ],
+    "tankhahParties": [
+      {
+        "id": "tp1",
+        "type": "person",
+        "name": "تنخواه‌دار"
+      }
+    ],
+    "lastBackupTs": 1793314109515,
+    "lastTextBackupTs": 1793314109515,
+    "zFutureRootField": {
+      "note": "فیلد ناشناخته در ریشه",
+      "n": 7
+    },
+    "cards": [
+      {
+        "id": "crd1",
+        "bankName": "ملت",
+        "bankKey": "mellat",
+        "cardNumber": "6104337812345678",
+        "last4": "5678",
+        "accountNumber": "",
+        "iban": "IR000000000000000000000000",
+        "accountType": "جاری",
+        "cvv": "123",
+        "expiry": "05/08",
+        "holderName": "نمونه",
+        "archived": false,
+        "isDefault": true
+      }
+    ],
+    "ledgerCategories": [
+      "مصالح",
+      "کمیسیون"
+    ],
+    "ledgerKeywordMap": {
+      "مصالح": [
+        "سیمان"
+      ]
+    },
+    "personalCategories": [
+      "خانه"
+    ],
+    "personalBudget": 1000000,
+    "customQuotes": [
+      {
+        "id": "q1",
+        "text": "نمونه",
+        "author": ""
+      }
+    ],
+    "starredWalletTab": null,
+    "pageTransitionEffect": "slide",
+    "pageTransitionSpeed": "default",
+    "bgCustom": {
+      "light": null,
+      "dark": null
+    },
+    "themeMode": "system",
+    "glassOpacity": 50,
+    "dockGlass": 50,
+    "stripGlass": 50,
+    "dockIconStroke": 50,
+    "dockIconColorInactive": "",
+    "dockIconColorActive": "",
+    "uiFontFamily": "default",
+    "uiFontScale": 50,
+    "mainTitleFontFamily": "default",
+    "mainTitleFontScale": 50,
+    "mainSubtitleFontFamily": "default",
+    "mainSubtitleFontScale": 50,
+    "homeCardEffect": "default",
+    "quoteTypewriterEnabled": true,
+    "quoteTypewriterSpeed": "normal",
+    "reportsNumberRevealEnabled": true,
+    "reportsNumberRevealSpeed": "normal",
+    "editLockPassword": "",
+    "categoryColors": {
+      "مصالح": "#FF7A00",
+      "کمیسیون": "#FFC400",
+      "خانه": "#FF3366"
+    },
+    "categoryColorsIncome": {
+      "تنخواه‌دار": "#22C55E"
+    },
+    "personalKeywordMap": {},
+    "ledgerDescMap": {},
+    "personalDescMap": {},
+    "ledgerSubcategories": {},
+    "ledgerSubDescMap": {},
+    "ledgerSubKeywordMap": {},
+    "incomeCategories": [],
+    "incomeDescMap": {},
+    "incomeKeywordMap": {},
+    "incomeSubcategories": {},
+    "incomeSubDescMap": {},
+    "incomeSubKeywordMap": {},
+    "personalSubcategories": {},
+    "personalSubDescMap": {},
+    "personalSubKeywordMap": {},
+    "checkParties": [],
+    "lastCardByAccount": {},
+    "cwAccountTypes": [
+      "جاری",
+      "جاری با دسته‌چک",
+      "قرض‌الحسنه",
+      "کوتاه‌مدت",
+      "بلندمدت",
+      "مشترک",
+      "ارزی"
+    ],
+    "homeWidgets": {
+      "date": true,
+      "activity": true,
+      "attention": true,
+      "shortcuts": true
+    },
+    "homeWidgetOrder": [
+      "date",
+      "activity",
+      "attention",
+      "shortcuts"
+    ],
+    "homeWidgetSizes": {
+      "date": "large",
+      "activity": "large",
+      "attention": "large",
+      "shortcuts": "large"
+    },
+    "reportsCardOrder": {
+      "global": [
+        "partyReportCard",
+        "partyReportEmptyCard",
+        "budgetOverviewCard",
+        "accountsCompareCard",
+        "commissionCompareCard",
+        "commissionLedgerReportCard"
+      ],
+      "ledger": [
+        "budgetCardL",
+        "chartCardL",
+        "cashFlowCard",
+        "catCardL",
+        "subcatRankCardL",
+        "tankhahPartyCardL",
+        "commissionLedgerReportCardL"
+      ],
+      "personal": [
+        "chartCardP",
+        "personalBudgetVsExpenseCard",
+        "budgetCardP",
+        "catCardP",
+        "subcatRankCardP"
+      ],
+      "reminders": [
+        "remSummaryCard",
+        "checksReportCard",
+        "reportsDebtorsCard",
+        "reportsCreditorsCard"
+      ],
+      "cards": [
+        "cwReportCard",
+        "cwReportEmptyCard"
+      ],
+      "income": [
+        "chartCardI",
+        "catCardI",
+        "subcatRankCardI",
+        "incomeVsLedgerExpenseCard",
+        "incomeVsPersonalExpenseCard"
+      ]
+    },
+    "homeShortcuts": []
+  }
+}

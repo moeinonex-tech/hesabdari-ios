@@ -42,6 +42,13 @@ public struct Settlement: Codable, Equatable, Sendable {
     public var remainingForStage: Int
     public var isFull: Bool
     public var balanceAfter: Int?
+
+    public init(key: String, toman: Int, date: JalaliDate, ts: Int, calculatedAmount: Int,
+                remainingForStage: Int, isFull: Bool, balanceAfter: Int? = nil) {
+        self.key = key; self.toman = toman; self.date = date; self.ts = ts
+        self.calculatedAmount = calculatedAmount; self.remainingForStage = remainingForStage
+        self.isFull = isFull; self.balanceAfter = balanceAfter
+    }
 }
 
 public struct CommissionIncome: Codable, Equatable, Sendable {

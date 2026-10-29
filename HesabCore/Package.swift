@@ -6,13 +6,21 @@ let package = Package(
     defaultLocalization: "fa",
     platforms: [.iOS(.v18), .macOS(.v15)],
     products: [
-        .library(name: "HesabCore", targets: ["HesabCore"])
+        .library(name: "HesabCore", targets: ["HesabCore"]),
+        .library(name: "HesabStore", targets: ["HesabStore"])
+    ],
+    dependencies: [
+        .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
     ],
     targets: [
         .target(name: "HesabCore"),
+        .target(
+            name: "HesabStore",
+            dependencies: ["HesabCore", .product(name: "GRDB", package: "GRDB.swift")]
+        ),
         .testTarget(
             name: "HesabCoreTests",
-            dependencies: ["HesabCore"],
+            dependencies: ["HesabCore", "HesabStore"],
             resources: [.copy("Goldens")]
         )
     ],
