@@ -69,12 +69,15 @@ struct WidgetGrid<Cell: View>: View {
                     if let f = lay.frames[key] {
                         let s = size(key)
                         let dragging = dragKey == key
-                        // steady jiggle: same speed always, alternate direction per widget
+                        // steady jiggle: fixed speed and a small fixed angle (0.27°), alternate direction per widget
                         let phase = Double(order.firstIndex(of: key) ?? 0)
-                        let angle = editing && !dragging ? sin(t * 2 * .pi * 3.2 + phase * 1.7) * 0.9 : 0
+                        let angle = editing && !dragging ? sin(t * 2 * .pi * 3.2 + phase * 1.7) * 0.27 : 0
+                        // in edit mode every widget shrinks a little around its own centre, so the gap between
+                        // neighbours grows (≥ 14 + 2·1.5% of the side) and the jiggle can never make them touch
+                        let editScale: CGFloat = editing && !dragging ? 0.97 : 1
                         widgetCell(key, s, CGSize(width: f.w, height: f.h), frames: lay.frames, order: order)
                             .rotationEffect(.degrees(angle))
-                            .scaleEffect(dragging ? 1.05 : 1)
+                            .scaleEffect(dragging ? 1.05 : editScale)
                             .shadow(color: .black.opacity(dragging ? 0.22 : 0), radius: 16, y: 8)
                             .offset(dragging ? CGSize(width: dragStart.x + dragTranslation.width - f.x,
                                                       height: dragStart.y + dragTranslation.height - f.y) : .zero)

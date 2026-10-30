@@ -320,39 +320,141 @@ struct HomeView: View {
         }
     }
 
+    // MARK: date widget — a calendar, not an empty box
+
+    private static let weekLetters = ["ش", "ی", "د", "س", "چ", "پ", "ج"]
+
+    /// Saturday-first weekday (0…6) of a Jalali date
+    private func weekday(_ j: JalaliDate) -> Int {
+        let g = Jalali.toGregorian(j)
+        return Jalali.weekdaySat0(g.gy, g.gm, g.gd)
+    }
+
+    /// the big day-number tile used by every size
+    private func dayTile(_ today: JalaliDate, side: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Text(BackupExporter.months[today.jm - 1])
+                .font(AppFont.bold(max(10, side * 0.13)))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: side * 0.26)
+                .background(LinearGradient(colors: [t.accent, t.accent2], startPoint: .leading, endPoint: .trailing))
+            Text(Money.persianDigits(String(today.jd)))
+                .font(AppFont.heavy(side * 0.46))
+                .foregroundStyle(t.ink)
+                .lineLimit(1).minimumScaleFactor(0.5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: side, height: side)
+        .background(t.card.opacity(0.85))
+        .clipShape(RoundedRectangle(cornerRadius: side * 0.22, style: .continuous))
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+    }
+
+    /// current week, Saturday → Friday, today highlighted
+    private func weekStrip(_ today: JalaliDate, width: CGFloat) -> some View {
+        let wd = weekday(today)
+        let todayN = Jalali.j2d(today.jy, today.jm, today.jd)
+        let cellW = width / 7
+        return HStack(spacing: 0) {
+            ForEach(0..<7, id: \.self) { i in
+                let d = Jalali.d2j(todayN - wd + i)
+                let isToday = i == wd
+                VStack(spacing: 3) {
+                    Text(Self.weekLetters[i]).font(AppFont.medium(11)).foregroundStyle(isToday ? .white.opacity(0.9) : t.soft)
+                    Text(Money.persianDigits(String(d.jd))).font(AppFont.bold(15)).foregroundStyle(isToday ? .white : t.ink)
+                }
+                .frame(width: cellW - 4, height: 46)
+                .background {
+                    if isToday {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(LinearGradient(colors: [t.accent, t.accent2], startPoint: .top, endPoint: .bottom))
+                    }
+                }
+                .frame(width: cellW)
+            }
+        }
+    }
+
+    /// whole current month, Saturday-first, today highlighted
+    private func monthGrid(_ today: JalaliDate, width: CGFloat, height: CGFloat) -> some View {
+        let first = JalaliDate(jy: today.jy, jm: today.jm, jd: 1)
+        let lead = weekday(first)
+        let len = Jalali.monthLength(today.jy, today.jm)
+        let rows = Int(((Double(lead + len)) / 7).rounded(.up))
+        let cellW = width / 7
+        let cellH = min(cellW, (height - 22) / CGFloat(rows))
+        return VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(0..<7, id: \.self) { i in
+                    Text(Self.weekLetters[i]).font(AppFont.medium(11)).foregroundStyle(i == 6 ? t.danger : t.soft).frame(width: cellW, height: 22)
+                }
+            }
+            ForEach(0..<rows, id: \.self) { r in
+                HStack(spacing: 0) {
+                    ForEach(0..<7, id: \.self) { c in
+                        let day = r * 7 + c - lead + 1
+                        ZStack {
+                            if day == today.jd {
+                                Circle().fill(LinearGradient(colors: [t.accent, t.accent2], startPoint: .top, endPoint: .bottom))
+                                    .frame(width: min(cellW, cellH) * 0.86, height: min(cellW, cellH) * 0.86)
+                            }
+                            if day >= 1 && day <= len {
+                                Text(Money.persianDigits(String(day)))
+                                    .font(AppFont.medium(min(15, cellH * 0.42)))
+                                    .foregroundStyle(day == today.jd ? .white : (c == 6 ? t.danger : t.ink))
+                            }
+                        }
+                        .frame(width: cellW, height: cellH)
+                    }
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func dateWidget(_ s: WidgetSize, _ inn: CGSize) -> some View {
-        let today = model.todayTitle
+        let title = model.todayTitle
+        let today = AppModel.today
         switch s {
         case .small:
-            VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: "calendar").font(.system(size: 22)).foregroundStyle(t.accent)
-                Spacer(minLength: 0)
-                Text(today.weekday).font(AppFont.heavy(28)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.6)
-                Text(today.date).font(AppFont.regular(13)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
+            // day tile on top, weekday + full date below — fills the square
+            let side = max(40, min(inn.width, inn.height - 50))
+            VStack(spacing: 4) {
+                dayTile(today, side: side)
+                Text(title.weekday).font(AppFont.heavy(17)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.7)
+                Text(Money.persianDigits(String(today.jy))).font(AppFont.regular(11)).foregroundStyle(t.soft)
             }
-            .frame(width: inn.width, height: inn.height, alignment: .leading)
+            .frame(width: inn.width, height: inn.height)
         case .medium:
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(today.weekday).font(AppFont.heavy(34)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.6)
-                    Text(today.date).font(AppFont.regular(16)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
+            // day tile + weekday/date on top line, the current week below
+            let tile = min(inn.height - 58, 86)
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    dayTile(today, side: tile)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title.weekday).font(AppFont.heavy(24)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.7)
+                        Text(title.date).font(AppFont.regular(13)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-                Image(systemName: "calendar").font(.system(size: 34)).foregroundStyle(t.accent)
-                    .frame(width: 72, height: 72)
-                    .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                weekStrip(today, width: inn.width)
             }
-            .frame(width: inn.width, height: inn.height)
+            .frame(width: inn.width, height: inn.height, alignment: .top)
         case .large:
-            VStack(spacing: 14) {
-                Image(systemName: "calendar").font(.system(size: 54)).foregroundStyle(t.accent)
-                    .frame(width: 110, height: 110)
-                    .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-                Text(today.weekday).font(AppFont.heavy(44)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.6)
-                Text(today.date).font(AppFont.regular(20)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
+            // header + the whole month
+            VStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    dayTile(today, side: 64)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title.weekday).font(AppFont.heavy(24)).foregroundStyle(t.ink).lineLimit(1)
+                        Text(title.date).font(AppFont.regular(13)).foregroundStyle(t.soft).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                monthGrid(today, width: inn.width, height: inn.height - 74)
             }
-            .frame(width: inn.width, height: inn.height)
+            .frame(width: inn.width, height: inn.height, alignment: .top)
         }
     }
 
@@ -462,7 +564,9 @@ struct HomeView: View {
                             }
                         }
                         .frame(width: r.w, height: r.h)
-                        .background(t.card.opacity(0.75), in: RoundedRectangle(cornerRadius: r.w * 0.24, style: .continuous))
+                        // same Liquid Glass as the settings / reports buttons: raised, glossy, with depth
+                        .glassEffect(.regular.tint(t.accent.opacity(0.06)), in: RoundedRectangle(cornerRadius: r.w * 0.28, style: .continuous))
+                        .shadow(color: .black.opacity(0.10), radius: 6, y: 4)
                         .position(x: r.x + r.w / 2, y: r.y + r.h / 2)
                     }
                 }
