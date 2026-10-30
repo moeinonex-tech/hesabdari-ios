@@ -42,22 +42,22 @@ struct RootView: View {
                             NavigationStack {
                                 HomeView(model: model, tab: $tab, ledgerSheet: $ledgerSheet, exportFile: $exportFile, showImporter: $showImporter)
                             }
-                            .modifier(TabSlide(tab: .home, current: tab))
+                            .modifier(TabFade(tab: .home, current: tab))
                         }
                         Tab("دفتر حساب", systemImage: "book.pages.fill", value: AppTab.ledger) {
-                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }.modifier(TabSlide(tab: .ledger, current: tab))
+                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }.modifier(TabFade(tab: .ledger, current: tab))
                         }
                         Tab("شخصی", systemImage: "person.crop.circle.fill", value: AppTab.personal) {
-                            NavigationStack { PersonalView(model: model) }.modifier(TabSlide(tab: .personal, current: tab))
+                            NavigationStack { PersonalView(model: model) }.modifier(TabFade(tab: .personal, current: tab))
                         }
                         Tab("یادآوری‌ها", systemImage: "bell.fill", value: AppTab.reminders) {
-                            NavigationStack { RemindersView(model: model) }.modifier(TabSlide(tab: .reminders, current: tab))
+                            NavigationStack { RemindersView(model: model) }.modifier(TabFade(tab: .reminders, current: tab))
                         }
                         Tab("کیف کارت", systemImage: "creditcard.fill", value: AppTab.cards) {
-                            NavigationStack { CardsView(model: model) }.modifier(TabSlide(tab: .cards, current: tab))
+                            NavigationStack { CardsView(model: model) }.modifier(TabFade(tab: .cards, current: tab))
                         }
                         Tab("جستجو", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
-                            NavigationStack { SearchView(model: model) }.modifier(TabSlide(tab: .search, current: tab))
+                            NavigationStack { SearchView(model: model) }.modifier(TabFade(tab: .search, current: tab))
                         }
                     }
                 } else {
@@ -644,7 +644,7 @@ struct QuoteCard: View {
                 Text("— " + quote.author).font(AppFont.caption).foregroundStyle(t.soft)
             }
         }
-        .glassCard()
+        .glassCard(effect: true)
         .task(id: quote.id) {
             // web: the typewriter plays once per app session
             guard typewriter, !reduceMotion, !QuoteCard.typedOnce else { shown = chars.count; return }

@@ -71,32 +71,23 @@ struct CardEffect: ViewModifier {
     }
 }
 
-// MARK: - tab switching (Telegram-style slide)
+// MARK: - tab switching: a soft fade (pages pushed inside a tab keep the normal iOS slide)
 
-enum TabOrder {
-    static let order: [AppTab] = [.home, .ledger, .personal, .reminders, .cards, .search]
-    static func index(_ t: AppTab) -> Int { order.firstIndex(of: t) ?? 0 }
-}
-
-/// The page that becomes visible slides in from the side of the tab you came from (tabs run right→left in RTL),
-/// with a short spring — like switching chat folders in Telegram.
-struct TabSlide: ViewModifier {
+struct TabFade: ViewModifier {
     let tab: AppTab
     let current: AppTab
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var x: CGFloat = 0
+    @State private var shown = true
 
     func body(content: Content) -> some View {
         content
-            .offset(x: x)
-            .onChange(of: current) { old, now in
+            .opacity(shown ? 1 : 0)
+            .scaleEffect(shown ? 1 : 0.985)
+            .onChange(of: current) { _, now in
                 guard now == tab, !reduceMotion else { return }
-                // RTL: a tab further along the bar sits to the left → the new page enters from the left
-                let forward = TabOrder.index(now) > TabOrder.index(old)
-                let w = UIScreen.main.bounds.width
                 var tr = Transaction(); tr.disablesAnimations = true
-                withTransaction(tr) { x = forward ? -w * 0.35 : w * 0.35 }
-                DispatchQueue.main.async { withAnimation(.spring(duration: 0.34, bounce: 0.12)) { x = 0 } }
+                withTransaction(tr) { shown = false }
+                DispatchQueue.main.async { withAnimation(.easeInOut(duration: 0.32)) { shown = true } }
             }
     }
 }
@@ -113,7 +104,7 @@ struct AppearanceSection: View {
 
     var body: some View {
         Section {
-            Picker("افکت کارت‌ها", selection: $cardFx) {
+            Picker("افکت کارت‌های خانه", selection: $cardFx) {
                 ForEach(CardFx.allCases) { Text($0.title).tag($0.rawValue) }
             }
             VStack(alignment: .leading, spacing: 6) {

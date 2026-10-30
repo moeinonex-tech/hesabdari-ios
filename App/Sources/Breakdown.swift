@@ -98,21 +98,23 @@ private struct Donut: View {
     @Environment(\.theme) private var t
     var body: some View {
         Chart(Array(slices.enumerated()), id: \.element.id) { i, s in
+            // the slice under the «clock hand» grows outward; nothing fades
             SectorMark(angle: .value("مبلغ", s.total),
-                       innerRadius: .ratio(i == highlight ? 0.56 : 0.62),
-                       outerRadius: .ratio(i == highlight ? 1.0 : 0.9),
+                       innerRadius: .ratio(i == highlight ? 0.5 : 0.6),
+                       outerRadius: .ratio(i == highlight ? 1.0 : 0.84),
                        angularInset: 1.2)
                 .cornerRadius(3)
                 .foregroundStyle(s.color)
-                .opacity(highlight == nil || i == highlight ? 1 : 0.55)
         }
         .chartLegend(.hidden)
         .frame(width: side, height: side)
         .overlay {
             VStack(spacing: 0) {
                 if let h = highlight, h < slices.count {
-                    Text(slices[h].name).font(AppFont.bold(11)).foregroundStyle(slices[h].color).lineLimit(1)
-                        .frame(maxWidth: side * 0.5)
+                    Text(slices[h].name).font(AppFont.heavy(13)).foregroundStyle(slices[h].color)
+                        .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.75)
+                        .frame(maxWidth: side * 0.56)
+                        .shadow(color: .white.opacity(0.8), radius: 2)
                 } else {
                     Text(Fmt.count(slices.count)).font(AppFont.heavy(20)).foregroundStyle(t.ink)
                     Text(label).font(AppFont.caption).foregroundStyle(t.soft)

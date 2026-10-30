@@ -147,15 +147,6 @@ extension AppModel {
                                       info: info, header: cells.first ?? [], widths: widths, rows: body, totalRow: total))
     }
 
-    func ledgerPDF(accountId: String, range: DateRange?) -> ExportFile? {
-        guard let a = accounts.first(where: { $0.id == accountId }) else { return nil }
-        var info: [(String, String)] = [("بازه", rangeText(range)), ("جمع هزینه‌ها", Fmt.toman(a.expenseTotal))]
-        if a.tankhahTotal != 0 { info.append(("جمع تنخواه", Fmt.toman(a.tankhahTotal))) }
-        if a.commissionEnabled || a.percent != 0 { info.append(("مانده‌ی کمیسیون (" + Fmt.percent(a.percent) + ")", Fmt.balance(a.remaining))) }
-        let data = pdf("دفتر حساب — " + a.name, rows: ExportBuilder.ledger(state, accountId: accountId, range: range),
-                       widths: [1.1, 0.8, 1.2, 3.4, 1.5], info: info)
-        return exportFile(name: "دفتر حساب - " + a.name + " - " + Self.todayTag() + ".pdf", data: data)
-    }
 
     func ledgerExcel(accountIds: [String], range: DateRange?) -> ExportFile? {
         let sheets = accountIds.compactMap { id -> (name: String, rows: [[ExportCell]])? in
@@ -166,28 +157,13 @@ extension AppModel {
         return exportFile(name: "دفتر حساب - " + name + " - " + Self.todayTag() + ".xlsx", data: XLSXWriter.make(sheets: sheets))
     }
 
-    func personalPDF(range: DateRange?) -> ExportFile? {
-        exportFile(name: "هزینه‌های شخصی - " + Self.todayTag() + ".pdf",
-                   data: pdf("هزینه‌های شخصی", rows: ExportBuilder.personal(state, range: range), widths: [1.1, 1.3, 3.6, 1.6],
-                             info: [("بازه", rangeText(range))]))
-    }
     func personalExcel(range: DateRange?) -> ExportFile? {
         exportFile(name: "هزینه‌های شخصی - " + Self.todayTag() + ".xlsx",
                    data: XLSXWriter.make(sheets: [("هزینه‌های شخصی", ExportBuilder.personal(state, range: range))]))
     }
-    func incomePDF(range: DateRange?) -> ExportFile? {
-        exportFile(name: "درآمد - " + Self.todayTag() + ".pdf",
-                   data: pdf("درآمد", rows: ExportBuilder.income(state, range: range), widths: [1.1, 1.2, 1.1, 1.2, 2.6, 1.5],
-                             info: [("بازه", rangeText(range))]))
-    }
     func incomeExcel(range: DateRange?) -> ExportFile? {
         exportFile(name: "درآمد - " + Self.todayTag() + ".xlsx",
                    data: XLSXWriter.make(sheets: [("درآمد", ExportBuilder.income(state, range: range))]))
-    }
-    func remindersPDF(range: DateRange?) -> ExportFile? {
-        exportFile(name: "چک‌ها - " + Self.todayTag() + ".pdf",
-                   data: pdf("گزارش چک‌ها", rows: ExportBuilder.checks(state, range: range),
-                             widths: [1.1, 0.9, 1.4, 0.8, 1.0, 1.6, 1.4, 1.1], info: [("بازه", rangeText(range))]))
     }
     func remindersExcel(range: DateRange?) -> ExportFile? {
         exportFile(name: "یادآوری‌ها - " + Self.todayTag() + ".xlsx",

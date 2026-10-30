@@ -193,8 +193,8 @@ struct GlassCard: ViewModifier {
     @AppStorage(Look.glassKey) private var glass: Double = 0
     @AppStorage(Look.cardFxKey) private var cardFx = CardFx.none.rawValue
     var padding: CGFloat = 16
-    /// widgets apply the effect themselves (whole cell), so their inner card does not do it twice
-    var effect = true
+    /// the card effect is for the home page only (widgets get it per cell, the quote card asks for it)
+    var effect = false
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -222,7 +222,7 @@ struct GlassCard: ViewModifier {
 }
 
 extension View {
-    func glassCard(padding: CGFloat = 16, effect: Bool = true) -> some View { modifier(GlassCard(padding: padding, effect: effect)) }
+    func glassCard(padding: CGFloat = 16, effect: Bool = false) -> some View { modifier(GlassCard(padding: padding, effect: effect)) }
 }
 
 struct ScreenHeader: View {
