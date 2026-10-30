@@ -13,10 +13,18 @@ final class ReminderOpsTests: XCTestCase {
 
     private func rowKey(_ r: JSONValue) -> String {
         let d = ImportAnalyzer.date(r["date"])
-        return [r["desc"]?.stringValue ?? "", String(r["toman"]?.intValue ?? 0), "\(d.jy)/\(d.jm)/\(d.jd)",
-                r["accountId"]?.idString ?? "-", r["category"]?.stringValue ?? "", r["subcategory"]?.stringValue ?? "",
-                r["type"]?.stringValue ?? "", r["payMethod"]?.stringValue ?? "-",
-                r["linked"]?["kind"]?.stringValue ?? "-", r["linked"]?["status"]?.stringValue ?? "-"].joined(separator: "|")
+        var parts: [String] = []
+        parts.append(r["desc"]?.stringValue ?? "")
+        parts.append(String(r["toman"]?.intValue ?? 0))
+        parts.append("\(d.jy)/\(d.jm)/\(d.jd)")
+        parts.append(r["accountId"]?.idString ?? "-")
+        parts.append(r["category"]?.stringValue ?? "")
+        parts.append(r["subcategory"]?.stringValue ?? "")
+        parts.append(r["type"]?.stringValue ?? "")
+        parts.append(r["payMethod"]?.stringValue ?? "-")
+        parts.append(r["linked"]?["kind"]?.stringValue ?? "-")
+        parts.append(r["linked"]?["status"]?.stringValue ?? "-")
+        return parts.joined(separator: "|")
     }
 
     private func compare(_ st: [String: JSONValue], _ step: JSONValue, file: StaticString = #filePath, line: UInt = #line) {
@@ -24,18 +32,29 @@ final class ReminderOpsTests: XCTestCase {
         for key in ["expenses", "personalExpenses"] {
             XCTAssertEqual((st[key]?.arrayValue ?? []).map(rowKey), (step[key]?.arrayValue ?? []).map(rowKey), "\(label) \(key)", file: file, line: line)
         }
-        let checks = (st["reminderChecks"]?.arrayValue ?? []).map { c in
-            (c["status"]?.stringValue ?? "") + "|" + (c["linkedExpenseId"]?.idString == nil ? "unlinked" : "linked") + "|" + (c["accountId"]?.idString ?? "-")
+        func checkKey(_ c: JSONValue) -> String {
+            let status = c["status"]?.stringValue ?? ""
+            let linked = c["linkedExpenseId"]?.idString == nil ? "unlinked" : "linked"
+            let acc = c["accountId"]?.idString ?? "-"
+            return "\(status)|\(linked)|\(acc)"
         }
-        let webChecks = (step["reminderChecks"]?.arrayValue ?? []).map { c in
-            (c["status"]?.stringValue ?? "") + "|" + (c["linkedExpenseId"]?.idString == nil ? "unlinked" : "linked") + "|" + (c["accountId"]?.idString ?? "-")
-        }
+        let checks = (st["reminderChecks"]?.arrayValue ?? []).map(checkKey)
+        let webChecks = (step["reminderChecks"]?.arrayValue ?? []).map(checkKey)
         XCTAssertEqual(checks, webChecks, "\(label) checks", file: file, line: line)
+        func instKey(_ name: String, _ i: JSONValue) -> String {
+            let amount = i["amount"]?.intValue ?? 0
+            let paid = (i["paid"]?.isTruthy ?? false) ? "paid" : "open"
+            let linked = i["linkedExpenseId"]?.idString == nil ? "unlinked" : "linked"
+            let desc = i["description"]?.stringValue ?? ""
+            return "\(name)|\(amount)|\(paid)|\(linked)|\(desc)"
+        }
         func inst(_ ps: [JSONValue]) -> [String] {
-            ps.flatMap { p in (p["installments"]?.arrayValue ?? []).map { i in
-                (p["name"]?.stringValue ?? "") + "|" + String(i["amount"]?.intValue ?? 0) + "|" + ((i["paid"]?.isTruthy ?? false) ? "paid" : "open")
-                    + "|" + (i["linkedExpenseId"]?.idString == nil ? "unlinked" : "linked") + "|" + (i["description"]?.stringValue ?? "")
-            } }
+            var out: [String] = []
+            for p in ps {
+                let name = p["name"]?.stringValue ?? ""
+                for i in p["installments"]?.arrayValue ?? [] { out.append(instKey(name, i)) }
+            }
+            return out
         }
         XCTAssertEqual(inst(st["reminderPersons"]?.arrayValue ?? []), inst(step["reminderPersons"]?.arrayValue ?? []), "\(label) installments", file: file, line: line)
     }
