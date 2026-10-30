@@ -115,7 +115,7 @@ struct Dock: View {
 
     private func dockButtonBody(_ item: AppTab, _ title: String, _ icon: String) -> some View {
         let on = tab == item || (item == .home && tab == .cards)
-        Button {
+        return Button {
             select(item)
         } label: {
             VStack(spacing: 3) {
