@@ -19,6 +19,7 @@ public enum WidgetSize: String, CaseIterable, Sendable, Codable {
 
 public struct WidgetRect: Equatable, Sendable {
     public var x: Double, y: Double, w: Double, h: Double
+    public init(x: Double, y: Double, w: Double, h: Double) { self.x = x; self.y = y; self.w = w; self.h = h }
     public var maxX: Double { x + w }
     public var maxY: Double { y + h }
     public func contains(_ px: Double, _ py: Double) -> Bool { px >= x && px < maxX && py >= y && py < maxY }
