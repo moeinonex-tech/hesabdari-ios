@@ -33,12 +33,6 @@ targets:
       - package: HesabCore
         product: HesabStore
     scheme: {}
-    entitlements:
-      path: App/Hesabdari.entitlements
-      properties:
-        com.apple.developer.icloud-container-identifiers: [iCloud.uk.moein.hesabdari]
-        com.apple.developer.ubiquity-container-identifiers: [iCloud.uk.moein.hesabdari]
-        com.apple.developer.icloud-services: [CloudDocuments]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "${BUNDLE_ID}"
