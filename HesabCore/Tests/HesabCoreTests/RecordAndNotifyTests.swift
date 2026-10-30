@@ -45,7 +45,7 @@ final class RecordAndNotifyTests: XCTestCase {
         let plan = NotificationPlanner.plan(["reminderChecks": .array(checks)], now: Date(timeIntervalSince1970: 1_792_000_000),
                                             timeZone: TimeZone(identifier: "Asia/Tehran")!)
         XCTAssertEqual(plan.scheduled.count, 60)
-        XCTAssertEqual(plan.scheduled.first?.id, "cap0")
+        XCTAssertEqual(plan.scheduled.first?.id, "chk-cap0")
     }
 
     func testPersonalAndIncomeRecordsLikeWeb() throws {
