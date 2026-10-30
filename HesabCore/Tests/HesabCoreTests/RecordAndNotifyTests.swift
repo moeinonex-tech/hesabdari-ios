@@ -93,3 +93,39 @@ final class SearchTests: XCTestCase {
         XCTAssertTrue(SearchEngine.search(st, query: "zzz-nothing").isEmpty)
     }
 }
+
+final class SettingsOpsTests: XCTestCase {
+    func testQuoteHashMatchesWeb() {
+        // values from the web quoteHash32 (node)
+        XCTAssertEqual(SettingsOps.quoteHash32("custom-q1|0"), 2169972479)
+        XCTAssertEqual(SettingsOps.quoteHash32("custom-1700000000000-12|977"), 367492988)
+        XCTAssertEqual(SettingsOps.quoteHash32("جمله|3"), 2776771398)
+    }
+
+    func testEveryQuoteOncePerLap() {
+        var st: [String: JSONValue] = ["customQuotes": .array([])]
+        for i in 0..<5 { st = try! SettingsOps.addQuote(st, text: "جمله \(i)", author: "") }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/London")!
+        let start = cal.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 0))!   // slot divisible by 5? not needed
+        var seen: [String] = []
+        for k in 0..<10 { seen.append(SettingsOps.quoteOfNow(st, now: start.addingTimeInterval(Double(k) * 12 * 3600), calendar: cal)!.id) }
+        // within any 5 consecutive half days of one lap every quote appears exactly once
+        let days = Int((cal.startOfDay(for: start).timeIntervalSince1970 / 86400).rounded(.down))
+        let first = (5 - (days * 2) % 5) % 5
+        XCTAssertEqual(Set(seen[first..<first + 5]).count, 5)
+    }
+
+    func testCardSaveDropsCVVAndDetectsBank() throws {
+        XCTAssertEqual(SettingsOps.bank(forCardNumber: "۶۰۳۷۹۹۱۲۳۴۵۶۷۸۹۰")?.key, "melli")
+        let st: [String: JSONValue] = ["cards": .array([.object(["id": .string("c1"), "bankName": .string("ملت"), "cvv": .string("123")])])]
+        let out = try SettingsOps.saveCard(st, editingId: "c1", CardInput(bankName: "ملت", bankKey: "mellat", cardNumber: "6104 3378 1234 5678",
+            accountNumber: "", iban: "ir12", accountType: "جاری", expiryYear: 1409, expiryMonth: 5, holderName: "معین", bgColor: nil, bgImage: nil, archived: false))
+        let c = try XCTUnwrap(out["cards"]?.arrayValue?.first)
+        XCTAssertNil(c["cvv"])
+        XCTAssertEqual(c["cardNumber"]?.stringValue, "6104337812345678")
+        XCTAssertEqual(c["last4"]?.stringValue, "5678")
+        XCTAssertEqual(c["iban"]?.stringValue, "IR12")
+        XCTAssertEqual(SettingsOps.expiryText(c["expiry"]), "۱۴۰۹/۰۵")
+    }
+}

@@ -228,6 +228,7 @@ struct PersonalView: View {
     @Environment(\.theme) private var t
     @State private var showIncome = false
     @State private var sheet: PersonalSheet?
+    @State private var showBudget = false
 
     var body: some View {
         let rows = showIncome ? model.incomeRows : model.personalRows
@@ -242,7 +243,16 @@ struct PersonalView: View {
                 .pickerStyle(.segmented)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(showIncome ? "جمع درآمدها" : "جمع هزینه‌ها").font(AppFont.regular(13)).foregroundStyle(t.soft)
+                    HStack {
+                        Text(showIncome ? "جمع درآمدها" : "جمع هزینه‌ها").font(AppFont.regular(13)).foregroundStyle(t.soft)
+                        Spacer()
+                        if !showIncome {
+                            Button { showBudget = true } label: {
+                                Label(model.personalBudget > 0 ? "بودجه" : "تنظیم بودجه", systemImage: "target").font(AppFont.caption)
+                            }
+                            .buttonStyle(.glass)
+                        }
+                    }
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(Money.persianDigits(Money.format(total))).font(AppFont.heavy(30))
                             .foregroundStyle(showIncome ? t.success : t.accent).contentTransition(.numericText())
@@ -290,6 +300,12 @@ struct PersonalView: View {
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, 8) }
+        .sheet(isPresented: $showBudget) {
+            NavigationStack {
+                BudgetEditor(title: "بودجه‌ی شخصی", current: model.personalBudget) { _ = model.setPersonalBudget($0) }
+            }
+            .presentationDetents([.medium])
+        }
         .sheet(item: $sheet) { s in
             Themed {
                 NavigationStack {

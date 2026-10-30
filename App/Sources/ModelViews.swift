@@ -173,7 +173,7 @@ extension AppModel {
             }
             return WalletCard(id: id, bankName: c["bankName"]?.stringValue ?? "",
                               number: c["cardNumber"]?.idString ?? "", iban: c["iban"]?.stringValue ?? "",
-                              holder: c["holderName"]?.stringValue ?? "", expiry: c["expiry"]?.stringValue ?? "",
+                              holder: c["holderName"]?.stringValue ?? "", expiry: SettingsOps.expiryText(c["expiry"]),
                               accountType: c["accountType"]?.stringValue ?? "",
                               archived: c["archived"]?.isTruthy ?? false, image: image,
                               color: Color.web(c["bgColor"]?.stringValue))

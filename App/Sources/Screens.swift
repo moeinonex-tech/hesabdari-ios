@@ -157,8 +157,7 @@ struct HomeView: View {
 
     var body: some View {
         let greet = AppModel.greeting(hour: Calendar.current.component(.hour, from: Date()))
-        let today = model.todayTitle
-        let attention = model.attentionItems
+        let order = SettingsOps.widgetOrder(model.state).filter { SettingsOps.widgetVisible(model.state, $0) }
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
@@ -187,71 +186,12 @@ struct HomeView: View {
                     Text(greet.text + "، " + AppModel.ownerName).font(AppFont.bold(19)).foregroundStyle(t.ink)
                 }
 
-                // date
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(today.weekday).font(AppFont.heavy(22)).foregroundStyle(t.ink)
-                        Text(today.date).font(AppFont.regular(14)).foregroundStyle(t.soft)
-                    }
-                    Spacer()
-                    Image(systemName: "calendar")
-                        .font(.title2)
-                        .foregroundStyle(t.accent)
-                        .frame(width: 52, height: 52)
-                        .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .glassCard()
-
-                if !attention.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        SectionTitle(text: "نیازمند توجه")
-                        ForEach(attention) { item in
-                            AttentionRow(item: item)
-                        }
-                    }
-                    .glassCard()
+                if let q = SettingsOps.quoteOfNow(model.state) {
+                    QuoteCard(quote: q, typewriter: model.state["quoteTypewriterEnabled"]?.boolValue ?? true)
                 }
 
-                // ledgers summary
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "دفترها")
-                    ForEach(model.accounts) { a in
-                        Button {
-                            Haptics.tap()
-                            tab = .ledger
-                        } label: {
-                            AccountMiniCard(account: a, budget: model.budget(accountId: a.id))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .glassCard()
-
-                // shortcuts
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "میانبرها")
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-                        ShortcutTile(title: "ثبت هزینه", icon: "plus.circle.fill") { tab = .ledger; ledgerSheet = .new }
-                        ShortcutTile(title: "پرداخت کمیسیون", icon: "banknote.fill") { tab = .ledger; ledgerSheet = .settle }
-                        ShortcutTile(title: "کیف کارت", icon: "creditcard.fill") { tab = .cards }
-                        ShortcutTile(title: "خروجی پشتیبان", icon: "square.and.arrow.up.fill") { exportFile = model.makeExportFile() }
-                        ShortcutTile(title: "ثبت درآمد", icon: "arrow.down.circle.fill") { tab = .personal }
-                        ShortcutTile(title: "یادآوری‌ها", icon: "bell.fill") { tab = .reminders }
-                        ShortcutTile(title: "گزارش‌ها", icon: "chart.bar.xaxis") { showReports = true }
-                    }
-                }
-                .glassCard()
-
-                // recent activity
-                let recent = model.recentRows
-                if !recent.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        SectionTitle(text: "فعالیت اخیر")
-                        ForEach(recent) { item in
-                            LedgerRowLine(row: item.row, color: model.categoryColor(item.row.category), subtitle: item.account)
-                        }
-                    }
-                    .glassCard()
+                ForEach(order, id: \.self) { key in
+                    widget(key)
                 }
             }
             .padding(.horizontal, 16)
@@ -268,6 +208,115 @@ struct HomeView: View {
             ReportsView(model: model)
         }
         .onAppear { withAnimation(.spring(duration: 0.55)) { appeared = true } }
+    }
+
+    @ViewBuilder
+    private func widget(_ key: String) -> some View {
+        switch key {
+        case "date":
+            let today = model.todayTitle
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(today.weekday).font(AppFont.heavy(22)).foregroundStyle(t.ink)
+                    Text(today.date).font(AppFont.regular(14)).foregroundStyle(t.soft)
+                }
+                Spacer()
+                Image(systemName: "calendar")
+                    .font(.title2)
+                    .foregroundStyle(t.accent)
+                    .frame(width: 52, height: 52)
+                    .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .glassCard()
+        case "attention":
+            let attention = model.attentionItems
+            if !attention.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionTitle(text: "نیازمند توجه")
+                    ForEach(attention) { item in
+                        AttentionRow(item: item)
+                            .onTapGesture { tab = item.id.hasPrefix("budget") ? .ledger : .reminders }
+                    }
+                }
+                .glassCard()
+            }
+        case "financial":
+            VStack(alignment: .leading, spacing: 12) {
+                SectionTitle(text: "دفترها")
+                ForEach(model.accounts) { a in
+                    Button {
+                        Haptics.tap()
+                        tab = .ledger
+                    } label: {
+                        AccountMiniCard(account: a, budget: model.budget(accountId: a.id))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .glassCard()
+        case "shortcuts":
+            VStack(alignment: .leading, spacing: 12) {
+                SectionTitle(text: "میانبرها")
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                    ShortcutTile(title: "ثبت هزینه", icon: "plus.circle.fill") { tab = .ledger; ledgerSheet = .new }
+                    ShortcutTile(title: "پرداخت کمیسیون", icon: "banknote.fill") { tab = .ledger; ledgerSheet = .settle }
+                    ShortcutTile(title: "کیف کارت", icon: "creditcard.fill") { tab = .cards }
+                    ShortcutTile(title: "خروجی پشتیبان", icon: "square.and.arrow.up.fill") { exportFile = model.makeExportFile() }
+                    ShortcutTile(title: "ثبت درآمد", icon: "arrow.down.circle.fill") { tab = .personal }
+                    ShortcutTile(title: "یادآوری‌ها", icon: "bell.fill") { tab = .reminders }
+                    ShortcutTile(title: "گزارش‌ها", icon: "chart.bar.xaxis") { showReports = true }
+                    ShortcutTile(title: "جستجو", icon: "magnifyingglass") { tab = .search }
+                    ShortcutTile(title: "تنظیمات", icon: "paintpalette.fill") { showSettings = true }
+                }
+            }
+            .glassCard()
+        case "activity":
+            let recent = model.recentRows
+            if !recent.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionTitle(text: "فعالیت اخیر")
+                    ForEach(recent) { item in
+                        LedgerRowLine(row: item.row, color: model.categoryColor(item.row.category), subtitle: item.account)
+                    }
+                }
+                .glassCard()
+            }
+        default:
+            EmptyView()
+        }
+    }
+}
+
+struct QuoteCard: View {
+    let quote: Quote
+    let typewriter: Bool
+    @Environment(\.theme) private var t
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = 0
+    nonisolated(unsafe) static var typedOnce = false
+
+    var body: some View {
+        let chars = Array(quote.text)
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: "quote.opening").foregroundStyle(t.accent2)
+            Text(String(chars.prefix(shown)))
+                .font(AppFont.medium(16)).foregroundStyle(t.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if !quote.author.isEmpty {
+                Text("— " + quote.author).font(AppFont.caption).foregroundStyle(t.soft)
+            }
+        }
+        .glassCard()
+        .task(id: quote.id) {
+            // web: the typewriter plays once per app session
+            guard typewriter, !reduceMotion, !QuoteCard.typedOnce else { shown = chars.count; return }
+            QuoteCard.typedOnce = true
+            shown = 0
+            for i in 1...max(1, chars.count) {
+                try? await Task.sleep(nanoseconds: 35_000_000)
+                shown = i
+            }
+        }
     }
 }
 
@@ -395,6 +444,7 @@ struct LedgerHomeView: View {
     @Environment(\.theme) private var t
     @State private var selected: String?
     @State private var pendingLocked: (() -> Void)?
+    @State private var budgetAccount: String?
     @State private var showPassword = false
     @State private var password = ""
 
@@ -428,7 +478,7 @@ struct LedgerHomeView: View {
                 }
 
                 if let a = account {
-                    LedgerHero(account: a, budget: model.budget(accountId: a.id)) { sheet = .new }
+                    LedgerHero(account: a, budget: model.budget(accountId: a.id), onBudget: { budgetAccount = a.id }) { sheet = .new }
                     if a.commissionEnabled || a.percent != 0 {
                         CommissionCard(account: a) { sheet = .settle }
                     }
@@ -465,6 +515,12 @@ struct LedgerHomeView: View {
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, 8) }
+        .sheet(item: Binding(get: { budgetAccount.map { IdBox(id: $0) } }, set: { budgetAccount = $0?.id })) { b in
+            NavigationStack {
+                BudgetEditor(title: "بودجه‌ی دفتر", current: model.budget(accountId: b.id)) { _ = model.setAccountBudget(b.id, $0) }
+            }
+            .presentationDetents([.medium])
+        }
         .sheet(item: $sheet) { s in
             Themed {
                 NavigationStack {
@@ -513,12 +569,22 @@ struct LedgerHomeView: View {
 struct LedgerHero: View {
     let account: AccountImportSummary
     let budget: Int
+    var onBudget: (() -> Void)? = nil
     let onAdd: () -> Void
     @Environment(\.theme) private var t
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("جمع هزینه‌ها").font(AppFont.regular(13)).foregroundStyle(t.soft)
+            HStack {
+                Text("جمع هزینه‌ها").font(AppFont.regular(13)).foregroundStyle(t.soft)
+                Spacer()
+                if let onBudget {
+                    Button(action: onBudget) {
+                        Label(budget > 0 ? "بودجه" : "تنظیم بودجه", systemImage: "target").font(AppFont.caption)
+                    }
+                    .buttonStyle(.glass)
+                }
+            }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(Money.persianDigits(Money.format(account.expenseTotal)))
                     .font(AppFont.heavy(30))
@@ -650,13 +716,25 @@ struct CategoryChartCard: View {
 struct CardsView: View {
     @ObservedObject var model: AppModel
     @State private var showArchived = false
+    @State private var editing: IdBox?
+    @State private var confirmDelete: String?
     @Environment(\.theme) private var t
 
     var body: some View {
         let cards = model.walletCards.filter { $0.archived == showArchived }
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "کیف کارت", subtitle: "برای کپی شماره، روی آن بزنید")
+                HStack(alignment: .top) {
+                    ScreenHeader(title: "کیف کارت", subtitle: "برای کپی شماره، روی آن بزنید؛ برای ویرایش، نگه دارید")
+                    Button {
+                        Haptics.tap()
+                        editing = IdBox(id: "")
+                    } label: {
+                        Image(systemName: "plus").font(.title3).padding(10)
+                    }
+                    .buttonStyle(.glass)
+                    .padding(.top, 8)
+                }
                 Picker("", selection: $showArchived) {
                     Text("کارت‌های فعال").tag(false)
                     Text("بایگانی‌شده").tag(true)
@@ -667,6 +745,15 @@ struct CardsView: View {
                 }
                 ForEach(cards) { c in
                     BankCardView(card: c)
+                        .contextMenu {
+                            Button { editing = IdBox(id: c.id) } label: { Label("ویرایش", systemImage: "pencil") }
+                            Button {
+                                _ = model.setCardArchived(c.id, !c.archived)
+                            } label: {
+                                Label(c.archived ? "خروج از بایگانی" : "بایگانی", systemImage: c.archived ? "tray.and.arrow.up" : "archivebox")
+                            }
+                            Button(role: .destructive) { confirmDelete = c.id } label: { Label("حذف", systemImage: "trash") }
+                        }
                 }
             }
             .padding(.horizontal, 16)
@@ -674,8 +761,20 @@ struct CardsView: View {
         }
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $editing) { e in
+            NavigationStack { CardFormView(model: model, editingId: e.id.isEmpty ? nil : e.id) }
+        }
+        .confirmationDialog("این کارت حذف شود؟", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
+                            titleVisibility: .visible) {
+            Button("حذف", role: .destructive) {
+                if let id = confirmDelete { _ = model.deleteCard(id) }
+                confirmDelete = nil
+            }
+        }
     }
 }
+
+struct IdBox: Identifiable, Hashable { let id: String }
 
 struct BankCardView: View {
     let card: WalletCard
@@ -776,6 +875,21 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                NavigationLink {
+                    WidgetsSettingsView(model: model)
+                } label: {
+                    Label("ویجت‌های خانه", systemImage: "square.grid.2x2")
+                }
+                NavigationLink {
+                    QuotesSettingsView(model: model)
+                } label: {
+                    Label("جمله‌های انگیزشی", systemImage: "quote.bubble")
+                }
+            } header: {
+                Text("صفحه‌ی خانه").font(AppFont.medium(13))
+            }
+
             Section {
                 ForEach(Palette.allCases) { p in
                     let c = p.colors(scheme)
