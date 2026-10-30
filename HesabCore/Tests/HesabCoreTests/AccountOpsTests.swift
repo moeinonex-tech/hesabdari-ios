@@ -12,7 +12,11 @@ final class AccountOpsTests: XCTestCase {
 
     private func ids(_ v: JSONValue?) -> [String] { (v?.arrayValue ?? []).map { $0["id"]?.idString ?? "?" } }
     private func f(_ v: JSONValue?, _ keys: [String]) -> [String] {
-        (v?.arrayValue ?? []).map { o in keys.map { o[$0]?.idString ?? o[$0]?.stringValue ?? "null" }.joined(separator: "|") }
+        (v?.arrayValue ?? []).map { o in keys.map { k in
+            // the web load step fills missing text fields with "" — treat missing as ""
+            guard let v = o[k] else { return "" }
+            return v.idString ?? v.stringValue ?? "null"
+        }.joined(separator: "|") }
     }
 
     func testDeleteAccountMatchesWeb() throws {
