@@ -28,6 +28,7 @@ struct RootView: View {
     @State private var showImporter = false
     @State private var exportFile: ExportFile?
     @State private var tab: AppTab = .home
+    @AppStorage(AppLock.enabledKey) private var lockEnabled = true
     @State private var ledgerSheet: LedgerSheet?
     @StateObject private var lock = AppLock()
     @Environment(\.scenePhase) private var phase
@@ -41,21 +42,22 @@ struct RootView: View {
                             NavigationStack {
                                 HomeView(model: model, tab: $tab, ledgerSheet: $ledgerSheet, exportFile: $exportFile, showImporter: $showImporter)
                             }
+                            .modifier(TabSlide(tab: .home, current: tab))
                         }
                         Tab("دفتر حساب", systemImage: "book.pages.fill", value: AppTab.ledger) {
-                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }
+                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }.modifier(TabSlide(tab: .ledger, current: tab))
                         }
                         Tab("شخصی", systemImage: "person.crop.circle.fill", value: AppTab.personal) {
-                            NavigationStack { PersonalView(model: model) }
+                            NavigationStack { PersonalView(model: model) }.modifier(TabSlide(tab: .personal, current: tab))
                         }
                         Tab("یادآوری‌ها", systemImage: "bell.fill", value: AppTab.reminders) {
-                            NavigationStack { RemindersView(model: model) }
+                            NavigationStack { RemindersView(model: model) }.modifier(TabSlide(tab: .reminders, current: tab))
                         }
                         Tab("کیف کارت", systemImage: "creditcard.fill", value: AppTab.cards) {
-                            NavigationStack { CardsView(model: model) }
+                            NavigationStack { CardsView(model: model) }.modifier(TabSlide(tab: .cards, current: tab))
                         }
                         Tab("جستجو", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
-                            NavigationStack { SearchView(model: model) }
+                            NavigationStack { SearchView(model: model) }.modifier(TabSlide(tab: .search, current: tab))
                         }
                     }
                 } else {
@@ -65,7 +67,8 @@ struct RootView: View {
             .overlay {
                 if model.hasData && lock.locked {
                     LockScreen(lock: lock).transition(.opacity)
-                } else if phase != .active {
+                } else if phase != .active && model.hasData && lockEnabled {
+                    // hide the content in the app switcher only when the Face ID lock is on
                     PrivacyCover()
                 }
             }

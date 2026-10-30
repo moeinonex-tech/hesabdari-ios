@@ -94,19 +94,29 @@ private struct Donut: View {
     let slices: [CategorySlice]
     let label: String
     let side: CGFloat
+    let highlight: Int?          // the slice the «clock hand» is on
     @Environment(\.theme) private var t
     var body: some View {
-        Chart(slices) { s in
-            SectorMark(angle: .value("مبلغ", s.total), innerRadius: .ratio(0.62), angularInset: 1.2)
+        Chart(Array(slices.enumerated()), id: \.element.id) { i, s in
+            SectorMark(angle: .value("مبلغ", s.total),
+                       innerRadius: .ratio(i == highlight ? 0.56 : 0.62),
+                       outerRadius: .ratio(i == highlight ? 1.0 : 0.9),
+                       angularInset: 1.2)
                 .cornerRadius(3)
                 .foregroundStyle(s.color)
+                .opacity(highlight == nil || i == highlight ? 1 : 0.55)
         }
         .chartLegend(.hidden)
         .frame(width: side, height: side)
         .overlay {
             VStack(spacing: 0) {
-                Text(Fmt.count(slices.count)).font(AppFont.heavy(20)).foregroundStyle(t.ink)
-                Text(label).font(AppFont.caption).foregroundStyle(t.soft)
+                if let h = highlight, h < slices.count {
+                    Text(slices[h].name).font(AppFont.bold(11)).foregroundStyle(slices[h].color).lineLimit(1)
+                        .frame(maxWidth: side * 0.5)
+                } else {
+                    Text(Fmt.count(slices.count)).font(AppFont.heavy(20)).foregroundStyle(t.ink)
+                    Text(label).font(AppFont.caption).foregroundStyle(t.soft)
+                }
             }
         }
     }
@@ -139,81 +149,85 @@ private struct BreakdownRow: View {
     }
 }
 
-/// categories: ring + the full ranked list (web: ring + «cat-row» bars)
-struct CategoryChartCard: View {
+/// Ring + the top 5; a tap unfolds the rest with a spring, and the ring's «clock hand» sweeps once
+/// over every slice (each one grows as the hand passes) and stops after the last.
+struct BreakdownCard: View {
+    let title: String
+    let unit: String
     let slices: [CategorySlice]
-    var title = "تفکیک دسته‌ها"
+    @State private var open = false
+    @State private var hand: Int?
+    @State private var sweep: Task<Void, Never>?
     @Environment(\.theme) private var t
+    private let topCount = 5
 
     var body: some View {
         let total = slices.reduce(0) { $0 + $1.total }
         let mx = slices.map(\.total).max() ?? 0
+        let more = slices.count > topCount
         VStack(alignment: .leading, spacing: 14) {
-            SectionTitle(text: title)
+            HStack {
+                SectionTitle(text: title)
+                Spacer()
+                if more {
+                    HStack(spacing: 4) {
+                        Text(open ? "بستن" : "همه (" + Fmt.count(slices.count) + ")").font(AppFont.medium(12))
+                        Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold))
+                            .rotationEffect(.degrees(open ? 180 : 0))
+                    }
+                    .foregroundStyle(t.soft)
+                }
+            }
             HStack {
                 Spacer()
-                Donut(slices: slices, label: "دسته", side: 150)
+                Donut(slices: slices, label: unit, side: 150, highlight: hand)
                 Spacer()
             }
             VStack(spacing: 10) {
-                ForEach(slices) { s in BreakdownRow(s: s, max: mx, total: total) }
-            }
-        }
-        .glassCard()
-    }
-}
-
-/// subcategories: only the ring is live; tap to unfold the list
-struct SubcategoryChartCard: View {
-    let slices: [CategorySlice]
-    @State private var open = false
-    @Environment(\.theme) private var t
-
-    var body: some View {
-        let total = slices.reduce(0) { $0 + $1.total }
-        let mx = slices.map(\.total).max() ?? 0
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                SectionTitle(text: "تفکیک زیردسته‌ها")
-                Spacer()
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(t.soft)
-                    .rotationEffect(.degrees(open ? 180 : 0))
-            }
-            HStack(spacing: 14) {
-                Donut(slices: slices, label: "زیردسته", side: open ? 110 : 150)
-                if !open {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("برای دیدن جزئیات بزنید").font(AppFont.caption).foregroundStyle(t.soft)
-                        if let top = slices.first {
-                            HStack(spacing: 6) {
-                                Circle().fill(top.color).frame(width: 8, height: 8)
-                                Text(top.name).font(AppFont.medium(13)).foregroundStyle(t.ink).lineLimit(1)
-                            }
-                            Text("بیشترین: " + percent(top.total, total)).font(AppFont.bold(12)).foregroundStyle(t.soft)
-                        }
-                    }
-                    .transition(.opacity)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            if open {
-                VStack(spacing: 10) {
-                    ForEach(Array(slices.enumerated()), id: \.element.id) { i, s in
-                        BreakdownRow(s: s, max: mx, total: total)
-                            .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity)
-                                                        .animation(.spring(duration: 0.45, bounce: 0.25).delay(Double(min(i, 12)) * 0.025)),
-                                                    removal: .opacity.animation(.easeOut(duration: 0.15))))
-                    }
+                ForEach(Array(slices.prefix(open ? slices.count : topCount).enumerated()), id: \.element.id) { i, s in
+                    BreakdownRow(s: s, max: mx, total: total)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity)
+                                .animation(.spring(duration: 0.45, bounce: 0.25).delay(Double(Swift.max(0, min(i - topCount, 12))) * 0.025)),
+                            removal: .opacity.animation(.easeOut(duration: 0.15))))
                 }
             }
         }
         .glassCard()
         .contentShape(Rectangle())
         .onTapGesture {
+            guard more || slices.count > 1 else { return }
             Haptics.tap()
-            withAnimation(.spring(duration: 0.45, bounce: 0.2)) { open.toggle() }
+            if more { withAnimation(.spring(duration: 0.45, bounce: 0.25)) { open.toggle() } }
+            runSweep()
+        }
+        .onDisappear { sweep?.cancel() }
+    }
+
+    /// clockwise pass over the slices: about 0.8 s in total, 40–110 ms per slice
+    private func runSweep() {
+        sweep?.cancel()
+        let n = slices.count
+        guard n > 0 else { return }
+        let step = UInt64(Swift.min(110, Swift.max(40, 800 / n))) * 1_000_000
+        sweep = Task { @MainActor in
+            for i in 0..<n {
+                if Task.isCancelled { return }
+                withAnimation(.spring(duration: 0.22, bounce: 0.3)) { hand = i }
+                if i % 2 == 0 { UISelectionFeedbackGenerator().selectionChanged() }
+                try? await Task.sleep(nanoseconds: step)
+            }
+            withAnimation(.spring(duration: 0.35, bounce: 0.25)) { hand = nil }
         }
     }
+}
+
+struct CategoryChartCard: View {
+    let slices: [CategorySlice]
+    var body: some View { BreakdownCard(title: "تفکیک دسته‌ها", unit: "دسته", slices: slices) }
+}
+
+struct SubcategoryChartCard: View {
+    let slices: [CategorySlice]
+    var body: some View { BreakdownCard(title: "تفکیک زیردسته‌ها", unit: "زیردسته", slices: slices) }
 }

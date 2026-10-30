@@ -191,7 +191,10 @@ struct GlassCard: ViewModifier {
     @Environment(\.theme) private var t
     @Environment(\.colorScheme) private var scheme
     @AppStorage(Look.glassKey) private var glass: Double = 0
+    @AppStorage(Look.cardFxKey) private var cardFx = CardFx.none.rawValue
     var padding: CGFloat = 16
+    /// widgets apply the effect themselves (whole cell), so their inner card does not do it twice
+    var effect = true
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -200,23 +203,26 @@ struct GlassCard: ViewModifier {
         let base = content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-        if v <= 0.001 {
-            base.background {
-                shape
-                    .fill(.ultraThinMaterial)
-                    .overlay(shape.fill(t.card.opacity(scheme == .dark ? 0.55 : 0.6)))
-                    .overlay(shape.strokeBorder(Color.white.opacity(scheme == .dark ? 0.08 : 0.55), lineWidth: 1))
-                    .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.06), radius: 14, y: 6)
+        Group {
+            if v <= 0.001 {
+                base.background {
+                    shape
+                        .fill(.ultraThinMaterial)
+                        .overlay(shape.fill(t.card.opacity(scheme == .dark ? 0.55 : 0.6)))
+                        .overlay(shape.strokeBorder(Color.white.opacity(scheme == .dark ? 0.08 : 0.55), lineWidth: 1))
+                        .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.06), radius: 14, y: 6)
+                }
+            } else {
+                let g: Glass = v >= 0.95 ? .clear : .regular.tint(t.card.opacity((scheme == .dark ? 0.5 : 0.55) * (1 - v)))
+                base.glassEffect(g, in: shape)
             }
-        } else {
-            let g: Glass = v >= 0.95 ? .clear : .regular.tint(t.card.opacity((scheme == .dark ? 0.5 : 0.55) * (1 - v)))
-            base.glassEffect(g, in: shape)
         }
+        .modifier(CardEffect(fx: effect ? CardFx.from(cardFx) : .none))
     }
 }
 
 extension View {
-    func glassCard(padding: CGFloat = 16) -> some View { modifier(GlassCard(padding: padding)) }
+    func glassCard(padding: CGFloat = 16, effect: Bool = true) -> some View { modifier(GlassCard(padding: padding, effect: effect)) }
 }
 
 struct ScreenHeader: View {

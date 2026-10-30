@@ -101,7 +101,7 @@ struct WidgetGrid<Cell: View>: View {
     @ViewBuilder
     private func widgetCell(_ key: String, _ s: WidgetSize, _ sz: CGSize, frames: [String: WidgetRect], order: [String]) -> some View {
         let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
-        let fx = editing ? CardFx.none : (CardFx(rawValue: cardFxRaw) ?? .none)
+        let fx = editing ? CardFx.none : CardFx.from(cardFxRaw)
         cell(key, s, sz)
             .environment(\.layoutDirection, .rightToLeft)
             .frame(width: sz.width, height: sz.height)
@@ -256,7 +256,7 @@ struct WidgetCard<Content: View>: View {
 /// glassCard's surface without its padding / flexible frame
 private struct GlassSurface: ViewModifier {
     func body(content: Content) -> some View {
-        content.glassCard(padding: 0)
+        content.glassCard(padding: 0, effect: false)
     }
 }
 

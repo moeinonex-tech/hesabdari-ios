@@ -42,89 +42,62 @@ final class BackgroundCache {
     }
 }
 
-// MARK: - home card effects
-// glint: a Liquid-Glass style light streak that follows the phone's tilt (Wallet / iOS 26+ lock screen)
-// parallax: the card leans with the phone in 3D (Apple TV / Wallet passes)
-// scroll: cards scale and fade in as they scroll into view (App Store, Photos)
+// MARK: - card effect (every card in the app)
 
 enum CardFx: String, CaseIterable, Identifiable {
-    case none, glint, parallax, scroll
+    case none, scroll
     var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .none: return "بدون افکت"
-        case .glint: return "درخشش شیشه‌ای با حرکت گوشی"
-        case .parallax: return "پارالاکس سه‌بعدی"
-        case .scroll: return "ظاهر شدن با اسکرول"
-        }
-    }
-}
-
-@MainActor
-final class Tilt: ObservableObject {
-    static let shared = Tilt()
-    @Published var roll: Double = 0     // -1...1
-    @Published var pitch: Double = 0
-    private let manager = CMMotionManager()
-    private var users = 0
-
-    func start() {
-        users += 1
-        guard users == 1, manager.isDeviceMotionAvailable else { return }
-        manager.deviceMotionUpdateInterval = 1.0 / 30
-        manager.startDeviceMotionUpdates(to: .main) { [weak self] m, _ in
-            guard let self, let a = m?.attitude else { return }
-            self.roll = max(-1, min(1, a.roll / 0.6))
-            self.pitch = max(-1, min(1, (a.pitch - 0.7) / 0.6))
-        }
-    }
-
-    func stop() {
-        users = max(0, users - 1)
-        if users == 0 { manager.stopDeviceMotionUpdates() }
-    }
+    var title: String { self == .none ? "بدون افکت" : "ظاهر شدن با اسکرول" }
+    /// old saved values (glint / parallax) fall back to «none»
+    static func from(_ raw: String) -> CardFx { CardFx(rawValue: raw) ?? .none }
 }
 
 struct CardEffect: ViewModifier {
     let fx: CardFx
-    let corner: CGFloat
-    @ObservedObject private var tilt = Tilt.shared
+    var corner: CGFloat = 24
 
     @ViewBuilder
     func body(content: Content) -> some View {
         switch fx {
         case .none:
             content
-        case .glint:
-            content
-                .overlay {
-                    GeometryReader { g in
-                        LinearGradient(colors: [.clear, .white.opacity(0.28), .clear], startPoint: .leading, endPoint: .trailing)
-                            .frame(width: g.size.width * 0.55)
-                            .rotationEffect(.degrees(20))
-                            .offset(x: (tilt.roll + 1) / 2 * g.size.width * 1.4 - g.size.width * 0.45, y: tilt.pitch * 20)
-                            .blendMode(.plusLighter)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-                    .allowsHitTesting(false)
-                }
-                .onAppear { tilt.start() }
-                .onDisappear { tilt.stop() }
-        case .parallax:
-            content
-                .rotation3DEffect(.degrees(tilt.roll * 6), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
-                .rotation3DEffect(.degrees(-tilt.pitch * 5), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
-                .animation(.interactiveSpring(duration: 0.25), value: tilt.roll)
-                .onAppear { tilt.start() }
-                .onDisappear { tilt.stop() }
         case .scroll:
             content
                 .scrollTransition(.interactive, axis: .vertical) { v, phase in
-                    v.scaleEffect(phase.isIdentity ? 1 : 0.9)
-                        .opacity(phase.isIdentity ? 1 : 0.35)
-                        .blur(radius: phase.isIdentity ? 0 : 1.5)
+                    v.scaleEffect(phase.isIdentity ? 1 : 0.92)
+                        .opacity(phase.isIdentity ? 1 : 0.4)
                 }
         }
+    }
+}
+
+// MARK: - tab switching (Telegram-style slide)
+
+enum TabOrder {
+    static let order: [AppTab] = [.home, .ledger, .personal, .reminders, .cards, .search]
+    static func index(_ t: AppTab) -> Int { order.firstIndex(of: t) ?? 0 }
+}
+
+/// The page that becomes visible slides in from the side of the tab you came from (tabs run right→left in RTL),
+/// with a short spring — like switching chat folders in Telegram.
+struct TabSlide: ViewModifier {
+    let tab: AppTab
+    let current: AppTab
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var x: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: x)
+            .onChange(of: current) { old, now in
+                guard now == tab, !reduceMotion else { return }
+                // RTL: a tab further along the bar sits to the left → the new page enters from the left
+                let forward = TabOrder.index(now) > TabOrder.index(old)
+                let w = UIScreen.main.bounds.width
+                var tr = Transaction(); tr.disablesAnimations = true
+                withTransaction(tr) { x = forward ? -w * 0.35 : w * 0.35 }
+                DispatchQueue.main.async { withAnimation(.spring(duration: 0.34, bounce: 0.12)) { x = 0 } }
+            }
     }
 }
 
@@ -140,7 +113,7 @@ struct AppearanceSection: View {
 
     var body: some View {
         Section {
-            Picker("افکت کارت‌های خانه", selection: $cardFx) {
+            Picker("افکت کارت‌ها", selection: $cardFx) {
                 ForEach(CardFx.allCases) { Text($0.title).tag($0.rawValue) }
             }
             VStack(alignment: .leading, spacing: 6) {
