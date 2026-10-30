@@ -41,21 +41,22 @@ struct RootView: View {
                             NavigationStack {
                                 HomeView(model: model, tab: $tab, ledgerSheet: $ledgerSheet, exportFile: $exportFile, showImporter: $showImporter)
                             }
+                            .pageEnter(tab == .home)
                         }
                         Tab("دفتر حساب", systemImage: "book.pages.fill", value: AppTab.ledger) {
-                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }
+                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }.pageEnter(tab == .ledger)
                         }
                         Tab("شخصی", systemImage: "person.crop.circle.fill", value: AppTab.personal) {
-                            NavigationStack { PersonalView(model: model) }
+                            NavigationStack { PersonalView(model: model) }.pageEnter(tab == .personal)
                         }
                         Tab("یادآوری‌ها", systemImage: "bell.fill", value: AppTab.reminders) {
-                            NavigationStack { RemindersView(model: model) }
+                            NavigationStack { RemindersView(model: model) }.pageEnter(tab == .reminders)
                         }
                         Tab("کیف کارت", systemImage: "creditcard.fill", value: AppTab.cards) {
-                            NavigationStack { CardsView(model: model) }
+                            NavigationStack { CardsView(model: model) }.pageEnter(tab == .cards)
                         }
                         Tab("جستجو", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
-                            NavigationStack { SearchView(model: model) }
+                            NavigationStack { SearchView(model: model) }.pageEnter(tab == .search)
                         }
                     }
                 } else {
@@ -156,6 +157,7 @@ struct HomeView: View {
     @State private var showReports = false
     @State private var showShortcutEditor = false
     @State private var showAppointment = false
+    @State private var editingWidgets = false
 
     private func go(_ k: String) {
         Haptics.tap()
@@ -173,11 +175,26 @@ struct HomeView: View {
     var body: some View {
         let greet = AppModel.greeting(hour: Calendar.current.component(.hour, from: Date()))
         let order = SettingsOps.widgetOrder(model.state).filter { SettingsOps.widgetVisible(model.state, $0) }
+            .filter { k in
+                switch k {
+                case "attention": return !model.attentionItems.isEmpty
+                case "activity": return !model.recentRows.isEmpty
+                default: return true
+                }
+            }
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "خانه", subtitle: "نمای کلی و امروز")
                     HStack(spacing: 8) {
+                        if editingWidgets {
+                            Button("تمام") {
+                                Haptics.tap()
+                                withAnimation(.spring) { editingWidgets = false }
+                            }
+                            .font(AppFont.bold(15))
+                            .buttonStyle(.glassProminent)
+                        }
                         Button {
                             Haptics.tap()
                             showReports = true
@@ -205,8 +222,8 @@ struct HomeView: View {
                     QuoteCard(quote: q, typewriter: model.state["quoteTypewriterEnabled"]?.boolValue ?? true, msPerChar: SettingsOps.typewriterMs(model.state))
                 }
 
-                ForEach(order, id: \.self) { key in
-                    widget(key)
+                WidgetGrid(keys: order, editing: $editingWidgets) { key, span, size in
+                    WidgetCard(size: size) { widget(key, span: span, size: size) }
                 }
             }
             .padding(.horizontal, 16)
@@ -227,40 +244,43 @@ struct HomeView: View {
         .sheet(isPresented: $showAppointment) { Themed { NavigationStack { AppointmentFormView(model: model, editingId: nil) } } }
     }
 
+    /// How many list rows fit in the widget's height (title row ≈ 34pt, padding 28pt).
+    private func fit(_ size: CGSize, row: CGFloat) -> Int { max(1, Int((size.height - 62) / row)) }
+
     @ViewBuilder
-    private func widget(_ key: String) -> some View {
+    private func widget(_ key: String, span: WidgetSpan, size: CGSize) -> some View {
         switch key {
         case "date":
             let today = model.todayTitle
+            let big = span.r >= 2
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(today.weekday).font(AppFont.heavy(22)).foregroundStyle(t.ink)
-                    Text(today.date).font(AppFont.regular(14)).foregroundStyle(t.soft)
+                    Text(today.weekday).font(AppFont.heavy(big ? 30 : (span.c <= 2 ? 17 : 22))).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(today.date).font(AppFont.regular(big ? 16 : 13)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
                 }
-                Spacer()
-                Image(systemName: "calendar")
-                    .font(.title2)
-                    .foregroundStyle(t.accent)
-                    .frame(width: 52, height: 52)
-                    .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                Spacer(minLength: 0)
+                if span.c > 2 || big {
+                    Image(systemName: "calendar")
+                        .font(big ? .title : .title2)
+                        .foregroundStyle(t.accent)
+                        .frame(width: big ? 64 : 48, height: big ? 64 : 48)
+                        .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
             }
-            .glassCard()
+            .frame(maxHeight: .infinity)
         case "attention":
             let attention = model.attentionItems
-            if !attention.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    SectionTitle(text: "نیازمند توجه")
-                    ForEach(attention) { item in
-                        AttentionRow(item: item)
-                            .onTapGesture { tab = item.id.hasPrefix("budget") ? .ledger : .reminders }
-                    }
+            VStack(alignment: .leading, spacing: 8) {
+                SectionTitle(text: "نیازمند توجه")
+                ForEach(attention.prefix(fit(size, row: 52))) { item in
+                    AttentionRow(item: item)
+                        .onTapGesture { tab = item.id.hasPrefix("budget") ? .ledger : .reminders }
                 }
-                .glassCard()
             }
         case "financial":
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 SectionTitle(text: "دفترها")
-                ForEach(model.accounts) { a in
+                ForEach(model.accounts.prefix(fit(size, row: span.c <= 2 ? 96 : 104))) { a in
                     Button {
                         Haptics.tap()
                         tab = .ledger
@@ -270,10 +290,11 @@ struct HomeView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .glassCard()
         case "shortcuts":
             let keys = SettingsOps.homeShortcuts(model.state)
-            VStack(alignment: .leading, spacing: 12) {
+            let perRow = span.c >= 4 ? 4 : (span.c == 3 ? 3 : 2)
+            let tileH: CGFloat = span.r == 1 ? 0 : 78
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     SectionTitle(text: "میانبرها")
                     Spacer()
@@ -283,29 +304,36 @@ struct HomeView: View {
                 if keys.isEmpty {
                     Button { showShortcutEditor = true } label: {
                         Text("هنوز میان‌بری اضافه نکردی — از «افزودن» شروع کن")
-                            .font(AppFont.regular(13)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .font(AppFont.regular(13)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(.vertical, 6)
                     }
                     .buttonStyle(.plain)
+                } else if span.r == 1 {
+                    // one row: icons only
+                    HStack(spacing: 8) {
+                        ForEach(keys.prefix(perRow * 2), id: \.self) { k in
+                            Button { go(k) } label: {
+                                Image(systemName: HomeShortcut.info(k).icon).font(.title3).foregroundStyle(t.accent).frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 } else {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-                        ForEach(keys, id: \.self) { k in
+                    let rows = max(1, Int((size.height - 70) / (tileH + 10)))
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: perRow), spacing: 10) {
+                        ForEach(keys.prefix(rows * perRow), id: \.self) { k in
                             let d = HomeShortcut.info(k)
                             ShortcutTile(title: d.title, icon: d.icon) { go(k) }
                         }
                     }
                 }
             }
-            .glassCard()
         case "activity":
             let recent = model.recentRows
-            if !recent.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    SectionTitle(text: "فعالیت اخیر")
-                    ForEach(recent) { item in
-                        LedgerRowLine(row: item.row, color: model.categoryColor(item.row.category), subtitle: item.account)
-                    }
+            VStack(alignment: .leading, spacing: 8) {
+                SectionTitle(text: "فعالیت اخیر")
+                ForEach(recent.prefix(fit(size, row: 58))) { item in
+                    LedgerRowLine(row: item.row, color: model.categoryColor(item.row.category), subtitle: item.account)
                 }
-                .glassCard()
             }
         default:
             EmptyView()
@@ -1094,6 +1122,8 @@ struct SettingsView: View {
             } header: {
                 Text("روشن و تیره").font(AppFont.medium(13))
             }
+
+            AppearanceSection()
 
             Section {
                 Toggle(isOn: $lockEnabled) {

@@ -162,35 +162,56 @@ enum AppFont {
 /// Soft colour blobs behind the content, like the web background.
 struct AppBackground: View {
     @Environment(\.theme) private var t
+    @Environment(\.colorScheme) private var scheme
+    @AppStorage(Look.bgVersionKey) private var bgVersion = 0
 
     var body: some View {
         ZStack {
-            t.paper
-            RadialGradient(colors: [t.accent.opacity(0.22), .clear], center: UnitPoint(x: 0.85, y: 0.05), startRadius: 0, endRadius: 360)
-            RadialGradient(colors: [t.accent2.opacity(0.17), .clear], center: UnitPoint(x: 0.1, y: 0.5), startRadius: 0, endRadius: 320)
+            if let img = BackgroundCache.shared.image {
+                Color.clear.overlay {
+                    Image(uiImage: img).resizable().scaledToFill()
+                }
+                .clipped()
+                // keeps text readable on any photo
+                (scheme == .dark ? Color.black.opacity(0.35) : Color.white.opacity(0.2))
+            } else {
+                t.paper
+                RadialGradient(colors: [t.accent.opacity(0.22), .clear], center: UnitPoint(x: 0.85, y: 0.05), startRadius: 0, endRadius: 360)
+                RadialGradient(colors: [t.accent2.opacity(0.17), .clear], center: UnitPoint(x: 0.1, y: 0.5), startRadius: 0, endRadius: 320)
+            }
         }
+        .id(bgVersion)
         .ignoresSafeArea()
     }
 }
 
-/// Frosted card (content layer). Liquid Glass is kept for controls and the tab bar, as Apple recommends.
+/// Card surface. «میزان لیکوئیدی گلس» (0…100): 0 = the frosted card, higher = real Liquid Glass with less tint,
+/// 100 = clear glass.
 struct GlassCard: ViewModifier {
     @Environment(\.theme) private var t
     @Environment(\.colorScheme) private var scheme
+    @AppStorage(Look.glassKey) private var glass: Double = 0
     var padding: CGFloat = 16
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
+        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+        let v = glass / 100
+        let base = content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+        if v <= 0.001 {
+            base.background {
+                shape
                     .fill(.ultraThinMaterial)
-                    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(t.card.opacity(scheme == .dark ? 0.55 : 0.6)))
-                    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(Color.white.opacity(scheme == .dark ? 0.08 : 0.55), lineWidth: 1))
+                    .overlay(shape.fill(t.card.opacity(scheme == .dark ? 0.55 : 0.6)))
+                    .overlay(shape.strokeBorder(Color.white.opacity(scheme == .dark ? 0.08 : 0.55), lineWidth: 1))
                     .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.06), radius: 14, y: 6)
             }
+        } else {
+            let g: Glass = v >= 0.95 ? .clear : .regular.tint(t.card.opacity((scheme == .dark ? 0.5 : 0.55) * (1 - v)))
+            base.glassEffect(g, in: shape)
+        }
     }
 }
 
