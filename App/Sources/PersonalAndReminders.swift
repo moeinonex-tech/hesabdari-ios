@@ -299,7 +299,7 @@ struct PersonalView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 90)
+            .padding(.bottom, 12)
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.personal)
@@ -610,7 +610,7 @@ struct RemindersView: View {
                     .font(AppFont.caption).foregroundStyle(t.soft)
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 90)
+            .padding(.bottom, 12)
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.reminders)

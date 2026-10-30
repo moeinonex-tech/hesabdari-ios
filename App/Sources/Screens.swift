@@ -137,6 +137,7 @@ struct HomeView: View {
     @State private var showShortcutEditor = false
     @State private var showAppointment = false
     @State private var editingWidgets = false
+    @State private var attentionOpen = false
     @State private var draggingWidget = false
 
     private func widgetVisibility() -> [String: Bool] {
@@ -207,7 +208,7 @@ struct HomeView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            .padding(.bottom, 12)
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared ? 0 : 14)
             .padding(.top, editingWidgets ? 8 : 0)
@@ -268,7 +269,19 @@ struct HomeView: View {
 
     private func tapWidget(_ key: String, _ point: CGPoint, _ frame: CGSize) {
         switch key {
-        case "attention": tab = model.attentionItems.first?.id.hasPrefix("budget") == true ? .ledger : .reminders
+        case "attention":
+            let items = model.attentionItems
+            // the «همه / بستن» bar at the bottom unfolds / folds the list
+            if items.count > 3 && point.y > frame.height - WidgetCard<EmptyView>.padding - Self.attMoreH - 4 {
+                Haptics.tap()
+                withAnimation(.spring(duration: 0.45, bounce: 0.25)) { attentionOpen.toggle() }
+                return
+            }
+            // otherwise the row under the finger decides where to go
+            let top = WidgetCard<EmptyView>.padding + Self.titleH + Self.attGap
+            let idx = Int((point.y - top) / (Self.attRowH + Self.attGap))
+            let item = items.indices.contains(idx) ? items[idx] : items.first
+            tab = item?.id.hasPrefix("budget") == true ? .ledger : .reminders
         case "financial", "activity": tab = .ledger
         case "shortcuts":
             let keys = SettingsOps.homeShortcuts(model.state)
@@ -442,12 +455,23 @@ struct HomeView: View {
         }
     }
 
+    // MARK: «نیازمند توجه» — height follows its content: up to 3 rows, more unfold with a spring
+
+    private static let attRowH: CGFloat = 46, attGap: CGFloat = 6, attMoreH: CGFloat = 32
+    private var attentionHeight: CGFloat {
+        let n = model.attentionItems.count
+        let pad = WidgetCard<EmptyView>.padding * 2 + Self.titleH + 6
+        if n == 0 { return pad + 24 }
+        let rows = attentionOpen ? n : min(3, n)
+        return pad + CGFloat(rows) * Self.attRowH + CGFloat(rows - 1) * Self.attGap + (n > 3 ? Self.attGap + Self.attMoreH : 0)
+    }
+
     @ViewBuilder
     private func attentionWidget(_ s: WidgetSize, _ inn: CGSize) -> some View {
         let items = model.attentionItems
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Self.attGap) {
             HStack {
-                widgetTitle("نیازمند توجه", s)
+                widgetTitle("نیازمند توجه", .medium)
                 Spacer(minLength: 0)
                 if !items.isEmpty {
                     Text(Money.persianDigits(String(items.count))).font(AppFont.bold(13)).foregroundStyle(.white)
@@ -456,14 +480,26 @@ struct HomeView: View {
             }
             if items.isEmpty {
                 Label("فعلاً موردی نیست", systemImage: "checkmark.circle").font(AppFont.regular(13)).foregroundStyle(t.soft)
-            } else if s == .small {
-                let it = items[0]
-                attentionRow(it, lines: 4, font: 12).frame(height: inn.height - Self.titleH - 6)
-            } else {
-                let rowH: CGFloat = 46
-                ForEach(items.prefix(fit(inn, rowH: rowH))) { it in
-                    attentionRow(it, lines: 2, font: 13).frame(height: rowH)
+                    .frame(height: 24)
+            }
+            ForEach(Array(items.prefix(attentionOpen ? items.count : 3).enumerated()), id: \.element.id) { i, it in
+                attentionRow(it, lines: 2, font: 13)
+                    .frame(height: Self.attRowH)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity)
+                            .animation(.spring(duration: 0.45, bounce: 0.25).delay(Double(max(0, i - 3)) * 0.04)),
+                        removal: .opacity.animation(.easeOut(duration: 0.15))))
+            }
+            if items.count > 3 {
+                HStack(spacing: 6) {
+                    Text(attentionOpen ? "بستن" : "همه (" + Money.persianDigits(String(items.count)) + ")").font(AppFont.bold(13))
+                    Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold))
+                        .rotationEffect(.degrees(attentionOpen ? 180 : 0))
                 }
+                .foregroundStyle(t.accent)
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.attMoreH)
+                .background(t.accent.opacity(0.08), in: Capsule())
             }
         }
     }
@@ -906,7 +942,7 @@ struct LedgerHomeView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 90)
+            .padding(.bottom, 12)
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.ledger)
@@ -1219,7 +1255,7 @@ struct CardsView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            .padding(.bottom, 12)
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.cards)

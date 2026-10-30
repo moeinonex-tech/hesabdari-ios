@@ -22,50 +22,59 @@ struct SearchView: View {
 
     var body: some View {
         let results = query.trimmingCharacters(in: .whitespaces).isEmpty ? [] : SearchEngine.search(model.state, query: query)
-        List {
-            // search field at the top of the page (the system search bar sits at the bottom on iOS 26,
-            // under our dock, so it is drawn here instead)
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(t.soft)
-                TextField("جستجو در همه‌ی بخش‌ها…", text: $query)
-                    .font(AppFont.regular(16))
-                    .focused($focused)
-                    .submitLabel(.search)
-                    .autocorrectionDisabled()
-                if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(t.soft) }
-                        .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 14).padding(.vertical, 11)
-            .glassEffect(.regular.interactive(), in: Capsule())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-            if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                Text("در دفترها، هزینه‌های شخصی، درآمدها، چک‌ها و اشخاص جستجو کنید. عدد را با رقم فارسی یا انگلیسی بنویسید.")
-                    .font(AppFont.regular(14)).foregroundStyle(t.soft)
-                    .listRowBackground(Color.clear)
-            } else if results.isEmpty {
-                Text("چیزی پیدا نشد").font(AppFont.regular(14)).foregroundStyle(t.soft).listRowBackground(Color.clear)
-            }
-            ForEach(results) { r in
-                Button { open(r) } label: {
-                    HStack(spacing: 10) {
-                        Text(r.tag)
-                            .font(AppFont.bold(11)).padding(.horizontal, 8).padding(.vertical, 3)
-                            .foregroundStyle(t.accent).background(t.accent.opacity(0.13), in: Capsule())
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(r.title).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(2)
-                            Text(r.sub).font(AppFont.caption).foregroundStyle(t.soft)
-                        }
-                        Spacer()
-                        Text(Money.persianDigits(Money.format(r.amount)) + " ت").font(AppFont.bold(13)).foregroundStyle(t.ink)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 10) {
+                // search field at the top (the system search bar sits at the bottom on iOS 26, under our dock)
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(t.soft)
+                    TextField("جستجو در همه‌ی بخش‌ها…", text: $query)
+                        .font(AppFont.regular(16))
+                        .focused($focused)
+                        .submitLabel(.search)
+                        .autocorrectionDisabled()
+                    if !query.isEmpty {
+                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(t.soft) }
+                            .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, 14).padding(.vertical, 11)
+                .glassEffect(.regular.interactive(), in: Capsule())
+                .padding(.bottom, 4)
+
+                if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text("در دفترها، هزینه‌های شخصی، درآمدها، چک‌ها و اشخاص جستجو کنید. عدد را با رقم فارسی یا انگلیسی بنویسید.")
+                        .font(AppFont.regular(14)).foregroundStyle(t.soft).padding(.horizontal, 4)
+                } else if results.isEmpty {
+                    Text("چیزی پیدا نشد").font(AppFont.regular(14)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(30)
+                } else {
+                    Text(Fmt.count(results.count) + " نتیجه").font(AppFont.caption).foregroundStyle(t.soft).padding(.horizontal, 4)
+                }
+                ForEach(results) { r in
+                    Button { open(r) } label: {
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(r.tag)
+                                    .font(AppFont.bold(11)).padding(.horizontal, 8).padding(.vertical, 3)
+                                    .foregroundStyle(t.accent).background(t.accent.opacity(0.13), in: Capsule())
+                                Text(r.title).font(AppFont.medium(15)).foregroundStyle(t.ink).lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                Text(r.sub).font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
+                            }
+                            Spacer(minLength: 8)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(Money.persianDigits(Money.format(r.amount))).font(AppFont.heavy(15)).foregroundStyle(t.ink)
+                                Text("تومان").font(AppFont.caption).foregroundStyle(t.soft)
+                            }
+                        }
+                        .glassCard(padding: 14)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
         }
-        .scrollContentBackground(.hidden)
         .background(AppBackground())
         .navigationTitle("جستجو")
         .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { focused = true } }

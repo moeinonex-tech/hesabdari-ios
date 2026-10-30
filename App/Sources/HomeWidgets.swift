@@ -36,6 +36,8 @@ struct WidgetGrid<Cell: View>: View {
     let onRemove: (String) -> Void
     let onConfigure: (String) -> Void
     let onDragging: (Bool) -> Void
+    /// full-width widgets whose height follows their content (e.g. «نیازمند توجه»)
+    var blocks: [String: CGFloat] = [:]
     let cell: (String, WidgetSize, CGSize) -> Cell
 
     static var gap: CGFloat { 14 }
@@ -56,7 +58,8 @@ struct WidgetGrid<Cell: View>: View {
     }
 
     private func layout(_ order: [String]) -> (frames: [String: WidgetRect], height: Double) {
-        WidgetLayout.frames(order.map { (key: $0, size: size($0)) }, width: Double(width), gap: Double(Self.gap), rtl: true)
+        WidgetLayout.frames(order.map { (key: $0, size: size($0)) }, width: Double(width), gap: Double(Self.gap), rtl: true,
+                            blocks: blocks.mapValues(Double.init))
     }
 
     var body: some View {
@@ -93,6 +96,7 @@ struct WidgetGrid<Cell: View>: View {
         .frame(maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { w in if w > 0 && abs(w - width) > 0.5 { width = w } }
         .animation(.spring(duration: 0.35, bounce: 0.15), value: order.map { $0 + size($0).rawValue })
+        .animation(.spring(duration: 0.45, bounce: 0.2), value: blocks)
         .onChange(of: editing) { _, e in
             if !e { liveSize = nil; liveOrder = nil; dragKey = nil; lastOver = nil }
         }
@@ -121,7 +125,7 @@ struct WidgetGrid<Cell: View>: View {
                 }
             }
             .overlay(alignment: .bottomLeading) {
-                if editing {
+                if editing && blocks[key] == nil {
                     ResizeHandle()
                         .offset(x: -6, y: 6)
                         .highPriorityGesture(resizeGesture(key, current: s))

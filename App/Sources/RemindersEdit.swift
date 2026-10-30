@@ -304,7 +304,7 @@ struct PersonDetailView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 40)
+            .padding(.bottom, 12)
         }
         .background(AppBackground())
         .navigationTitle(person?.name ?? "")

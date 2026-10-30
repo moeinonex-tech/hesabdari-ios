@@ -111,10 +111,10 @@ private struct Donut: View {
         .overlay {
             VStack(spacing: 0) {
                 if let h = highlight, h < slices.count {
-                    Text(slices[h].name).font(AppFont.heavy(13)).foregroundStyle(slices[h].color)
-                        .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.75)
-                        .frame(maxWidth: side * 0.56)
-                        .shadow(color: .white.opacity(0.8), radius: 2)
+                    // the hand only counts: 1, 2, 3 … n
+                    Text(Money.persianDigits(String(h + 1))).font(AppFont.heavy(26)).foregroundStyle(slices[h].color)
+                        .contentTransition(.numericText(value: Double(h)))
+                    Text("از " + Fmt.count(slices.count)).font(AppFont.caption).foregroundStyle(t.soft)
                 } else {
                     Text(Fmt.count(slices.count)).font(AppFont.heavy(20)).foregroundStyle(t.ink)
                     Text(label).font(AppFont.caption).foregroundStyle(t.soft)

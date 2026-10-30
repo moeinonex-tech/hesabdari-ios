@@ -47,9 +47,10 @@ struct AppShell: View {
     @StateObject private var scrollTop = ScrollTopCenter()
     @State private var visited: Set<AppTab> = [.home]
     @State private var reportScope = 0
+    @State private var reportsFrom: AppTab?
 
     private let pages: [AppTab] = [.home, .ledger, .personal, .reminders, .reports, .cards]
-    static let dockClearance: CGFloat = 104
+    static let dockClearance: CGFloat = 70
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -64,7 +65,7 @@ struct AppShell: View {
                         .zIndex(tab == p ? 1 : 0)
                 }
             }
-            Dock(model: model, tab: $tab, onReselect: { scrollTop.fire($0) }, onReports: openReports)
+            Dock(model: model, tab: $tab, reportsFrom: reportsFrom, onReselect: { scrollTop.fire($0) }, onReports: openReports)
                 .zIndex(10)
         }
         .environmentObject(scrollTop)
@@ -82,6 +83,7 @@ struct AppShell: View {
         case .reports: scrollTop.fire(.reports); return
         default: reportScope = 0
         }
+        reportsFrom = tab
         visited.insert(.reports)
         tab = .reports
     }
@@ -102,14 +104,50 @@ struct AppShell: View {
     }
 }
 
+/// Dock icon packs — chosen in Settings › ظاهر (with a live preview).
+enum DockIcons: String, CaseIterable, Identifiable {
+    case project, ledgerBook, finance, minimal
+    var id: String { rawValue }
+    static let key = "look.dockIcons"
+    var title: String {
+        switch self {
+        case .project: return "پروژه و ساختمان"
+        case .ledgerBook: return "دفتر و سند"
+        case .finance: return "مالی"
+        case .minimal: return "مینیمال"
+        }
+    }
+    /// home, ledger, personal, cards, reminders, reports
+    func icon(_ t: AppTab) -> String {
+        switch self {
+        case .project:
+            return [.home: "house", .ledger: "building.2", .personal: "person", .cards: "creditcard",
+                    .reminders: "bell", .reports: "chart.pie"][t] ?? "circle"
+        case .ledgerBook:
+            return [.home: "house", .ledger: "book.closed", .personal: "person.text.rectangle", .cards: "wallet.pass",
+                    .reminders: "calendar.badge.clock", .reports: "chart.bar.xaxis"][t] ?? "circle"
+        case .finance:
+            return [.home: "square.grid.2x2", .ledger: "list.bullet.rectangle", .personal: "person.crop.circle",
+                    .cards: "creditcard", .reminders: "clock", .reports: "chart.line.uptrend.xyaxis"][t] ?? "circle"
+        case .minimal:
+            return [.home: "circle.grid.2x2", .ledger: "doc.text", .personal: "person", .cards: "rectangle.stack",
+                    .reminders: "bell", .reports: "chart.bar"][t] ?? "circle"
+        }
+    }
+}
+
 struct Dock: View {
     @ObservedObject var model: AppModel
     @Binding var tab: AppTab
+    /// the page «گزارش‌ها» was opened from — stays lit and joined to the reports button
+    let reportsFrom: AppTab?
     let onReselect: (AppTab) -> Void
     let onReports: () -> Void
     @Environment(\.theme) private var t
+    @AppStorage(DockIcons.key) private var packRaw = DockIcons.project.rawValue
+    @Namespace private var glassNS
 
-    private let items: [(AppTab, String)] = [(.home, "house"), (.ledger, "book.closed"), (.personal, "person"), (.reminders, "bell")]
+    private let items: [AppTab] = [.home, .ledger, .personal, .cards, .reminders]
     @State private var pressed: Int?
     @State private var menu: AppTab?
     @State private var holdTask: Task<Void, Never>?
@@ -118,31 +156,47 @@ struct Dock: View {
 
     private let height: CGFloat = 62
     private let reportsSide: CGFloat = 62
+    private var pack: DockIcons { DockIcons(rawValue: packRaw) ?? .project }
 
     private var selectedIndex: Int? {
-        if tab == .cards { return 0 }
-        return items.firstIndex { $0.0 == tab }
+        if tab == .reports, let f = reportsFrom { return items.firstIndex(of: f) }
+        return items.firstIndex(of: tab)
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             if menu != nil {
-                // tap anywhere else closes the mini dock
                 Color.black.opacity(0.001)
                     .ignoresSafeArea()
                     .onTapGesture { closeMenu() }
             }
             VStack(spacing: 10) {
                 if let m = menu { miniDock(m).transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity)) }
-                HStack(spacing: 12) {
-                    mainCapsule
-                    reportsButton
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 0) {
+                        mainCapsule
+                        // liquid bridge: while reports is open, a drop of glass joins it to the page it came from
+                        ZStack {
+                            if tab == .reports {
+                                Capsule()
+                                    .frame(width: 34, height: 22)
+                                    .glassEffect(.regular.tint(t.accent.opacity(0.2)), in: Capsule())
+                                    .glassEffectID("bridge", in: glassNS)
+                                    .transition(.scale(scale: 0.2).combined(with: .opacity))
+                            }
+                        }
+                        .frame(width: 12, height: 22)
+                        .allowsHitTesting(false)
+                        .zIndex(-1)
+                        reportsButton
+                    }
                 }
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 4)
         }
         .animation(.spring(duration: 0.32, bounce: 0.25), value: menu)
+        .animation(.spring(duration: 0.5, bounce: 0.3), value: tab == .reports)
     }
 
     // MARK: main capsule — one gesture, slot chosen by position
@@ -153,9 +207,8 @@ struct Dock: View {
             let lensIndex = pressed ?? selectedIndex
             ZStack(alignment: .topLeading) {
                 if let li = lensIndex {
-                    // RTL: slot 0 is on the right
                     Capsule()
-                        .fill(t.accent.opacity(pressed != nil ? 0.20 : 0.14))
+                        .fill(t.accent.opacity(pressed != nil ? 0.20 : (tab == .reports ? 0.22 : 0.14)))
                         .frame(width: slotW, height: height - 10)
                         .offset(x: 5 + CGFloat(items.count - 1 - li) * slotW, y: 5)
                         .animation(.spring(duration: 0.3, bounce: 0.22), value: li)
@@ -163,27 +216,28 @@ struct Dock: View {
                 HStack(spacing: 0) {
                     ForEach(Array(items.enumerated().reversed()), id: \.offset) { i, item in
                         let on = i == selectedIndex
-                        Image(systemName: on ? item.1 + ".fill" : item.1)
-                            .font(.system(size: 21, weight: on ? .semibold : .regular))
-                            .foregroundStyle(on ? t.accent : t.ink.opacity(0.75))
+                        Image(systemName: pack.icon(item))
+                            .symbolVariant(on ? .fill : .none)
+                            .font(.system(size: 20, weight: on ? .semibold : .regular))
+                            .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
                             .scaleEffect(pressed == i ? 1.18 : 1)
                             .animation(.spring(duration: 0.25, bounce: 0.4), value: pressed)
                             .frame(width: slotW, height: height - 10)
                             .accessibilityElement()
-                            .accessibilityLabel(Self.title(item.0))
+                            .accessibilityLabel(Self.title(item))
                             .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
-                            .accessibilityAction { select(item.0) }
+                            .accessibilityAction { select(item) }
                     }
                 }
                 .padding(5)
-                .environment(\.layoutDirection, .leftToRight)
             }
             .environment(\.layoutDirection, .leftToRight)
             .contentShape(Capsule())
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .local)
                     .onChanged { v in
-                        let i = slot(at: v.location.x, width: g.size.width, slotW: slotW)
+                        if v.location.y < -40 || v.location.y > height + 30 { pressed = nil; holdTask?.cancel(); return }
+                        let i = slot(at: v.location.x, slotW: slotW)
                         if pressed == nil {
                             UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.6)
                             startHold(for: i)
@@ -191,8 +245,6 @@ struct Dock: View {
                             UISelectionFeedbackGenerator().selectionChanged()
                             startHold(for: i)
                         }
-                        // sliding far above/below cancels
-                        if v.location.y < -40 || v.location.y > height + 30 { pressed = nil; holdTask?.cancel(); return }
                         pressed = i
                     }
                     .onEnded { _ in
@@ -200,21 +252,17 @@ struct Dock: View {
                         defer { pressed = nil }
                         if menuOpenedByHold { menuOpenedByHold = false; return }
                         guard let i = pressed else { return }
-                        let target = items[i].0
                         if menu != nil { closeMenu() }
-                        if target == tab {
-                            onReselect(target)
-                        } else {
-                            select(target)
-                        }
+                        select(items[i])
                     }
             )
         }
         .frame(height: height)
         .glassEffect(.regular, in: Capsule())
+        .glassEffectID("main", in: glassNS)
     }
 
-    private func slot(at x: CGFloat, width: CGFloat, slotW: CGFloat) -> Int {
+    private func slot(at x: CGFloat, slotW: CGFloat) -> Int {
         let fromLeft = Int(((x - 5) / max(1, slotW)).rounded(.down))
         let clamped = min(items.count - 1, max(0, fromLeft))
         return items.count - 1 - clamped          // RTL
@@ -222,14 +270,13 @@ struct Dock: View {
 
     private func startHold(for i: Int) {
         holdTask?.cancel()
-        let target = items[i].0
-        guard target == .home || target == .ledger else { return }
+        guard items[i] == .ledger, model.accounts.count > 1 else { return }
         holdTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 420_000_000)
+            try? await Task.sleep(nanoseconds: 280_000_000)
             guard !Task.isCancelled, pressed == i else { return }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             menuOpenedByHold = true
-            menu = target
+            menu = .ledger
         }
     }
 
@@ -256,14 +303,16 @@ struct Dock: View {
 
     private var reportsButton: some View {
         let on = tab == .reports
-        return Image(systemName: on ? "chart.bar.fill" : "chart.bar")
-            .font(.system(size: 21, weight: on ? .semibold : .regular))
-            .foregroundStyle(on ? t.accent : t.ink.opacity(0.75))
+        return Image(systemName: pack.icon(.reports))
+            .symbolVariant(on ? .fill : .none)
+            .font(.system(size: 20, weight: on ? .semibold : .regular))
+            .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
             .scaleEffect(reportsPressed ? 1.15 : 1)
             .frame(width: reportsSide, height: reportsSide)
-            .background { if on { Circle().fill(t.accent.opacity(0.14)).padding(5) } }
+            .background { if on { Circle().fill(t.accent.opacity(0.18)).padding(5) } }
             .contentShape(Circle())
             .glassEffect(.regular, in: Circle())
+            .glassEffectID("reports", in: glassNS)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
@@ -284,55 +333,31 @@ struct Dock: View {
             .accessibilityAction { onReports() }
     }
 
-    // MARK: mini dock (hold)
+    // MARK: mini dock (hold on «دفتر حساب»: switch ledger)
 
     @ViewBuilder
     private func miniDock(_ m: AppTab) -> some View {
-        HStack(spacing: 8) {
-            switch m {
-            case .home:
-                miniButton(icon: "creditcard", label: "کیف کارت", on: tab == .cards) {
-                    closeMenu(); select(.cards)
+        let active = model.activeAccountId
+        HStack(spacing: 6) {
+            ForEach(model.accounts) { a in
+                Button {
+                    Haptics.tap()
+                    model.selectAccount(a.id)
+                    closeMenu()
+                    if tab != .ledger { tab = .ledger }
+                } label: {
+                    Text(a.name)
+                        .font(AppFont.bold(13))
+                        .foregroundStyle(a.id == active ? t.onAccent : t.ink)
+                        .lineLimit(1)
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .background { if a.id == active { Capsule().fill(t.accent) } }
+                        .contentShape(Capsule())
                 }
-            case .ledger:
-                let active = model.activeAccountId
-                ForEach(model.accounts) { a in
-                    Button {
-                        Haptics.tap()
-                        model.selectAccount(a.id)
-                        closeMenu()
-                        if tab != .ledger { tab = .ledger }
-                    } label: {
-                        Text(a.name)
-                            .font(AppFont.bold(13))
-                            .foregroundStyle(a.id == active ? t.onAccent : t.ink)
-                            .lineLimit(1)
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background { if a.id == active { Capsule().fill(t.accent) } }
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            default:
-                EmptyView()
+                .buttonStyle(.plain)
             }
         }
         .padding(6)
         .glassEffect(.regular, in: Capsule())
-    }
-
-    private func miniButton(icon: String, label: String, on: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.tap()
-            action()
-        } label: {
-            Image(systemName: on ? icon + ".fill" : icon)
-                .font(.system(size: 20, weight: .regular))
-                .foregroundStyle(on ? t.accent : t.ink.opacity(0.8))
-                .frame(width: 50, height: 50)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
     }
 }

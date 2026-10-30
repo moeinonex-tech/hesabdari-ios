@@ -84,4 +84,29 @@ final class WidgetLayoutTests: XCTestCase {
             }
         }
     }
+
+    /// the content-height «attention» block anywhere in any order, with any sizes: still no overlap
+    func testBlocksNeverOverlap() {
+        let sizes = WidgetSize.allCases
+        for h in [60.0, 133.0, 250.0] {
+            for combo in 0..<81 {
+                var c = combo
+                var size: [String: WidgetSize] = [:]
+                for k in keys where k != "attention" { size[k] = sizes[c % 3]; c /= 3 }
+                size["attention"] = .medium
+                for order in permutations(keys) {
+                    let items = order.map { (key: $0, size: size[$0]!) }
+                    let r = WidgetLayout.frames(items, width: 358, gap: 14, rtl: true, blocks: ["attention": h])
+                    let fs = order.map { r.frames[$0]! }
+                    var bottom = 0.0
+                    for (i, f) in fs.enumerated() {
+                        bottom = max(bottom, f.maxY)
+                        for g in fs[(i + 1)...] where f.intersects(g) { XCTFail("overlap \(order) h\(h)"); return }
+                    }
+                    XCTAssertEqual(r.frames["attention"]!.h, h, accuracy: 0.001)
+                    if abs(r.height - bottom) > 0.001 { XCTFail("height \(order)"); return }
+                }
+            }
+        }
+    }
 }

@@ -59,22 +59,44 @@ public enum WidgetLayout {
 
     public static func cell(width: Double, gap: Double) -> Double { (width - gap * Double(columns - 1)) / Double(columns) }
 
-    /// pixel frames; rtl puts column 0 on the right
-    public static func frames(_ items: [(key: String, size: WidgetSize)], width: Double, gap: Double, rtl: Bool)
-        -> (frames: [String: WidgetRect], height: Double) {
+    /// pixel frames; rtl puts column 0 on the right.
+    /// `blocks`: full-width widgets whose height follows their content (exact points, not grid rows). A block ends
+    /// the grid segment above it, sits below it, and a new grid segment starts underneath — nothing can overlap it.
+    public static func frames(_ items: [(key: String, size: WidgetSize)], width: Double, gap: Double, rtl: Bool,
+                              blocks: [String: Double] = [:]) -> (frames: [String: WidgetRect], height: Double) {
         let cell = cell(width: width, gap: gap)
         let pitch = cell + gap
-        let lay = cells(items)
         var out: [String: WidgetRect] = [:]
-        for it in items {
-            guard let p = lay.pos[it.key] else { continue }
-            let w = Double(it.size.cols) * pitch - gap
-            let h = Double(it.size.rows) * pitch - gap
-            let xLTR = Double(p.col) * pitch
-            let x = rtl ? width - xLTR - w : xLTR
-            out[it.key] = WidgetRect(x: x, y: Double(p.row) * pitch, w: w, h: h)
+        var top = 0.0                      // y where the current segment starts
+        var bottom = 0.0                   // lowest edge so far
+        var segment: [(key: String, size: WidgetSize)] = []
+
+        func flush() {
+            guard !segment.isEmpty else { return }
+            let lay = cells(segment)
+            for it in segment {
+                guard let p = lay.pos[it.key] else { continue }
+                let w = Double(it.size.cols) * pitch - gap
+                let h = Double(it.size.rows) * pitch - gap
+                let xLTR = Double(p.col) * pitch
+                out[it.key] = WidgetRect(x: rtl ? width - xLTR - w : xLTR, y: top + Double(p.row) * pitch, w: w, h: h)
+            }
+            bottom = top + Double(lay.rows) * pitch - gap
+            top = bottom + gap
+            segment = []
         }
-        return (out, lay.rows == 0 ? 0 : Double(lay.rows) * pitch - gap)
+        for it in items {
+            if let h = blocks[it.key] {
+                flush()
+                out[it.key] = WidgetRect(x: 0, y: top, w: width, h: max(0, h))
+                bottom = top + max(0, h)
+                top = bottom + gap
+            } else {
+                segment.append(it)
+            }
+        }
+        flush()
+        return (out, out.isEmpty ? 0 : bottom)
     }
 
     /// while dragging: the widget under the finger gives its place to the dragged one

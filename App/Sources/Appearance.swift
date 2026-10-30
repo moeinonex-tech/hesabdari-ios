@@ -76,6 +76,8 @@ struct CardEffect: ViewModifier {
 
 struct AppearanceSection: View {
     @AppStorage(Look.cardFxKey) private var cardFx = CardFx.none.rawValue
+    @AppStorage(DockIcons.key) private var dockIcons = DockIcons.project.rawValue
+    @Environment(\.theme) private var t
     @AppStorage(Look.glassKey) private var glass: Double = 0
     @AppStorage(Look.bgVersionKey) private var bgVersion = 0
     @State private var photo: PhotosPickerItem?
@@ -83,6 +85,29 @@ struct AppearanceSection: View {
 
     var body: some View {
         Section {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("آیکون‌های داک")
+                ForEach(DockIcons.allCases) { p in
+                    Button {
+                        Haptics.tap()
+                        withAnimation(.snappy) { dockIcons = p.rawValue }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: dockIcons == p.rawValue ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(dockIcons == p.rawValue ? t.accent : t.soft)
+                            Text(p.title).font(AppFont.medium(13)).foregroundStyle(t.ink).frame(width: 96, alignment: .leading)
+                            HStack(spacing: 12) {
+                                ForEach([AppTab.home, .ledger, .personal, .cards, .reminders, .reports], id: \.self) { tab in
+                                    Image(systemName: p.icon(tab)).font(.system(size: 16)).foregroundStyle(t.ink.opacity(0.8))
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
             Picker("افکت کارت‌های خانه", selection: $cardFx) {
                 ForEach(CardFx.allCases) { Text($0.title).tag($0.rawValue) }
             }
