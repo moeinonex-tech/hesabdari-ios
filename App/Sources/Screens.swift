@@ -18,7 +18,7 @@ struct Themed<Content: View>: View {
     }
 }
 
-enum AppTab: Hashable { case home, ledger, personal, reminders, cards }
+enum AppTab: Hashable { case home, ledger, personal, reminders, cards, search }
 
 // MARK: - root
 
@@ -53,6 +53,9 @@ struct RootView: View {
                         }
                         Tab("کیف کارت", systemImage: "creditcard.fill", value: AppTab.cards) {
                             NavigationStack { CardsView(model: model) }
+                        }
+                        Tab("جستجو", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
+                            NavigationStack { SearchView(model: model) }
                         }
                     }
                 } else {

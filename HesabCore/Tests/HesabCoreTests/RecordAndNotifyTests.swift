@@ -74,3 +74,22 @@ final class RecordAndNotifyTests: XCTestCase {
         }
     }
 }
+
+final class SearchTests: XCTestCase {
+    func testSearchLikeWeb() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "rich_clean", withExtension: "json", subdirectory: "Goldens/import"))
+        guard case .success(let p) = BackupParser.parse(try Data(contentsOf: url)) else { return XCTFail("parse") }
+        let st = p.state
+        XCTAssertEqual(SearchEngine.latinDigits("۱۲۳٤٥"), "12345")
+        // "سیمان" matches the ledger row by description and the keyword is not in other domains
+        let r = SearchEngine.search(st, query: "سیمان")
+        XCTAssertEqual(r.map(\.kind), [.expense])
+        XCTAssertEqual(r.first?.sub, "پروژه آزمون · ۱۴۰۵/۷/۱")
+        // account name matches every row of that account (web behaviour)
+        XCTAssertEqual(SearchEngine.search(st, query: "پروژه آزمون").filter { $0.kind == .expense }.count,
+                       st["expenses"]?.arrayValue?.count)
+        // Persian digits in the query find Latin digits in the data (check number 987)
+        XCTAssertEqual(SearchEngine.search(st, query: "۹۸۷").map(\.kind), [.check])
+        XCTAssertTrue(SearchEngine.search(st, query: "zzz-nothing").isEmpty)
+    }
+}
