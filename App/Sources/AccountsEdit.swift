@@ -292,7 +292,13 @@ struct PartyFormView: View {
     @ObservedObject var model: AppModel
     let party: PartyVM?
     @Environment(\.dismiss) private var dismiss
-    @State private var name = "", code = "", mobile = "", card = "", account = "", iban = "", bank = ""
+    @State private var name = ""
+    @State private var code = ""
+    @State private var mobile = ""
+    @State private var card = ""
+    @State private var account = ""
+    @State private var iban = ""
+    @State private var bank = ""
 
     var body: some View {
         Form {
