@@ -213,6 +213,7 @@ struct HomeView: View {
                 }
 
                 WidgetGrid(keys: order, editing: $editingWidgets,
+                           onTap: { key, point, size in tapWidget(key, point, size) },
                            onReorder: { newOrder in
                                let all = SettingsOps.widgetOrder(model.state)
                                model.setWidgets(order: newOrder + all.filter { !newOrder.contains($0) }, visible: widgetVisibility())
@@ -221,9 +222,9 @@ struct HomeView: View {
                                var v = widgetVisibility(); v[key] = false
                                withAnimation(.spring) { model.setWidgets(order: SettingsOps.widgetOrder(model.state), visible: v) }
                            },
-                           onDragging: { draggingWidget = $0 },
-                           onConfigure: { key in if key == "shortcuts" { showShortcutEditor = true } }) { key, m in
-                    WidgetCard(size: m.size) { widget(key, m) }
+                           onConfigure: { key in if key == "shortcuts" { showShortcutEditor = true } },
+                           onDragging: { draggingWidget = $0 }) { key, size, frame in
+                    WidgetCard(size: frame) { widget(key, size, inner(frame)) }
                 }
             }
             .padding(.horizontal, 16)
@@ -231,13 +232,15 @@ struct HomeView: View {
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared ? 0 : 14)
             .padding(.top, editingWidgets ? 8 : 0)
+            .background {
+                if editingWidgets {
+                    Color.clear.contentShape(Rectangle())
+                        .onTapGesture { withAnimation(.spring) { editingWidgets = false } }
+                }
+            }
         }
         .scrollDisabled(draggingWidget)
-        .background {
-            AppBackground()
-                .contentShape(Rectangle())
-                .onTapGesture { if editingWidgets { withAnimation(.spring) { editingWidgets = false } } }
-        }
+        .background(AppBackground())
         .safeAreaInset(edge: .top, spacing: 0) {
             if editingWidgets {
                 WidgetEditBar(hidden: SettingsOps.widgetKeys.filter { !SettingsOps.widgetVisible(model.state, $0) },
@@ -265,107 +268,248 @@ struct HomeView: View {
         .sheet(isPresented: $showAppointment) { Themed { NavigationStack { AppointmentFormView(model: model, editingId: nil) } } }
     }
 
-    @ViewBuilder
-    private func widgetTitle(_ text: String, _ m: WidgetMetrics) -> some View {
-        Text(text).font(m.font(15, .bold)).foregroundStyle(t.ink).lineLimit(1)
+    // MARK: widgets — each size has a fixed design; row counts come from fixed row heights, so nothing overflows
+
+    private func inner(_ frame: CGSize) -> CGSize {
+        CGSize(width: max(0, frame.width - WidgetCard<EmptyView>.padding * 2), height: max(0, frame.height - WidgetCard<EmptyView>.padding * 2))
+    }
+    private static let titleH: CGFloat = 26
+    /// how many rows of height `rowH` (with `spacing`) fit under the title
+    private func fit(_ inner: CGSize, rowH: CGFloat, spacing: CGFloat = 6) -> Int {
+        max(1, Int((inner.height - Self.titleH - 6 + spacing) / (rowH + spacing)))
+    }
+    private func shortcutTiles(_ s: WidgetSize, _ inner: CGSize, count: Int) -> (WidgetLayout.Tiles, top: CGFloat) {
+        let top: CGFloat = s == .small ? 0 : Self.titleH + 6
+        return (WidgetLayout.tiles(count: count, width: Double(inner.width), height: Double(inner.height - top)), top)
+    }
+
+    private func tapWidget(_ key: String, _ point: CGPoint, _ frame: CGSize) {
+        switch key {
+        case "attention": tab = model.attentionItems.first?.id.hasPrefix("budget") == true ? .ledger : .reminders
+        case "financial", "activity": tab = .ledger
+        case "shortcuts":
+            let keys = SettingsOps.homeShortcuts(model.state)
+            guard !keys.isEmpty else { showShortcutEditor = true; return }
+            let size = HomeWidgetPrefs.decode(UserDefaults.standard.string(forKey: HomeWidgetPrefs.key) ?? "{}")["shortcuts"]
+                ?? HomeWidgetPrefs.defaults["shortcuts"]!
+            let inn = inner(frame)
+            let (t, top) = shortcutTiles(size, inn, count: keys.count)
+            let p = WidgetCard<EmptyView>.padding
+            if let i = WidgetLayout.tileIndex(at: Double(point.x - p), Double(point.y - p - top), count: keys.count, t,
+                                               areaWidth: Double(inn.width), rtl: true) {
+                go(keys[i])
+            }
+        default: break
+        }
+    }
+
+    private func widgetTitle(_ text: String, _ s: WidgetSize) -> some View {
+        Text(text).font(AppFont.bold(s == .small ? 13 : 15)).foregroundStyle(t.ink).lineLimit(1)
+            .frame(height: Self.titleH, alignment: .center)
     }
 
     @ViewBuilder
-    private func widget(_ key: String, _ m: WidgetMetrics) -> some View {
-        let span = m.span, size = m.size
+    private func widget(_ key: String, _ s: WidgetSize, _ inn: CGSize) -> some View {
         switch key {
-        case "date":
-            let today = model.todayTitle
-            let dayFont = min(size.height * (span.r == 1 ? 0.3 : 0.2), size.width * 0.14)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(today.weekday).font(AppFont.heavy(max(16, dayFont))).foregroundStyle(t.ink)
-                            .lineLimit(1).minimumScaleFactor(0.6)
-                        Text(today.date).font(AppFont.regular(max(12, dayFont * 0.5))).foregroundStyle(t.soft)
-                            .lineLimit(1).minimumScaleFactor(0.6)
-                    }
-                    Spacer(minLength: 0)
-                    if span.c > 2 {
-                        let side = min(size.height - 28, 72 * m.k)
-                        Image(systemName: "calendar")
-                            .font(.system(size: side * 0.45))
-                            .foregroundStyle(t.accent)
-                            .frame(width: side, height: side)
-                            .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: side * 0.3, style: .continuous))
-                    }
+        case "date": dateWidget(s, inn)
+        case "attention": attentionWidget(s, inn)
+        case "financial": financialWidget(s, inn)
+        case "shortcuts": shortcutsWidget(s, inn)
+        case "activity": activityWidget(s, inn)
+        default: EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func dateWidget(_ s: WidgetSize, _ inn: CGSize) -> some View {
+        let today = model.todayTitle
+        switch s {
+        case .small:
+            VStack(alignment: .leading, spacing: 6) {
+                Image(systemName: "calendar").font(.system(size: 22)).foregroundStyle(t.accent)
+                Spacer(minLength: 0)
+                Text(today.weekday).font(AppFont.heavy(28)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.6)
+                Text(today.date).font(AppFont.regular(13)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(width: inn.width, height: inn.height, alignment: .leading)
+        case .medium:
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(today.weekday).font(AppFont.heavy(34)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.6)
+                    Text(today.date).font(AppFont.regular(16)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "calendar").font(.system(size: 34)).foregroundStyle(t.accent)
+                    .frame(width: 72, height: 72)
+                    .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .frame(width: inn.width, height: inn.height)
+        case .large:
+            VStack(spacing: 14) {
+                Image(systemName: "calendar").font(.system(size: 54)).foregroundStyle(t.accent)
+                    .frame(width: 110, height: 110)
+                    .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+                Text(today.weekday).font(AppFont.heavy(44)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.6)
+                Text(today.date).font(AppFont.regular(20)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(width: inn.width, height: inn.height)
+        }
+    }
+
+    @ViewBuilder
+    private func attentionWidget(_ s: WidgetSize, _ inn: CGSize) -> some View {
+        let items = model.attentionItems
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                widgetTitle("نیازمند توجه", s)
+                Spacer(minLength: 0)
+                if !items.isEmpty {
+                    Text(Money.persianDigits(String(items.count))).font(AppFont.bold(13)).foregroundStyle(.white)
+                        .frame(minWidth: 22, minHeight: 22).background(t.warning, in: Capsule())
                 }
             }
-            .frame(maxHeight: .infinity)
-        case "attention":
-            let attention = model.attentionItems
-            VStack(alignment: .leading, spacing: 8 * m.k) {
-                widgetTitle("نیازمند توجه", m)
-                if attention.isEmpty {
-                    Label("فعلاً موردی نیست", systemImage: "checkmark.circle").font(m.font(13)).foregroundStyle(t.soft)
-                }
-                ForEach(attention.prefix(m.fit(m.compact ? 74 : 52))) { item in
-                    WidgetAttentionRow(item: item, m: m)
-                        .onTapGesture { tab = item.id.hasPrefix("budget") ? .ledger : .reminders }
+            if items.isEmpty {
+                Label("فعلاً موردی نیست", systemImage: "checkmark.circle").font(AppFont.regular(13)).foregroundStyle(t.soft)
+            } else if s == .small {
+                let it = items[0]
+                attentionRow(it, lines: 4, font: 12).frame(height: inn.height - Self.titleH - 6)
+            } else {
+                let rowH: CGFloat = 46
+                ForEach(items.prefix(fit(inn, rowH: rowH))) { it in
+                    attentionRow(it, lines: 2, font: 13).frame(height: rowH)
                 }
             }
-        case "financial":
-            let cols = span.c >= 4 && span.r <= 3 && model.accounts.count > 1 ? 2 : 1
-            let rowH: CGFloat = m.compact ? 70 : 92
-            let n = m.fit(rowH) * cols
-            VStack(alignment: .leading, spacing: 8 * m.k) {
-                widgetTitle("دفترها", m)
+        }
+    }
+
+    private func attentionRow(_ item: AttentionItem, lines: Int, font: CGFloat) -> some View {
+        let color: Color = item.level == .danger ? t.danger : (item.level == .warning ? t.warning : t.accent)
+        return HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.icon).font(.system(size: 13)).foregroundStyle(color).padding(.top, 2)
+            Text(item.text).font(AppFont.medium(font)).foregroundStyle(t.ink).lineLimit(lines).minimumScaleFactor(0.85)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func financialWidget(_ s: WidgetSize, _ inn: CGSize) -> some View {
+        let accounts = model.accounts
+        let active = accounts.first { $0.id == model.activeAccountId } ?? accounts.first
+        VStack(alignment: .leading, spacing: 6) {
+            widgetTitle("دفترها", s)
+            if accounts.isEmpty {
+                Text("دفتری نیست").font(AppFont.regular(13)).foregroundStyle(t.soft)
+            } else if s == .small, let a = active {
+                accountTile(a, compact: true).frame(height: inn.height - Self.titleH - 6)
+            } else {
+                let cols = 2
+                let rows = s == .medium ? 1 : 2
+                let tileH = (inn.height - Self.titleH - 6 - CGFloat(rows - 1) * 8) / CGFloat(rows)
+                let list = Array(([active].compactMap { $0 } + accounts.filter { $0.id != active?.id }).prefix(cols * rows))
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: cols), spacing: 8) {
-                    ForEach(model.accounts.prefix(n)) { a in
-                        Button {
-                            Haptics.tap()
-                            tab = .ledger
-                        } label: {
-                            WidgetAccountRow(account: a, budget: model.budget(accountId: a.id), m: m)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    ForEach(list) { a in accountTile(a, compact: false).frame(height: tileH) }
                 }
             }
-        case "shortcuts":
-            let keys = SettingsOps.homeShortcuts(model.state)
-            let inner = size.width - 28
-            let perRow = span.c >= 4 ? 4 : (span.c == 3 ? 3 : 2)
-            let side = min((inner - CGFloat(perRow - 1) * 8) / CGFloat(perRow), span.r == 1 ? size.height - 28 : 120)
-            VStack(alignment: .leading, spacing: 8 * m.k) {
-                if span.r > 1 {
-                    HStack {
-                        widgetTitle("میانبرها", m)
-                        Spacer()
+        }
+    }
+
+    private func accountTile(_ a: AccountImportSummary, compact: Bool) -> some View {
+        let budget = model.budget(accountId: a.id)
+        return VStack(alignment: .leading, spacing: 5) {
+            Text(a.name).font(AppFont.bold(compact ? 12 : 13)).foregroundStyle(t.ink).lineLimit(1)
+            Text(Money.persianDigits(Money.format(a.expenseTotal))).font(AppFont.heavy(compact ? 17 : 18)).foregroundStyle(t.accent)
+                .lineLimit(1).minimumScaleFactor(0.55)
+            Text("تومان").font(AppFont.caption).foregroundStyle(t.soft)
+            Spacer(minLength: 0)
+            if budget > 0 {
+                let pct = min(1, Double(a.expenseTotal) / Double(budget))
+                ProgressView(value: pct).tint(pct >= 0.8 ? t.warning : t.accent2)
+                Text("\(Money.persianDigits(Money.jsRound(pct * 100)))٪ بودجه").font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
+            } else if a.commissionEnabled || a.percent != 0 {
+                Text("کمیسیون: " + Money.persianDigits(Money.format(abs(a.remaining)))).font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(t.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func shortcutsWidget(_ s: WidgetSize, _ inn: CGSize) -> some View {
+        let keys = SettingsOps.homeShortcuts(model.state)
+        let (tiles, top) = shortcutTiles(s, inn, count: keys.count)
+        VStack(alignment: .leading, spacing: 6) {
+            if s != .small { widgetTitle("میانبرها", s) }
+            if keys.isEmpty {
+                VStack(spacing: 6) {
+                    Image(systemName: "plus.circle").font(.system(size: 24)).foregroundStyle(t.accent)
+                    Text("افزودن میان‌بر").font(AppFont.medium(12)).foregroundStyle(t.soft)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(keys.prefix(tiles.capacity).enumerated()), id: \.offset) { i, k in
+                        let r = WidgetLayout.tileRect(i, tiles, areaWidth: Double(inn.width), rtl: true)
+                        let d = HomeShortcut.info(k)
+                        VStack(spacing: r.w * 0.07) {
+                            Image(systemName: d.icon).font(.system(size: r.w * 0.3)).foregroundStyle(t.accent)
+                            if r.w >= 64 {
+                                Text(d.title).font(AppFont.medium(max(10, min(13, r.w * 0.15)))).foregroundStyle(t.ink)
+                                    .lineLimit(1).minimumScaleFactor(0.7)
+                            }
+                        }
+                        .frame(width: r.w, height: r.h)
+                        .background(t.card.opacity(0.75), in: RoundedRectangle(cornerRadius: r.w * 0.24, style: .continuous))
+                        .position(x: r.x + r.w / 2, y: r.y + r.h / 2)
                     }
                 }
-                if keys.isEmpty {
-                    Text("هنوز میان‌بری اضافه نکردی — ویجت رو نگه دار و دکمه‌ی تنظیمش رو بزن")
-                        .font(m.font(12)).foregroundStyle(t.soft).frame(maxWidth: .infinity)
+                .frame(width: inn.width, height: inn.height - top, alignment: .topLeading)
+                .environment(\.layoutDirection, .leftToRight)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func activityWidget(_ s: WidgetSize, _ inn: CGSize) -> some View {
+        let recent = model.recentRows
+        let compact = s == .small
+        let rowH: CGFloat = compact ? 44 : 46
+        VStack(alignment: .leading, spacing: 6) {
+            widgetTitle("فعالیت اخیر", s)
+            if recent.isEmpty {
+                Text("هنوز ردیفی ثبت نشده").font(AppFont.regular(13)).foregroundStyle(t.soft)
+            }
+            ForEach(recent.prefix(fit(inn, rowH: rowH))) { item in
+                activityRow(item, compact: compact).frame(height: rowH)
+            }
+        }
+    }
+
+    private func activityRow(_ item: RecentItem, compact: Bool) -> some View {
+        let r = item.row
+        let dot: Color = r.kind == .commission ? .purple : (r.kind == .tankhah ? t.success : (model.categoryColor(r.category) ?? t.accent))
+        let amount = Text(Money.persianDigits(Money.format(r.toman))).font(AppFont.bold(compact ? 12 : 14))
+            .foregroundStyle(r.kind == .tankhah ? t.success : t.ink).lineLimit(1).minimumScaleFactor(0.7)
+        return HStack(spacing: 8) {
+            Circle().fill(dot).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(r.desc.isEmpty ? "—" : r.desc).font(AppFont.medium(compact ? 12 : 14)).foregroundStyle(t.ink).lineLimit(1)
+                if compact {
+                    amount
                 } else {
-                    let rows = span.r == 1 ? 1 : max(1, Int((size.height - 28 - 40 * m.k + 8) / (side + 8)))
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: perRow), spacing: 8) {
-                        ForEach(keys.prefix(rows * perRow), id: \.self) { k in
-                            let d = HomeShortcut.info(k)
-                            WidgetShortcutTile(title: d.title, icon: d.icon, side: side) { go(k) }
-                        }
+                    HStack(spacing: 6) {
+                        if !item.account.isEmpty { Text(item.account) }
+                        Text(r.date)
+                        if r.kind == .tankhah { Text("تنخواه").foregroundStyle(t.success) }
                     }
+                    .font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
                 }
             }
-            .frame(maxHeight: .infinity, alignment: span.r == 1 ? .center : .top)
-        case "activity":
-            let recent = model.recentRows
-            VStack(alignment: .leading, spacing: 6 * m.k) {
-                widgetTitle("فعالیت اخیر", m)
-                if recent.isEmpty {
-                    Text("هنوز ردیفی ثبت نشده").font(m.font(13)).foregroundStyle(t.soft)
-                }
-                ForEach(recent.prefix(m.fit(m.compact ? 46 : 44))) { item in
-                    WidgetActivityRow(item: item, color: model.categoryColor(item.row.category), m: m)
-                }
-            }
-        default:
-            EmptyView()
+            Spacer(minLength: 6)
+            if !compact { amount }
         }
     }
 }
