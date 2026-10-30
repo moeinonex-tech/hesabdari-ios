@@ -92,8 +92,10 @@ public enum SettingsOps {
         guard let text else { return nil }
         let t = clean(text)
         guard !t.isEmpty else { return nil }
-        // an exact name wins first («صادرات» is بانک صادرات, not بانک توسعه صادرات)
+        // web order is the bank list; here the closest name wins first: exact, then one that starts with the text
+        // («صادرات» is بانک صادرات ایران, not بانک توسعه صادرات), then the web rule (substring either way)
         if let exact = banks.first(where: { clean($0.name) == t }) { return exact }
+        if let start = banks.filter({ clean($0.name).hasPrefix(t) }).min(by: { clean($0.name).count < clean($1.name).count }) { return start }
         for b in banks {
             let bn = clean(b.name)
             if bn == t || bn.contains(t) || t.contains(bn) { return b }
