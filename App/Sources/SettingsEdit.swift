@@ -227,6 +227,8 @@ struct BudgetEditor: View {
 struct QuotesSettingsView: View {
     @ObservedObject var model: AppModel
     @State private var editing: QuoteEdit?
+    @State private var showBulk = false
+    @State private var confirmClear = false
     @Environment(\.theme) private var t
 
     struct QuoteEdit: Identifiable {
@@ -264,8 +266,20 @@ struct QuotesSettingsView: View {
         .navigationTitle("جمله‌های انگیزشی")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button { editing = QuoteEdit(id: "", text: "", author: "") } label: { Image(systemName: "plus") }
+                Menu {
+                    Button { editing = QuoteEdit(id: "", text: "", author: "") } label: { Label("جمله جدید", systemImage: "plus") }
+                    Button { showBulk = true } label: { Label("ورود انبوه", systemImage: "text.badge.plus") }
+                    if !model.customQuotes.isEmpty {
+                        Button(role: .destructive) { confirmClear = true } label: { Label("حذف همه", systemImage: "trash") }
+                    }
+                } label: { Image(systemName: "plus") }
             }
+        }
+        .sheet(isPresented: $showBulk) { NavigationStack { QuoteBulkView(model: model) } }
+        .confirmationDialog("همه‌ی \(Money.persianDigits(String(model.customQuotes.count))) جمله حذف شوند؟", isPresented: $confirmClear, titleVisibility: .visible) {
+            Button("بله، همه رو حذف کن", role: .destructive) { _ = model.clearAllQuotes() }
+        } message: {
+            Text("بعد از آن کارت «جمله‌ی امروز» در خانه نمایش داده نمی‌شود.")
         }
         .sheet(item: $editing) { e in
             NavigationStack { QuoteFormView(model: model, edit: e) }

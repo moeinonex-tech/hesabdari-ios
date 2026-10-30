@@ -1,0 +1,83 @@
+{
+ "source": {
+  "app": "app.html",
+  "md5": "80e0be42399b1410a518d4c43a8deb72"
+ },
+ "cases": [
+  {
+   "input": "«زندگی کوتاه است»\n— مولوی\n\nکار امروز را به فردا میفکن\n- ضرب‌المثل",
+   "records": [
+    {
+     "text": "زندگی کوتاه است",
+     "author": "مولوی",
+     "suspicious": false
+    },
+    {
+     "text": "کار امروز را به فردا میفکن",
+     "author": "ضرب‌المثل",
+     "suspicious": false
+    }
+   ]
+  },
+  {
+   "input": "سعدی:\n«بنی آدم اعضای یکدیگرند»\n\n\nحافظ:\nحافظ:\n«دوش وقت سحر»",
+   "records": [
+    {
+     "text": "بنی آدم اعضای یکدیگرند",
+     "author": "سعدی",
+     "suspicious": false
+    },
+    {
+     "text": "حافظ: حافظ: «دوش وقت سحر",
+     "author": "",
+     "suspicious": false
+    }
+   ]
+  },
+  {
+   "input": "یک جمله بدون نویسنده\nکه دو خط است\n\nجمله‌ی دوم\n\n«جمله ی ناقص\n— کسی",
+   "records": [
+    {
+     "text": "یک جمله بدون نویسنده که دو خط است",
+     "author": "",
+     "suspicious": false
+    },
+    {
+     "text": "جمله‌ی دوم",
+     "author": "",
+     "suspicious": false
+    },
+    {
+     "text": "جمله ی ناقص",
+     "author": "کسی",
+     "suspicious": true
+    }
+   ]
+  },
+  {
+   "input": "a\nb\nc\nd\n\n\"quoted\" \r\n— Author Name Here",
+   "records": [
+    {
+     "text": "a b c d",
+     "author": "",
+     "suspicious": true
+    },
+    {
+     "text": "quoted",
+     "author": "Author Name Here",
+     "suspicious": false
+    }
+   ]
+  },
+  {
+   "input": "فقط نویسنده:",
+   "records": [
+    {
+     "text": "",
+     "author": "فقط نویسنده",
+     "suspicious": true
+    }
+   ]
+  }
+ ]
+}

@@ -1072,6 +1072,11 @@ struct SettingsView: View {
                 Toggle(isOn: $lockEnabled) {
                     Label("قفل با Face ID", systemImage: "faceid")
                 }
+                NavigationLink {
+                    EditPasswordView(model: model)
+                } label: {
+                    Label("رمز ویرایش ردیف‌های قدیمی", systemImage: "lock.rectangle")
+                }
                 Toggle(isOn: $notifyEnabled) {
                     Label("اعلان سررسید چک، قسط و قرار", systemImage: "bell.badge")
                 }
@@ -1107,6 +1112,12 @@ struct SettingsView: View {
                     showImporter = true
                 } label: {
                     Label("ورود دوباره‌ی پشتیبان", systemImage: "square.and.arrow.down")
+                }
+                NavigationLink {
+                    DangerZoneView(model: model)
+                } label: {
+                    Label("پاک‌سازی (هیستوری یادگیری / همه‌ی اطلاعات)", systemImage: "trash")
+                        .foregroundStyle(t.danger)
                 }
             } header: {
                 Text("داده‌ها").font(AppFont.medium(13))

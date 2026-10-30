@@ -67,6 +67,15 @@ public final class HesabStore {
         try dbQueue.write { db in try Self.write(state, db) }
     }
 
+    /// web factoryResetAllData: removes everything (the caller keeps a backup copy first).
+    public func wipe() throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM record")
+            try db.execute(sql: "DELETE FROM root")
+            try db.execute(sql: "DELETE FROM import_log")
+        }
+    }
+
     static func write(_ state: [String: JSONValue], _ db: Database) throws {
             try db.execute(sql: "DELETE FROM record")
             try db.execute(sql: "DELETE FROM root")

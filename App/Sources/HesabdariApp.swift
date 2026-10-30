@@ -133,6 +133,24 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// web factoryResetAllData — a safety copy is written first; without it nothing is deleted.
+    func factoryReset() -> Bool {
+        guard let store else { return false }
+        do { try Backups.write(try exportData(), reason: .beforeRestore) }
+        catch { errorMessage = "پشتیبان ایمنی ساخته نشد؛ چیزی پاک نشد: \(error.localizedDescription)"; return false }
+        do {
+            try store.wipe()
+            undo = nil
+            reload()
+            lastImportText = nil
+            Notifier.sync([:])
+            return true
+        } catch {
+            errorMessage = "پاک‌سازی انجام نشد: \(error.localizedDescription)"
+            return false
+        }
+    }
+
     // export
 
     /// Full backup (web format v1) of what is stored right now.
