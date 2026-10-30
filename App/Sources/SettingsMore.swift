@@ -114,20 +114,9 @@ struct QuoteBulkView: View {
     var body: some View {
         Form {
             if let list = items {
-                let susp = list.filter(\.suspicious).count
-                Section {
-                    Text(Money.persianDigits(String(list.count)) + " مورد شناسایی شد" +
-                         (susp > 0 ? " — " + Money.persianDigits(String(susp)) + " موردِ مشکوک نیاز به بررسی دارد" : "") +
-                         ". قبل از تایید، می‌تونی هر مورد رو ویرایش یا حذف کنی؛ چیزی هنوز ذخیره نشده.")
-                        .font(AppFont.caption)
-                }
+                Section { Text(summary(list)).font(AppFont.caption) }
                 ForEach(Array(list.indices), id: \.self) { i in
-                    Section {
-                        if list[i].suspicious { Text("نیاز به بررسی").font(AppFont.caption).foregroundStyle(.orange) }
-                        TextField("متن جمله", text: Binding(get: { items?[i].text ?? "" }, set: { items?[i].text = $0 }), axis: .vertical)
-                        TextField("نویسنده (اختیاری)", text: Binding(get: { items?[i].author ?? "" }, set: { items?[i].author = $0 }))
-                        Button("حذف از پیش‌نمایش", role: .destructive) { items?.remove(at: i) }
-                    }
+                    row(i, suspicious: list[i].suspicious)
                 }
             } else {
                 Section {
@@ -155,6 +144,29 @@ struct QuoteBulkView: View {
                         .disabled(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+        }
+    }
+
+    private func summary(_ list: [BulkQuote]) -> String {
+        let susp = list.filter(\.suspicious).count
+        var t = Money.persianDigits(String(list.count)) + " مورد شناسایی شد"
+        if susp > 0 { t += " — " + Money.persianDigits(String(susp)) + " موردِ مشکوک نیاز به بررسی دارد" }
+        return t + ". قبل از تایید، می‌تونی هر مورد رو ویرایش یا حذف کنی؛ چیزی هنوز ذخیره نشده."
+    }
+
+    private func textBinding(_ i: Int) -> Binding<String> {
+        Binding(get: { (items ?? []).indices.contains(i) ? items![i].text : "" }, set: { if (items ?? []).indices.contains(i) { items![i].text = $0 } })
+    }
+    private func authorBinding(_ i: Int) -> Binding<String> {
+        Binding(get: { (items ?? []).indices.contains(i) ? items![i].author : "" }, set: { if (items ?? []).indices.contains(i) { items![i].author = $0 } })
+    }
+
+    @ViewBuilder private func row(_ i: Int, suspicious: Bool) -> some View {
+        Section {
+            if suspicious { Text("نیاز به بررسی").font(AppFont.caption).foregroundStyle(.orange) }
+            TextField("متن جمله", text: textBinding(i), axis: .vertical)
+            TextField("نویسنده (اختیاری)", text: authorBinding(i))
+            Button("حذف از پیش‌نمایش", role: .destructive) { items?.remove(at: i) }
         }
     }
 }
