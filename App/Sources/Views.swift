@@ -249,11 +249,10 @@ struct ExpenseFormView: View {
                 }
             } else if isTankhah {
                 Section("طرف حساب") {
-                    Picker("طرف حساب", selection: $partyId) {
-                        Text("انتخاب کنید").tag(String?.none)
-                        ForEach(model.tankhahParties) { p in
-                            Text(p.label).tag(Optional(p.id))
-                        }
+                    NavigationLink {
+                        TankhahPartyPicker(model: model, partyId: $partyId)
+                    } label: {
+                        LabeledContent("طرف حساب", value: model.tankhahParties.first { $0.id == partyId }?.label ?? "انتخاب کنید")
                     }
                     TextField("شرح (اختیاری)", text: $desc)
                 }

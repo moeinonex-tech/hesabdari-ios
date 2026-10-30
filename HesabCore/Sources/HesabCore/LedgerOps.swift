@@ -94,6 +94,7 @@ public enum LedgerError: Error, Equatable, Sendable {
     case invalid([String])
     case noAmount
     case commissionIncome
+    case message(String)
 
     public var message: String {
         switch self {
@@ -102,6 +103,7 @@ public enum LedgerError: Error, Equatable, Sendable {
         case .invalid(let fields): return "این موارد را پر کنید: " + fields.joined(separator: "، ")
         case .noAmount: return "مبلغ پرداخت را وارد کنید."
         case .commissionIncome: return "این درآمد از پرداخت کمیسیون آمده و از همان ردیف در دفتر حساب ویرایش یا حذف می‌شود."
+        case .message(let m): return m
         }
     }
 }

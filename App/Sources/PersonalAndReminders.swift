@@ -468,6 +468,7 @@ struct PersonalFormView: View {
 struct IncomeFormView: View {
     @ObservedObject var model: AppModel
     let editing: SimpleRowVM?
+    var presetLink: String? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var desc = ""
     @State private var category = ""
@@ -506,6 +507,8 @@ struct IncomeFormView: View {
             if let r = editing {
                 desc = r.desc; category = r.category; subcategory = r.subcategory
                 amount = Money.persianDigits(Money.format(r.toman)); date = r.dateValue; link = r.accountLink
+            } else if let p = presetLink {
+                link = p
             }
         }
     }

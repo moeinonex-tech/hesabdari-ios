@@ -445,6 +445,10 @@ struct LedgerHomeView: View {
     @State private var selected: String?
     @State private var pendingLocked: (() -> Void)?
     @State private var budgetAccount: String?
+    @State private var showManage = false
+    @State private var showPartyReport = false
+    @State private var showIncome = false
+    @State private var incomeSheet: PersonalSheet?
     @State private var showPassword = false
     @State private var password = ""
 
@@ -454,33 +458,75 @@ struct LedgerHomeView: View {
         let account = model.accounts.first { $0.id == accountId }
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16, pinnedViews: []) {
-                ScreenHeader(title: "دفتر حساب", subtitle: account?.name ?? "")
+                HStack(alignment: .top) {
+                    ScreenHeader(title: "دفتر حساب", subtitle: account?.name ?? "")
+                    Button {
+                        Haptics.tap()
+                        showManage = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3").font(.title3).padding(10)
+                    }
+                    .buttonStyle(.glass)
+                    .padding(.top, 8)
+                }
 
-                if model.accounts.count > 1 {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(model.accounts) { a in
-                                let on = a.id == accountId
-                                Button {
-                                    Haptics.tap()
-                                    withAnimation(.snappy) { selected = a.id }
-                                } label: {
-                                    Text(a.name)
-                                        .font(AppFont.bold(14))
-                                        .padding(.horizontal, 14).padding(.vertical, 8)
-                                        .foregroundStyle(on ? t.onAccent : t.ink)
-                                        .background(on ? t.accent : t.card.opacity(0.7), in: Capsule())
-                                }
-                                .buttonStyle(.plain)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(model.accounts) { a in
+                            let on = a.id == accountId
+                            Button {
+                                Haptics.tap()
+                                withAnimation(.snappy) { selected = a.id }
+                                model.selectAccount(a.id)
+                            } label: {
+                                Text(a.name)
+                                    .font(AppFont.bold(14))
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .foregroundStyle(on ? t.onAccent : t.ink)
+                                    .background(on ? t.accent : t.card.opacity(0.7), in: Capsule())
                             }
+                            .buttonStyle(.plain)
                         }
+                        Button {
+                            Haptics.tap()
+                            showManage = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(AppFont.bold(14))
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .foregroundStyle(t.accent)
+                                .background(t.card.opacity(0.7), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
-                if let a = account {
+                if account != nil {
+                    Picker("", selection: $showIncome.animation(.snappy)) {
+                        Text("هزینه و تنخواه").tag(false)
+                        Text("درآمد این دفتر").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                if let a = account, showIncome {
+                    ledgerIncome(a)
+                }
+
+                if let a = account, !showIncome {
                     LedgerHero(account: a, budget: model.budget(accountId: a.id), onBudget: { budgetAccount = a.id }) { sheet = .new }
                     if a.commissionEnabled || a.percent != 0 {
                         CommissionCard(account: a) { sheet = .settle }
+                    }
+                    if model.hasTankhah(a.id) {
+                        Button {
+                            Haptics.tap()
+                            showPartyReport = true
+                        } label: {
+                            Label("تنخواه به تفکیک طرف حساب", systemImage: "person.2.fill")
+                                .font(AppFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 4)
+                        }
+                        .buttonStyle(.glass)
                     }
                     let slices = model.categoryBreakdown(accountId: a.id)
                     if !slices.isEmpty { CategoryChartCard(slices: slices) }
@@ -521,6 +567,29 @@ struct LedgerHomeView: View {
             }
             .presentationDetents([.medium])
         }
+        .sheet(isPresented: $showManage) {
+            Themed {
+                NavigationStack {
+                    AccountManageView(model: model, accountId: accountId) { id in selected = id }
+                }
+            }
+        }
+        .sheet(isPresented: $showPartyReport) {
+            Themed { NavigationStack { if let id = accountId { TankhahPartyReportView(model: model, accountId: id) } } }
+        }
+        .sheet(item: $incomeSheet) { s in
+            Themed {
+                NavigationStack {
+                    switch s {
+                    case .editIncome(let r): IncomeFormView(model: model, editing: r)
+                    default: IncomeFormView(model: model, editing: nil, presetLink: accountId)
+                    }
+                }
+            }
+        }
+        .onChange(of: model.accounts.map(\.id)) { _, ids in
+            if let s = selected, !ids.contains(s) { selected = nil }
+        }
         .sheet(item: $sheet) { s in
             Themed {
                 NavigationStack {
@@ -550,6 +619,57 @@ struct LedgerHomeView: View {
         } message: {
             Text("این رکورد مربوط به بیش از ۸ روز پیشه. برای ویرایش یا حذفش، رمز رو وارد کن.")
         }
+    }
+
+    @ViewBuilder
+    private func ledgerIncome(_ a: AccountImportSummary) -> some View {
+        let rows = model.ledgerIncomeRows(a.id)
+        let total = rows.reduce(0) { $0 + $1.toman }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("جمع درآمدهای این دفتر").font(AppFont.regular(13)).foregroundStyle(t.soft)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(Money.persianDigits(Money.format(total))).font(AppFont.heavy(30))
+                    .foregroundStyle(t.success).contentTransition(.numericText())
+                Text("تومان").font(AppFont.regular(13)).foregroundStyle(t.soft)
+            }
+            Button {
+                incomeSheet = .newIncome
+            } label: {
+                Label("ثبت درآمد برای این دفتر", systemImage: "plus")
+                    .font(AppFont.bold(15)).frame(maxWidth: .infinity).padding(.vertical, 4)
+            }
+            .buttonStyle(.glassProminent)
+        }
+        .glassCard()
+        if rows.isEmpty {
+            VStack(spacing: 4) {
+                Text("هنوز درآمدی برای این حساب ثبت نشده").font(AppFont.regular(14))
+                Text("اولین درآمدِ این حساب رو با دکمه‌ی بالا ثبت کن").font(AppFont.caption)
+            }
+            .foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(30)
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(rows) { r in
+                    SimpleRowLine(row: r, income: true, color: model.categoryColor(r.category))
+                        .contentShape(Rectangle())
+                        .onTapGesture { openIncome(r) }
+                        .contextMenu {
+                            Button { openIncome(r) } label: { Label("ویرایش", systemImage: "pencil") }
+                            Button(role: .destructive) {
+                                if r.isCommission { model.errorMessage = LedgerError.commissionIncome.message }
+                                else if model.deleteIncome(r.rowId) { Haptics.warning() }
+                            } label: { Label("حذف", systemImage: "trash") }
+                        }
+                    if r.id != rows.last?.id { Divider().opacity(0.5) }
+                }
+            }
+            .glassCard()
+        }
+    }
+
+    private func openIncome(_ r: SimpleRowVM) {
+        if r.isCommission { model.errorMessage = LedgerError.commissionIncome.message; return }
+        incomeSheet = .editIncome(r)
     }
 
     private func guarded(_ r: LedgerRowVM, _ action: @escaping () -> Void) {
@@ -886,8 +1006,13 @@ struct SettingsView: View {
                 } label: {
                     Label("جمله‌های انگیزشی", systemImage: "quote.bubble")
                 }
+                NavigationLink {
+                    PartiesView(model: model)
+                } label: {
+                    Label("طرف‌های حساب", systemImage: "person.2")
+                }
             } header: {
-                Text("صفحه‌ی خانه").font(AppFont.medium(13))
+                Text("خانه و فهرست‌ها").font(AppFont.medium(13))
             }
 
             Section {

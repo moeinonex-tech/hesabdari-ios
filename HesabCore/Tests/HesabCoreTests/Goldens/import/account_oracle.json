@@ -1,0 +1,542 @@
+{
+ "source": {
+  "app": "app.html",
+  "md5": "80e0be42399b1410a518d4c43a8deb72"
+ },
+ "report": {
+  "order": [
+   "شرکت آریا",
+   "بدون طرف حساب",
+   "حامد"
+  ],
+  "totals": [
+   9000,
+   7000,
+   2000
+  ],
+  "ids": [
+   [
+    "t1",
+    "t3"
+   ],
+   [
+    "t4"
+   ],
+   [
+    "t2"
+   ]
+  ],
+  "grandTotal": 18000
+ },
+ "after": {
+  "accounts": [
+   {
+    "id": "aB",
+    "name": "پروژه ب",
+    "commissionPercent": 0,
+    "commissionEnabled": false,
+    "budget": 0,
+    "commissionSettlements": []
+   }
+  ],
+  "expenses": [
+   {
+    "id": "e9",
+    "accountId": "aB",
+    "desc": "سیمان",
+    "toman": 3000,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 2
+    },
+    "ts": 7,
+    "type": "expense",
+    "partyId": null
+   }
+  ],
+  "incomes": [
+   {
+    "id": "i4",
+    "desc": "درآمد ب",
+    "toman": 20,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 1
+    },
+    "ts": 4,
+    "accountId": "aB",
+    "source": "manual",
+    "commissionSettlementId": null,
+    "subcategory": "",
+    "accountName": ""
+   }
+  ],
+  "reminderChecks": [
+   {
+    "id": "c1",
+    "amount": 1000,
+    "party": "x",
+    "accountId": null,
+    "linkedExpenseId": null,
+    "tankhahAccountId": null,
+    "tankhahExpenseId": null,
+    "status": "pending",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 1
+    },
+    "calendarAdded": false,
+    "calendarEventId": null,
+    "calendarSeq": 0,
+    "alertShown3d": false,
+    "muted": false,
+    "category": "",
+    "sourceKind": "expense",
+    "direction": "pay"
+   },
+   {
+    "id": "c2",
+    "amount": 1000,
+    "party": "y",
+    "accountId": "aB",
+    "linkedExpenseId": "e9",
+    "tankhahAccountId": null,
+    "tankhahExpenseId": null,
+    "status": "pending",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 1
+    },
+    "calendarAdded": false,
+    "calendarEventId": null,
+    "calendarSeq": 0,
+    "alertShown3d": false,
+    "muted": false,
+    "category": "",
+    "sourceKind": "expense",
+    "direction": "pay"
+   }
+  ],
+  "reminderPersons": [
+   {
+    "id": "p1",
+    "name": "بنا",
+    "type": "creditor",
+    "installments": [
+     {
+      "id": "n1",
+      "amount": 5,
+      "accountId": null,
+      "linkedExpenseId": null,
+      "paid": false,
+      "dueDate": {
+       "jy": 1405,
+       "jm": 8,
+       "jd": 2
+      },
+      "alertShown3d": false,
+      "muted": false
+     },
+     {
+      "id": "n2",
+      "amount": 6,
+      "accountId": "aB",
+      "linkedExpenseId": "e9",
+      "paid": false,
+      "dueDate": {
+       "jy": 1405,
+       "jm": 8,
+       "jd": 2
+      },
+      "alertShown3d": false,
+      "muted": false
+     }
+    ]
+   }
+  ],
+  "appointments": [
+   {
+    "id": "ap1",
+    "title": "جلسه",
+    "projectId": null,
+    "projectManualName": "پروژه الف",
+    "done": false,
+    "date": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 3
+    },
+    "kind": "personal",
+    "apptType": "meeting",
+    "location": {
+     "label": "",
+     "lat": null,
+     "lng": null
+    }
+   },
+   {
+    "id": "ap2",
+    "title": "جلسه۲",
+    "projectId": null,
+    "projectManualName": "دستی",
+    "done": false,
+    "date": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 3
+    },
+    "kind": "personal",
+    "apptType": "meeting",
+    "location": {
+     "label": "",
+     "lat": null,
+     "lng": null
+    }
+   },
+   {
+    "id": "ap3",
+    "title": "جلسه۳",
+    "projectId": "aB",
+    "done": false,
+    "date": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 3
+    },
+    "kind": "personal",
+    "apptType": "meeting",
+    "projectManualName": "",
+    "location": {
+     "label": "",
+     "lat": null,
+     "lng": null
+    }
+   }
+  ],
+  "lastCardByAccount": {
+   "aB": "crd2"
+  },
+  "activeAccountId": "aB",
+  "starredAccountId": null
+ },
+ "seed": {
+  "accounts": [
+   {
+    "id": "aA",
+    "name": "پروژه الف",
+    "commissionPercent": 10,
+    "commissionEnabled": true,
+    "budget": 0,
+    "commissionSettlements": [
+     {
+      "id": "s1",
+      "toman": 100,
+      "date": {
+       "jy": 1405,
+       "jm": 7,
+       "jd": 1
+      },
+      "ts": 5
+     }
+    ]
+   },
+   {
+    "id": "aB",
+    "name": "پروژه ب",
+    "commissionPercent": 0,
+    "commissionEnabled": false,
+    "budget": 0,
+    "commissionSettlements": []
+   }
+  ],
+  "activeAccountId": "aA",
+  "mainTab": "ledger",
+  "expenses": [
+   {
+    "id": "e1",
+    "accountId": "aA",
+    "desc": "آجر",
+    "toman": 1000,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 2
+    },
+    "ts": 1,
+    "type": "expense",
+    "category": "مصالح"
+   },
+   {
+    "id": "e2",
+    "accountId": "aA",
+    "desc": "کمیسیون",
+    "toman": 100,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 3
+    },
+    "ts": 2,
+    "type": "expense",
+    "commissionSettlementId": "s2"
+   },
+   {
+    "id": "t1",
+    "accountId": "aA",
+    "desc": "",
+    "toman": 5000,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 1
+    },
+    "ts": 3,
+    "type": "tankhah",
+    "partyId": "tpX",
+    "payMethod": "cash"
+   },
+   {
+    "id": "t2",
+    "accountId": "aA",
+    "desc": "دوم",
+    "toman": 2000,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 4
+    },
+    "ts": 4,
+    "type": "tankhah",
+    "partyId": "tpY",
+    "payMethod": "transfer"
+   },
+   {
+    "id": "t3",
+    "accountId": "aA",
+    "desc": "سوم",
+    "toman": 4000,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 5
+    },
+    "ts": 5,
+    "type": "tankhah",
+    "partyId": "tpX",
+    "payMethod": "cash"
+   },
+   {
+    "id": "t4",
+    "accountId": "aA",
+    "desc": "بی‌نام",
+    "toman": 7000,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 6
+    },
+    "ts": 6,
+    "type": "tankhah",
+    "payMethod": "cash"
+   },
+   {
+    "id": "e9",
+    "accountId": "aB",
+    "desc": "سیمان",
+    "toman": 3000,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 2
+    },
+    "ts": 7,
+    "type": "expense"
+   }
+  ],
+  "personalExpenses": [],
+  "incomes": [
+   {
+    "id": "i1",
+    "desc": "درآمد الف",
+    "toman": 10,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 1
+    },
+    "ts": 1,
+    "accountId": "aA",
+    "source": "manual",
+    "commissionSettlementId": null
+   },
+   {
+    "id": "i2",
+    "desc": "کمیسیون",
+    "toman": 100,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 1
+    },
+    "ts": 2,
+    "accountId": "personal",
+    "source": "commission",
+    "commissionSettlementId": "s1"
+   },
+   {
+    "id": "i3",
+    "desc": "کمیسیون۲",
+    "toman": 100,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 1
+    },
+    "ts": 3,
+    "accountId": "personal",
+    "source": "commission",
+    "commissionSettlementId": "s2"
+   },
+   {
+    "id": "i4",
+    "desc": "درآمد ب",
+    "toman": 20,
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 1
+    },
+    "ts": 4,
+    "accountId": "aB",
+    "source": "manual",
+    "commissionSettlementId": null
+   }
+  ],
+  "reminderChecks": [
+   {
+    "id": "c1",
+    "amount": 1000,
+    "party": "x",
+    "accountId": "aA",
+    "linkedExpenseId": "e1",
+    "tankhahAccountId": null,
+    "tankhahExpenseId": null,
+    "status": "pending",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 1
+    }
+   },
+   {
+    "id": "c2",
+    "amount": 1000,
+    "party": "y",
+    "accountId": "aB",
+    "linkedExpenseId": "e9",
+    "tankhahAccountId": "aA",
+    "tankhahExpenseId": "t2",
+    "status": "pending",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 1
+    }
+   }
+  ],
+  "reminderPersons": [
+   {
+    "id": "p1",
+    "name": "بنا",
+    "type": "creditor",
+    "installments": [
+     {
+      "id": "n1",
+      "amount": 5,
+      "accountId": "aA",
+      "linkedExpenseId": "e1",
+      "paid": false,
+      "dueDate": {
+       "jy": 1405,
+       "jm": 8,
+       "jd": 2
+      }
+     },
+     {
+      "id": "n2",
+      "amount": 6,
+      "accountId": "aB",
+      "linkedExpenseId": "e9",
+      "paid": false,
+      "dueDate": {
+       "jy": 1405,
+       "jm": 8,
+       "jd": 2
+      }
+     }
+    ]
+   }
+  ],
+  "appointments": [
+   {
+    "id": "ap1",
+    "title": "جلسه",
+    "projectId": "aA",
+    "projectManualName": "",
+    "done": false,
+    "date": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 3
+    }
+   },
+   {
+    "id": "ap2",
+    "title": "جلسه۲",
+    "projectId": "aA",
+    "projectManualName": "دستی",
+    "done": false,
+    "date": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 3
+    }
+   },
+   {
+    "id": "ap3",
+    "title": "جلسه۳",
+    "projectId": "aB",
+    "done": false,
+    "date": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 3
+    }
+   }
+  ],
+  "parties": [],
+  "tankhahParties": [
+   {
+    "id": "tpX",
+    "type": "company",
+    "name": "شرکت آریا"
+   },
+   {
+    "id": "tpY",
+    "type": "person",
+    "name": "حامد"
+   }
+  ],
+  "lastBackupTs": 1793350606956,
+  "lastTextBackupTs": 1793350606956,
+  "starredAccountId": "aA",
+  "lastCardByAccount": {
+   "aA": "crd1",
+   "aB": "crd2"
+  }
+ }
+}
