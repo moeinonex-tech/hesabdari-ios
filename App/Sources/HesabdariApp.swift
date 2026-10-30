@@ -117,17 +117,28 @@ final class AppModel: ObservableObject {
 
     func confirmImport() {
         guard let report = pending, report.canImport, let store else { return }
+        if hasData {   // safety copy of the current data before it is replaced
+            do { try Backups.write(try exportData(), reason: .beforeRestore) }
+            catch { errorMessage = "قبل از جایگزینی، پشتیبان از داده‌ی فعلی ساخته نشد؛ ورود انجام نشد: \(error.localizedDescription)"; return }
+        }
         do {
             try store.replaceAll(with: report.cleanedState, sourceExportedAtJalali: report.exportedAtJalali,
                                  reportLines: report.summaryLines + report.issues.map(\.title))
             pending = nil
             reload()
+            backupToday()
         } catch {
             errorMessage = "ورود ناموفق بود و هیچ داده‌ای تغییر نکرد: \(error.localizedDescription)"
         }
     }
 
     // export
+
+    /// Full backup (web format v1) of what is stored right now.
+    func exportData() throws -> Data {
+        guard let store else { throw LedgerError.notFound }
+        return try store.exportBackup(today: Self.today)
+    }
 
     func makeExportFile() -> ExportFile? {
         guard let store else { return nil }
@@ -192,6 +203,7 @@ final class AppModel: ObservableObject {
         do {
             try store.save(newState)
             state = newState
+            backupToday()
             if let m = undoMessage {
                 let item = UndoItem(message: m, previous: previous)
                 undo = item

@@ -29,6 +29,8 @@ struct RootView: View {
     @State private var exportFile: ExportFile?
     @State private var tab: AppTab = .home
     @State private var ledgerSheet: LedgerSheet?
+    @StateObject private var lock = AppLock()
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         Themed {
@@ -52,6 +54,17 @@ struct RootView: View {
                     WelcomeView(showImporter: $showImporter)
                 }
             }
+            .overlay {
+                if model.hasData && lock.locked {
+                    LockScreen(lock: lock).transition(.opacity)
+                } else if phase != .active {
+                    PrivacyCover()
+                }
+            }
+        }
+        .onChange(of: phase) { _, p in
+            if p == .background { lock.didEnterBackground() }
+            if p == .active { lock.didBecomeActive(); model.backupToday() }
         }
         .preferredColorScheme(Appearance(rawValue: appearanceRaw)?.scheme)
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .plainText, .data]) { result in
@@ -716,6 +729,9 @@ struct SettingsView: View {
     @Binding var exportFile: ExportFile?
     @AppStorage("palette") private var paletteRaw = Palette.web.rawValue
     @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
+    @AppStorage(AppLock.enabledKey) private var lockEnabled = true
+    @AppStorage(Backups.lastAtKey) private var lastBackupAt: Double = 0
+    @AppStorage(Backups.lastICloudKey) private var lastICloud: Int = -2
     @Environment(\.colorScheme) private var scheme
     @Environment(\.theme) private var t
 
@@ -755,6 +771,31 @@ struct SettingsView: View {
             }
 
             Section {
+                Toggle(isOn: $lockEnabled) {
+                    Label("قفل با Face ID", systemImage: "faceid")
+                }
+            } header: {
+                Text("امنیت").font(AppFont.medium(13))
+            } footer: {
+                Text("وقتی بیش از یک دقیقه از اپ بیرون باشید، برای باز کردن دوباره Face ID (یا رمز گوشی) خواسته می‌شود.").font(AppFont.caption)
+            }
+
+            Section {
+                LabeledContent("آخرین پشتیبان", value: lastBackupAt > 0 ? Backups.describeLast() : "هنوز گرفته نشده")
+                LabeledContent("iCloud Drive", value: iCloudText)
+                Button {
+                    model.backupToday(showErrors: true)
+                    Haptics.success()
+                } label: {
+                    Label("پشتیبان‌گیری همین الان", systemImage: "icloud.and.arrow.up")
+                }
+            } header: {
+                Text("پشتیبان خودکار").font(AppFont.medium(13))
+            } footer: {
+                Text("بعد از هر تغییر، پشتیبان امروز به‌روز می‌شود. فایل‌ها در iCloud Drive › دفتر حساب › پشتیبان‌ها، و یک نسخه هم در Files › On My iPhone › دفتر حساب ذخیره می‌شود. قالب فایل همان پشتیبان کامل اپ وب است.").font(AppFont.caption)
+            }
+
+            Section {
                 Button {
                     exportFile = model.makeExportFile()
                 } label: {
@@ -779,5 +820,14 @@ struct SettingsView: View {
         .scrollContentBackground(.hidden)
         .background(AppBackground())
         .navigationTitle("تنظیمات")
+    }
+
+    private var iCloudText: String {
+        switch lastICloud {
+        case 1: return "ذخیره شد ✓"
+        case 0: return "در دسترس نیست (iCloud Drive خاموش است؟)"
+        case -1: return "ذخیره نشد"
+        default: return "—"
+        }
     }
 }

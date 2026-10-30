@@ -4,3 +4,4 @@ App/Info.plist
 DerivedData/
 *.p8
 .DS_Store
+App/Hesabdari.entitlements
