@@ -98,11 +98,10 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Hesabdari.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} 2>&1 | tee "$RUNNER_TEMP/archive.log"
+          # Unsigned archive: no Apple Development certificate is created on every run (account limit).
+          # The export below signs once with the cloud-managed distribution certificate.
 
       - name: Report archive errors
         if: failure()
@@ -112,14 +111,23 @@ jobs:
 
       - name: Export and upload to App Store Connect
         run: |
+          set -o pipefail
+          cp ExportOptions.plist "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Hesabdari.xcarchive" \
-            -exportOptionsPlist ExportOptions.plist \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
             -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/export.log"
+
+      - name: Report export errors
+        if: failure()
+        run: |
+          grep -hE "error:|Error Domain|No profiles|certificate|provisioning" "$RUNNER_TEMP/export.log" 2>/dev/null \
+            | sort -u | head -20 | while read -r l; do echo "::error title=export::${l:0:900}"; done
 
       - name: Remove key
         if: always()
