@@ -218,8 +218,15 @@ struct ExpenseFormView: View {
     @State private var cardId: String?
     @State private var partyId: String?
     @State private var loaded = false
+    @State private var linkParty = ""      // check: payee / nasiyeh: creditor
+    @State private var checkBank = ""
+    @State private var checkNumber = ""
+    @State private var sayadId = ""
+    @State private var nasiyehDue = AppModel.today
 
     private var isCommission: Bool { editing?.kind == .commission }
+    private var makesCheck: Bool { editing == nil && !isTankhah && payMethod == .check }
+    private var makesNasiyeh: Bool { editing == nil && !isTankhah && payMethod == .nasiyeh }
 
     var body: some View {
         Form {
@@ -260,13 +267,13 @@ struct ExpenseFormView: View {
 
             Section {
                 AmountField(title: "مبلغ (تومان)", text: $amount)
-                JalaliDateField(title: "تاریخ", date: $date)
+                JalaliDateField(title: makesCheck ? "تاریخ سررسید چک" : "تاریخ", date: $date)
             }
 
             if !isCommission {
                 Section(isTankhah ? "روش دریافت" : "روش پرداخت") {
                     Picker("روش", selection: $payMethod) {
-                        ForEach(PayMethod.available(forTankhah: isTankhah) + extraMethod, id: \.self) { m in
+                        ForEach(methods, id: \.self) { m in
                             Text(m.title).tag(m)
                         }
                     }
@@ -277,6 +284,28 @@ struct ExpenseFormView: View {
                                 Text(c.label).tag(Optional(c.id))
                             }
                         }
+                    }
+                }
+                if makesCheck {
+                    Section {
+                        SuggestField(title: "در وجه (طرف چک)", text: $linkParty, suggestions: model.partyNames)
+                        TextField("بانک", text: $checkBank)
+                        TextField("شماره چک", text: $checkNumber).keyboardType(.numberPad)
+                        TextField("شناسه صیاد (اختیاری)", text: $sayadId).keyboardType(.numberPad)
+                    } header: {
+                        Text("اطلاعات چک")
+                    } footer: {
+                        Text("چک در «یادآوری‌ها» ثبت می‌شود و یک ردیف «در انتظار وصول» در همین دفتر می‌سازد. وقتی وصول شد، از یادآوری‌ها علامتش بزنید.")
+                    }
+                }
+                if makesNasiyeh {
+                    Section {
+                        SuggestField(title: "طلبکار (فروشنده)", text: $linkParty, suggestions: model.creditorNames)
+                        JalaliDateField(title: "سررسید پرداخت", date: $nasiyehDue)
+                    } header: {
+                        Text("نسیه")
+                    } footer: {
+                        Text("این مبلغ به‌عنوان بدهی به این شخص در «یادآوری‌ها» ثبت می‌شود و شب قبل از سررسید یادآوری می‌آید.")
                     }
                 }
             }
@@ -290,11 +319,12 @@ struct ExpenseFormView: View {
         .onAppear(perform: load)
     }
 
-    /// An existing row may use a method this version cannot create yet; keep it selectable so it is not changed.
-    private var extraMethod: [PayMethod] {
-        guard let m = editing?.payMethod.flatMap(PayMethod.init(rawValue:)),
-              !PayMethod.available(forTankhah: isTankhah).contains(m) else { return [] }
-        return [m]
+    /// New rows: every method (check / nasiyeh create linked reminders). Edits keep the row's own method selectable.
+    private var methods: [PayMethod] {
+        var list = PayMethod.available(forTankhah: isTankhah)
+        if editing != nil { list.removeAll { $0 == .check || $0 == .nasiyeh } }
+        if let m = editing?.payMethod.flatMap(PayMethod.init(rawValue:)), !list.contains(m) { list.append(m) }
+        return list
     }
 
     private func load() {
@@ -318,8 +348,17 @@ struct ExpenseFormView: View {
                                  subcategory: subcategory, toman: Fmt.parseAmount(amount), date: date,
                                  payMethod: payMethod, cardId: payMethod.usesCard ? cardId : nil,
                                  partyId: isTankhah ? partyId : nil)
-        let ok = editing.map { model.edit(rowId: $0.rowId, input) } ?? model.add(input)
-        if ok { dismiss() }
+        let ok: Bool
+        if makesCheck {
+            ok = model.addCheck(CheckInput(amount: input.toman, party: linkParty, bankName: checkBank, checkNumber: checkNumber,
+                                           sayadId: sayadId, checkSeries: "", desc: desc, category: category,
+                                           subcategory: subcategory, dueDate: date, accountId: accountId))
+        } else if makesNasiyeh {
+            ok = model.addNasiyehExpense(input, party: linkParty, due: nasiyehDue)
+        } else {
+            ok = editing.map { model.edit(rowId: $0.rowId, input) } ?? model.add(input)
+        }
+        if ok { Haptics.success(); dismiss() }
     }
 }
 

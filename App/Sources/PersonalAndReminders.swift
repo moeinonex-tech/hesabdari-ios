@@ -360,6 +360,13 @@ struct PersonalFormView: View {
     @State private var method = "hamrahbank"
     @State private var cardId: String?
     @State private var loaded = false
+    @State private var linkParty = ""
+    @State private var checkBank = ""
+    @State private var checkNumber = ""
+    @State private var nasiyehDue = AppModel.today
+
+    private var makesCheck: Bool { editing == nil && method == "check" }
+    private var makesNasiyeh: Bool { editing == nil && method == "nasiyeh" }
 
     var body: some View {
         Form {
@@ -381,6 +388,19 @@ struct PersonalFormView: View {
                         Text("بدون کارت").tag(String?.none)
                         ForEach(model.activeCards) { c in Text(c.label).tag(Optional(c.id)) }
                     }
+                }
+            }
+            if makesCheck {
+                Section("اطلاعات چک") {
+                    SuggestField(title: "در وجه", text: $linkParty, suggestions: model.partyNames)
+                    TextField("بانک", text: $checkBank)
+                    TextField("شماره چک", text: $checkNumber).keyboardType(.numberPad)
+                }
+            }
+            if makesNasiyeh {
+                Section("نسیه") {
+                    SuggestField(title: "طلبکار", text: $linkParty, suggestions: model.creditorNames)
+                    JalaliDateField(title: "سررسید پرداخت", date: $nasiyehDue)
                 }
             }
         }
@@ -405,6 +425,7 @@ struct PersonalFormView: View {
 
     private var methodChoices: [Choice] {
         var list = PersonalInput.methods.map { Choice(id: $0.id, label: $0.title) }
+        if editing != nil { list.removeAll { $0.id == "check" || $0.id == "nasiyeh" } }
         if let m = editing?.payMethod, !list.contains(where: { $0.id == m }) {
             list.append(Choice(id: m, label: PayMethod(rawValue: m)?.title ?? m))
         }
@@ -414,7 +435,16 @@ struct PersonalFormView: View {
     private func save() {
         let input = PersonalInput(desc: desc, category: category, subcategory: subcategory, toman: Fmt.parseAmount(amount),
                                   date: date, payMethod: method, cardId: PersonalInput.usesCard(method) ? cardId : nil)
-        let ok = editing.map { model.editPersonal($0.rowId, input) } ?? model.addPersonal(input)
+        let ok: Bool
+        if makesCheck {
+            ok = model.addCheck(CheckInput(amount: input.toman, party: linkParty, bankName: checkBank, checkNumber: checkNumber,
+                                           sayadId: "", checkSeries: "", desc: desc, category: category, subcategory: subcategory,
+                                           dueDate: date, accountId: "personal"))
+        } else if makesNasiyeh {
+            ok = model.addNasiyehPersonal(input, party: linkParty, due: nasiyehDue)
+        } else {
+            ok = editing.map { model.editPersonal($0.rowId, input) } ?? model.addPersonal(input)
+        }
         if ok { Haptics.success(); dismiss() }
     }
 }
@@ -478,6 +508,7 @@ struct RemindersView: View {
     @ObservedObject var model: AppModel
     @Environment(\.theme) private var t
     @State private var filter = 0
+    @State private var sheet: ReminderSheet?
 
     var body: some View {
         let checks = model.checks
@@ -485,7 +516,18 @@ struct RemindersView: View {
         let done = checks.filter { $0.status != "pending" }
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "یادآوری‌ها", subtitle: "چک‌ها، بدهکاران و طلبکاران، قرارها")
+                HStack(alignment: .top) {
+                    ScreenHeader(title: "یادآوری‌ها", subtitle: "چک‌ها، بدهکاران و طلبکاران، قرارها")
+                    Menu {
+                        Button { sheet = .newCheck } label: { Label("چک جدید", systemImage: "doc.text") }
+                        Button { sheet = .newPerson } label: { Label("شخص جدید (بدهکار/طلبکار)", systemImage: "person.badge.plus") }
+                        Button { sheet = .newAppointment } label: { Label("قرار جدید", systemImage: "calendar.badge.plus") }
+                    } label: {
+                        Image(systemName: "plus").font(.title3.bold()).padding(10)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .padding(.top, 8)
+                }
 
                 HStack(spacing: 12) {
                     SummaryTile(title: "طلب من", value: model.owedToMe, color: t.success)
@@ -502,22 +544,38 @@ struct RemindersView: View {
                 switch filter {
                 case 0:
                     if pending.isEmpty && done.isEmpty { EmptyNote(text: "چکی ثبت نشده") }
-                    ForEach(pending) { c in CheckCard(check: c) }
+                    ForEach(pending) { c in checkRow(c) }
                     if !done.isEmpty {
                         SectionTitle(text: "وصول‌شده یا بسته‌شده")
-                        ForEach(done) { c in CheckCard(check: c).opacity(0.6) }
+                        ForEach(done) { c in checkRow(c).opacity(0.6) }
                     }
                 case 1:
                     let persons = model.persons
                     if persons.isEmpty { EmptyNote(text: "کسی ثبت نشده") }
-                    ForEach(persons) { p in PersonCard(person: p) }
+                    ForEach(persons) { p in
+                        NavigationLink {
+                            PersonDetailView(model: model, personId: p.id)
+                        } label: {
+                            PersonCard(person: p)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 default:
                     let apts = model.appointments
                     if apts.isEmpty { EmptyNote(text: "قراری ثبت نشده") }
-                    ForEach(apts) { a in AppointmentCard(apt: a) }
+                    ForEach(apts) { a in
+                        AppointmentCard(apt: a)
+                            .onTapGesture { sheet = .editAppointment(a.id) }
+                            .contextMenu {
+                                Button { _ = model.toggleAppointment(a.id) } label: {
+                                    Label(a.done ? "انجام‌نشده" : "انجام شد", systemImage: "checkmark.circle")
+                                }
+                                Button(role: .destructive) { _ = model.deleteAppointment(a.id) } label: { Label("حذف", systemImage: "trash") }
+                            }
+                    }
                 }
 
-                Text("ثبت و ویرایش چک، قسط و قرار در نسخه‌ی بعد اضافه می‌شود. یادآوری‌ها از همین حالا به‌صورت اعلان روی گوشی می‌آیند.")
+                Text("برای ویرایش روی هر مورد بزنید؛ برای کارهای سریع (وصول، برگشت، حذف) انگشت را روی آن نگه دارید.")
                     .font(AppFont.caption).foregroundStyle(t.soft)
             }
             .padding(.horizontal, 16)
@@ -525,6 +583,38 @@ struct RemindersView: View {
         }
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
+        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, 8) }
+        .sheet(item: $sheet) { s in
+            Themed {
+                NavigationStack {
+                    switch s {
+                    case .newCheck: CheckFormView(model: model, editingId: nil)
+                    case .editCheck(let id): CheckFormView(model: model, editingId: id)
+                    case .newPerson: PersonAddView(model: model)
+                    case .newAppointment: AppointmentFormView(model: model, editingId: nil)
+                    case .editAppointment(let id): AppointmentFormView(model: model, editingId: id)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func checkRow(_ c: CheckVM) -> some View {
+        CheckCard(check: c)
+            .onTapGesture { sheet = .editCheck(c.id) }
+            .contextMenu {
+                if c.status != "cashed" {
+                    Button { if model.setCheckStatus(c.id, "cashed") { Haptics.success() } } label: { Label("وصول شد", systemImage: "checkmark.seal") }
+                }
+                if c.status != "pending" {
+                    Button { _ = model.setCheckStatus(c.id, "pending") } label: { Label("برگرداندن به «در انتظار»", systemImage: "arrow.uturn.backward") }
+                }
+                if c.status != "bounced" {
+                    Button { _ = model.setCheckStatus(c.id, "bounced") } label: { Label("برگشت خورد", systemImage: "xmark.octagon") }
+                }
+                Button(role: .destructive) { _ = model.deleteCheck(c.id) } label: { Label("حذف", systemImage: "trash") }
+            }
     }
 }
 

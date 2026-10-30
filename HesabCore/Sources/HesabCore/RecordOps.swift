@@ -26,7 +26,7 @@ public struct PersonalInput: Sendable {
     }
 
     /// web: personal methods offered in this version (check / nasiyeh / branch come with the reminders step)
-    public static let methods: [(id: String, title: String)] = [("card", "پوز"), ("hamrahbank", "همراه‌بانک"), ("cash", "نقدی")]
+    public static let methods: [(id: String, title: String)] = [("card", "پوز"), ("hamrahbank", "همراه‌بانک"), ("check", "چک"), ("cash", "نقدی"), ("nasiyeh", "نسیه")]
     public static func usesCard(_ m: String) -> Bool { m == "card" || m == "hamrahbank" }
 }
 

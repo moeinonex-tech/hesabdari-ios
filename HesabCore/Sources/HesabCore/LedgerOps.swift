@@ -43,10 +43,10 @@ public enum PayMethod: String, CaseIterable, Sendable {
         }
     }
 
-    /// Methods available in this version. Check, nasiyeh and branch create linked records in the web app
-    /// (checks / debts / bank details); they come with the checks & debts step.
+    /// Methods offered in the forms. Check and nasiyeh create linked reminder records (ReminderOps).
+    /// Tankhah checks and branch details are kept when present on old rows.
     public static func available(forTankhah: Bool) -> [PayMethod] {
-        forTankhah ? [.transfer, .cash] : [.hamrahbank, .pos, .cash]
+        forTankhah ? [.transfer, .cash] : [.hamrahbank, .pos, .check, .cash, .nasiyeh]
     }
 
     public static func defaultFor(tankhah: Bool) -> PayMethod { tankhah ? .transfer : .hamrahbank }
@@ -98,7 +98,7 @@ public enum LedgerError: Error, Equatable, Sendable {
     public var message: String {
         switch self {
         case .notFound: return "این ردیف پیدا نشد."
-        case .linkedRow(let kind): return "این ردیف به \(kind) وصل است و فعلاً از همان بخش مدیریت می‌شود. ویرایش آن در مرحله‌ی چک‌ها و بدهی‌ها اضافه می‌شود."
+        case .linkedRow(let kind): return "این ردیف به \(kind) وصل است. ویرایش، وصول یا حذفش را از بخش «یادآوری‌ها» انجام دهید تا هر دو با هم درست بمانند."
         case .invalid(let fields): return "این موارد را پر کنید: " + fields.joined(separator: "، ")
         case .noAmount: return "مبلغ پرداخت را وارد کنید."
         case .commissionIncome: return "این درآمد از پرداخت کمیسیون آمده و از همان ردیف در دفتر حساب ویرایش یا حذف می‌شود."

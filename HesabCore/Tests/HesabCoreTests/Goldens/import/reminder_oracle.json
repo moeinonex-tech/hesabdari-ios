@@ -1,0 +1,831 @@
+{
+ "source": {
+  "app": "app.html",
+  "md5": "80e0be42399b1410a518d4c43a8deb72"
+ },
+ "today": {
+  "jy": 1405,
+  "jm": 8,
+  "jd": 8
+ },
+ "steps": [
+  {
+   "label": "R1 add check",
+   "expenses": [
+    {
+     "id": "e1793341803477sr0yf",
+     "accountId": "aT",
+     "desc": "چک ۱۲۳ بانک ملت به نام آهن‌فروشی — در انتظار وصول",
+     "toman": 2000000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "ts": 1793341803477,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "linked": {
+      "kind": "check",
+      "status": "pending",
+      "checkId": "c1"
+     },
+     "payMethod": "check"
+    }
+   ],
+   "personalExpenses": [],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "pending",
+     "statusChangedTs": null,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "aT",
+     "linkedExpenseId": "e1793341803477sr0yf",
+     "muted": false
+    }
+   ],
+   "reminderPersons": []
+  },
+  {
+   "label": "R2 cashed",
+   "expenses": [
+    {
+     "id": "e1793341803477sr0yf",
+     "accountId": "aT",
+     "desc": "چک ۱۲۳ بانک ملت به نام آهن‌فروشی — وصول شد",
+     "toman": 2000000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "ts": 1793341803477,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "linked": {
+      "kind": "check",
+      "status": "resolved",
+      "checkId": "c1"
+     },
+     "payMethod": "check"
+    }
+   ],
+   "personalExpenses": [],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "cashed",
+     "statusChangedTs": 1793341803478,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "aT",
+     "linkedExpenseId": "e1793341803477sr0yf",
+     "muted": false,
+     "collectAnswerTs": 1793341803478,
+     "collectAnswerDue": "1405-8-20",
+     "collectAnswer": "yes"
+    }
+   ],
+   "reminderPersons": []
+  },
+  {
+   "label": "R3 bounced",
+   "expenses": [],
+   "personalExpenses": [],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "bounced",
+     "statusChangedTs": 1793341803478,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "aT",
+     "linkedExpenseId": null,
+     "muted": false,
+     "collectAnswerTs": 1793341803478,
+     "collectAnswerDue": "1405-8-20",
+     "collectAnswer": "yes"
+    }
+   ],
+   "reminderPersons": []
+  },
+  {
+   "label": "R4 pending again",
+   "expenses": [
+    {
+     "id": "e1793341803518k6t9u",
+     "accountId": "aT",
+     "desc": "چک ۱۲۳ بانک ملت به نام آهن‌فروشی — در انتظار وصول",
+     "toman": 2000000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "linked": {
+      "kind": "check",
+      "status": "pending",
+      "checkId": "c1"
+     },
+     "payMethod": "check"
+    }
+   ],
+   "personalExpenses": [],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "pending",
+     "statusChangedTs": 1793341803478,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "aT",
+     "linkedExpenseId": "e1793341803518k6t9u",
+     "muted": false,
+     "collectAnswerTs": 1793341803478,
+     "collectAnswerDue": "1405-8-20",
+     "collectAnswer": "yes"
+    }
+   ],
+   "reminderPersons": []
+  },
+  {
+   "label": "R5 moved to personal",
+   "expenses": [],
+   "personalExpenses": [
+    {
+     "id": "e1793341803518k6t9u",
+     "accountId": "personal",
+     "desc": "چک ۱۲۳ بانک ملت به نام آهن‌فروشی — در انتظار وصول",
+     "toman": 2000000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "linked": {
+      "kind": "check",
+      "status": "pending",
+      "checkId": "c1"
+     },
+     "payMethod": "check"
+    }
+   ],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "pending",
+     "statusChangedTs": 1793341803478,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "personal",
+     "linkedExpenseId": "e1793341803518k6t9u",
+     "muted": false,
+     "collectAnswerTs": 1793341803478,
+     "collectAnswerDue": "1405-8-20",
+     "collectAnswer": "yes"
+    }
+   ],
+   "reminderPersons": []
+  },
+  {
+   "label": "R6 creditor installment",
+   "expenses": [
+    {
+     "id": "e179334180351870xzl",
+     "accountId": "aT",
+     "desc": "بدهی به بنا (قسط اول) — سررسید ۲۵ آبان ۱۴۰۵ — در انتظار پرداخت",
+     "toman": 500000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 8
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "دستمزد",
+     "subcategory": "بنایی",
+     "linked": {
+      "kind": "debt",
+      "status": "pending",
+      "personId": "pp1",
+      "installId": "ii1"
+     }
+    }
+   ],
+   "personalExpenses": [
+    {
+     "id": "e1793341803518k6t9u",
+     "accountId": "personal",
+     "desc": "چک ۱۲۳ بانک ملت به نام آهن‌فروشی — در انتظار وصول",
+     "toman": 2000000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "linked": {
+      "kind": "check",
+      "status": "pending",
+      "checkId": "c1"
+     },
+     "payMethod": "check"
+    }
+   ],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "pending",
+     "statusChangedTs": 1793341803478,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "personal",
+     "linkedExpenseId": "e1793341803518k6t9u",
+     "muted": false,
+     "collectAnswerTs": 1793341803478,
+     "collectAnswerDue": "1405-8-20",
+     "collectAnswer": "yes"
+    }
+   ],
+   "reminderPersons": [
+    {
+     "id": "pp1",
+     "name": "بنا",
+     "type": "creditor",
+     "installments": [
+      {
+       "id": "ii1",
+       "amount": 500000,
+       "description": "قسط اول",
+       "category": "دستمزد",
+       "subcategory": "بنایی",
+       "dueDate": {
+        "jy": 1405,
+        "jm": 8,
+        "jd": 25
+       },
+       "paid": false,
+       "paidDate": null,
+       "accountId": "aT",
+       "linkedExpenseId": "e179334180351870xzl",
+       "muted": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "R7 paid",
+   "expenses": [
+    {
+     "id": "e179334180351870xzl",
+     "accountId": "aT",
+     "desc": "بدهی به بنا (قسط اول) — سررسید ۲۵ آبان ۱۴۰۵ — پرداخت شد",
+     "toman": 500000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 8
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "دستمزد",
+     "subcategory": "بنایی",
+     "linked": {
+      "kind": "debt",
+      "status": "resolved",
+      "personId": "pp1",
+      "installId": "ii1"
+     }
+    }
+   ],
+   "personalExpenses": [
+    {
+     "id": "e1793341803518k6t9u",
+     "accountId": "personal",
+     "desc": "چک ۱۲۳ بانک ملت به نام آهن‌فروشی — در انتظار وصول",
+     "toman": 2000000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "linked": {
+      "kind": "check",
+      "status": "pending",
+      "checkId": "c1"
+     },
+     "payMethod": "check"
+    }
+   ],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "pending",
+     "statusChangedTs": 1793341803478,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "personal",
+     "linkedExpenseId": "e1793341803518k6t9u",
+     "muted": false,
+     "collectAnswerTs": 1793341803478,
+     "collectAnswerDue": "1405-8-20",
+     "collectAnswer": "yes"
+    }
+   ],
+   "reminderPersons": [
+    {
+     "id": "pp1",
+     "name": "بنا",
+     "type": "creditor",
+     "installments": [
+      {
+       "id": "ii1",
+       "amount": 500000,
+       "description": "قسط اول",
+       "category": "دستمزد",
+       "subcategory": "بنایی",
+       "dueDate": {
+        "jy": 1405,
+        "jm": 8,
+        "jd": 25
+       },
+       "paid": true,
+       "paidDate": {
+        "jy": 1405,
+        "jm": 8,
+        "jd": 8
+       },
+       "accountId": "aT",
+       "linkedExpenseId": "e179334180351870xzl",
+       "muted": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "R8 debtor installment",
+   "expenses": [
+    {
+     "id": "e179334180351870xzl",
+     "accountId": "aT",
+     "desc": "بدهی به بنا (قسط اول) — سررسید ۲۵ آبان ۱۴۰۵ — پرداخت شد",
+     "toman": 500000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 8
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "دستمزد",
+     "subcategory": "بنایی",
+     "linked": {
+      "kind": "debt",
+      "status": "resolved",
+      "personId": "pp1",
+      "installId": "ii1"
+     }
+    }
+   ],
+   "personalExpenses": [
+    {
+     "id": "e1793341803518k6t9u",
+     "accountId": "personal",
+     "desc": "چک ۱۲۳ بانک ملت به نام آهن‌فروشی — در انتظار وصول",
+     "toman": 2000000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "linked": {
+      "kind": "check",
+      "status": "pending",
+      "checkId": "c1"
+     },
+     "payMethod": "check"
+    }
+   ],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "pending",
+     "statusChangedTs": 1793341803478,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "personal",
+     "linkedExpenseId": "e1793341803518k6t9u",
+     "muted": false,
+     "collectAnswerTs": 1793341803478,
+     "collectAnswerDue": "1405-8-20",
+     "collectAnswer": "yes"
+    }
+   ],
+   "reminderPersons": [
+    {
+     "id": "pp1",
+     "name": "بنا",
+     "type": "creditor",
+     "installments": [
+      {
+       "id": "ii1",
+       "amount": 500000,
+       "description": "قسط اول",
+       "category": "دستمزد",
+       "subcategory": "بنایی",
+       "dueDate": {
+        "jy": 1405,
+        "jm": 8,
+        "jd": 25
+       },
+       "paid": true,
+       "paidDate": {
+        "jy": 1405,
+        "jm": 8,
+        "jd": 8
+       },
+       "accountId": "aT",
+       "linkedExpenseId": "e179334180351870xzl",
+       "muted": false
+      }
+     ]
+    },
+    {
+     "id": "pp2",
+     "name": "کارفرما",
+     "type": "debtor",
+     "installments": [
+      {
+       "id": "ii2",
+       "amount": 900000,
+       "description": "",
+       "category": "",
+       "subcategory": "",
+       "dueDate": {
+        "jy": 1405,
+        "jm": 9,
+        "jd": 1
+       },
+       "paid": false,
+       "paidDate": null,
+       "accountId": "aT",
+       "linkedExpenseId": null,
+       "muted": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "R9 nasiyeh",
+   "expenses": [
+    {
+     "id": "e179334180351870xzl",
+     "accountId": "aT",
+     "desc": "بدهی به بنا (قسط اول) — سررسید ۲۵ آبان ۱۴۰۵ — پرداخت شد",
+     "toman": 500000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 8
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "دستمزد",
+     "subcategory": "بنایی",
+     "linked": {
+      "kind": "debt",
+      "status": "resolved",
+      "personId": "pp1",
+      "installId": "ii1"
+     }
+    },
+    {
+     "id": "eN",
+     "accountId": "aT",
+     "desc": "بدهی به کاشی‌فروشی (کاشی) — سررسید ۱۰ آذر ۱۴۰۵ — در انتظار پرداخت",
+     "toman": 750000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 8
+     },
+     "ts": 1,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "کاشی",
+     "payMethod": "nasiyeh",
+     "linked": {
+      "kind": "debt",
+      "status": "pending",
+      "personId": "p1793341803519vb98",
+      "installId": "i1793341803519wqza"
+     }
+    }
+   ],
+   "personalExpenses": [
+    {
+     "id": "e1793341803518k6t9u",
+     "accountId": "personal",
+     "desc": "چک ۱۲۳ بانک ملت به نام آهن‌فروشی — در انتظار وصول",
+     "toman": 2000000,
+     "date": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "ts": 1793341803518,
+     "type": "expense",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "linked": {
+      "kind": "check",
+      "status": "pending",
+      "checkId": "c1"
+     },
+     "payMethod": "check"
+    }
+   ],
+   "reminderChecks": [
+    {
+     "id": "c1",
+     "amount": 2000000,
+     "party": "آهن‌فروشی",
+     "partyNationalCode": "",
+     "partyId": null,
+     "bankName": "ملت",
+     "cardId": null,
+     "checkSeries": "",
+     "checkNumber": "123",
+     "sayadId": "",
+     "description": "میلگرد",
+     "category": "مصالح",
+     "subcategory": "آهن",
+     "dueDate": {
+      "jy": 1405,
+      "jm": 8,
+      "jd": 20
+     },
+     "status": "pending",
+     "statusChangedTs": 1793341803478,
+     "calendarAdded": false,
+     "calendarEventId": null,
+     "calendarSeq": 0,
+     "accountId": "personal",
+     "linkedExpenseId": "e1793341803518k6t9u",
+     "muted": false,
+     "collectAnswerTs": 1793341803478,
+     "collectAnswerDue": "1405-8-20",
+     "collectAnswer": "yes"
+    }
+   ],
+   "reminderPersons": [
+    {
+     "id": "pp1",
+     "name": "بنا",
+     "type": "creditor",
+     "installments": [
+      {
+       "id": "ii1",
+       "amount": 500000,
+       "description": "قسط اول",
+       "category": "دستمزد",
+       "subcategory": "بنایی",
+       "dueDate": {
+        "jy": 1405,
+        "jm": 8,
+        "jd": 25
+       },
+       "paid": true,
+       "paidDate": {
+        "jy": 1405,
+        "jm": 8,
+        "jd": 8
+       },
+       "accountId": "aT",
+       "linkedExpenseId": "e179334180351870xzl",
+       "muted": false
+      }
+     ]
+    },
+    {
+     "id": "pp2",
+     "name": "کارفرما",
+     "type": "debtor",
+     "installments": [
+      {
+       "id": "ii2",
+       "amount": 900000,
+       "description": "",
+       "category": "",
+       "subcategory": "",
+       "dueDate": {
+        "jy": 1405,
+        "jm": 9,
+        "jd": 1
+       },
+       "paid": false,
+       "paidDate": null,
+       "accountId": "aT",
+       "linkedExpenseId": null,
+       "muted": false
+      }
+     ]
+    },
+    {
+     "id": "p1793341803519vb98",
+     "name": "کاشی‌فروشی",
+     "type": "creditor",
+     "installments": [
+      {
+       "id": "i1793341803519wqza",
+       "amount": 750000,
+       "description": "کاشی",
+       "category": "مصالح",
+       "subcategory": "کاشی",
+       "dueDate": {
+        "jy": 1405,
+        "jm": 9,
+        "jd": 10
+       },
+       "paid": false,
+       "paidDate": null,
+       "accountId": "aT",
+       "linkedExpenseId": "eN",
+       "muted": false
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
