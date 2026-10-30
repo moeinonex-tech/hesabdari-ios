@@ -158,6 +158,11 @@ struct HomeView: View {
     @State private var showShortcutEditor = false
     @State private var showAppointment = false
     @State private var editingWidgets = false
+    @State private var draggingWidget = false
+
+    private func widgetVisibility() -> [String: Bool] {
+        Dictionary(uniqueKeysWithValues: SettingsOps.widgetKeys.map { ($0, SettingsOps.widgetVisible(model.state, $0)) })
+    }
 
     private func go(_ k: String) {
         Haptics.tap()
@@ -175,26 +180,11 @@ struct HomeView: View {
     var body: some View {
         let greet = AppModel.greeting(hour: Calendar.current.component(.hour, from: Date()))
         let order = SettingsOps.widgetOrder(model.state).filter { SettingsOps.widgetVisible(model.state, $0) }
-            .filter { k in
-                switch k {
-                case "attention": return !model.attentionItems.isEmpty
-                case "activity": return !model.recentRows.isEmpty
-                default: return true
-                }
-            }
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "خانه", subtitle: "نمای کلی و امروز")
                     HStack(spacing: 8) {
-                        if editingWidgets {
-                            Button("تمام") {
-                                Haptics.tap()
-                                withAnimation(.spring) { editingWidgets = false }
-                            }
-                            .font(AppFont.bold(15))
-                            .buttonStyle(.glassProminent)
-                        }
                         Button {
                             Haptics.tap()
                             showReports = true
@@ -222,16 +212,47 @@ struct HomeView: View {
                     QuoteCard(quote: q, typewriter: model.state["quoteTypewriterEnabled"]?.boolValue ?? true, msPerChar: SettingsOps.typewriterMs(model.state))
                 }
 
-                WidgetGrid(keys: order, editing: $editingWidgets) { key, span, size in
-                    WidgetCard(size: size) { widget(key, span: span, size: size) }
+                WidgetGrid(keys: order, editing: $editingWidgets,
+                           onReorder: { newOrder in
+                               let all = SettingsOps.widgetOrder(model.state)
+                               model.setWidgets(order: newOrder + all.filter { !newOrder.contains($0) }, visible: widgetVisibility())
+                           },
+                           onRemove: { key in
+                               var v = widgetVisibility(); v[key] = false
+                               withAnimation(.spring) { model.setWidgets(order: SettingsOps.widgetOrder(model.state), visible: v) }
+                           },
+                           onDragging: { draggingWidget = $0 },
+                           onConfigure: { key in if key == "shortcuts" { showShortcutEditor = true } }) { key, m in
+                    WidgetCard(size: m.size) { widget(key, m) }
                 }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared ? 0 : 14)
+            .padding(.top, editingWidgets ? 8 : 0)
         }
-        .background(AppBackground())
+        .scrollDisabled(draggingWidget)
+        .background {
+            AppBackground()
+                .contentShape(Rectangle())
+                .onTapGesture { if editingWidgets { withAnimation(.spring) { editingWidgets = false } } }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if editingWidgets {
+                WidgetEditBar(hidden: SettingsOps.widgetKeys.filter { !SettingsOps.widgetVisible(model.state, $0) },
+                              onAdd: { key in
+                                  var v = widgetVisibility(); v[key] = true
+                                  withAnimation(.spring) { model.setWidgets(order: SettingsOps.widgetOrder(model.state), visible: v) }
+                              },
+                              onDone: {
+                                  Haptics.tap()
+                                  withAnimation(.spring) { editingWidgets = false }
+                              })
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .onDisappear { editingWidgets = false }
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showSettings) {
             SettingsView(model: model, showImporter: $showImporter, exportFile: $exportFile)
@@ -244,95 +265,103 @@ struct HomeView: View {
         .sheet(isPresented: $showAppointment) { Themed { NavigationStack { AppointmentFormView(model: model, editingId: nil) } } }
     }
 
-    /// How many list rows fit in the widget's height (title row ≈ 34pt, padding 28pt).
-    private func fit(_ size: CGSize, row: CGFloat) -> Int { max(1, Int((size.height - 62) / row)) }
+    @ViewBuilder
+    private func widgetTitle(_ text: String, _ m: WidgetMetrics) -> some View {
+        Text(text).font(m.font(15, .bold)).foregroundStyle(t.ink).lineLimit(1)
+    }
 
     @ViewBuilder
-    private func widget(_ key: String, span: WidgetSpan, size: CGSize) -> some View {
+    private func widget(_ key: String, _ m: WidgetMetrics) -> some View {
+        let span = m.span, size = m.size
         switch key {
         case "date":
             let today = model.todayTitle
-            let big = span.r >= 2
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(today.weekday).font(AppFont.heavy(big ? 30 : (span.c <= 2 ? 17 : 22))).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(today.date).font(AppFont.regular(big ? 16 : 13)).foregroundStyle(t.soft).lineLimit(1).minimumScaleFactor(0.7)
-                }
-                Spacer(minLength: 0)
-                if span.c > 2 || big {
-                    Image(systemName: "calendar")
-                        .font(big ? .title : .title2)
-                        .foregroundStyle(t.accent)
-                        .frame(width: big ? 64 : 48, height: big ? 64 : 48)
-                        .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            let dayFont = min(size.height * (span.r == 1 ? 0.3 : 0.2), size.width * 0.14)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(today.weekday).font(AppFont.heavy(max(16, dayFont))).foregroundStyle(t.ink)
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                        Text(today.date).font(AppFont.regular(max(12, dayFont * 0.5))).foregroundStyle(t.soft)
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                    }
+                    Spacer(minLength: 0)
+                    if span.c > 2 {
+                        let side = min(size.height - 28, 72 * m.k)
+                        Image(systemName: "calendar")
+                            .font(.system(size: side * 0.45))
+                            .foregroundStyle(t.accent)
+                            .frame(width: side, height: side)
+                            .background(t.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: side * 0.3, style: .continuous))
+                    }
                 }
             }
             .frame(maxHeight: .infinity)
         case "attention":
             let attention = model.attentionItems
-            VStack(alignment: .leading, spacing: 8) {
-                SectionTitle(text: "نیازمند توجه")
-                ForEach(attention.prefix(fit(size, row: 52))) { item in
-                    AttentionRow(item: item)
+            VStack(alignment: .leading, spacing: 8 * m.k) {
+                widgetTitle("نیازمند توجه", m)
+                if attention.isEmpty {
+                    Label("فعلاً موردی نیست", systemImage: "checkmark.circle").font(m.font(13)).foregroundStyle(t.soft)
+                }
+                ForEach(attention.prefix(m.fit(m.compact ? 74 : 52))) { item in
+                    WidgetAttentionRow(item: item, m: m)
                         .onTapGesture { tab = item.id.hasPrefix("budget") ? .ledger : .reminders }
                 }
             }
         case "financial":
-            VStack(alignment: .leading, spacing: 10) {
-                SectionTitle(text: "دفترها")
-                ForEach(model.accounts.prefix(fit(size, row: span.c <= 2 ? 96 : 104))) { a in
-                    Button {
-                        Haptics.tap()
-                        tab = .ledger
-                    } label: {
-                        AccountMiniCard(account: a, budget: model.budget(accountId: a.id))
+            let cols = span.c >= 4 && span.r <= 3 && model.accounts.count > 1 ? 2 : 1
+            let rowH: CGFloat = m.compact ? 70 : 92
+            let n = m.fit(rowH) * cols
+            VStack(alignment: .leading, spacing: 8 * m.k) {
+                widgetTitle("دفترها", m)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: cols), spacing: 8) {
+                    ForEach(model.accounts.prefix(n)) { a in
+                        Button {
+                            Haptics.tap()
+                            tab = .ledger
+                        } label: {
+                            WidgetAccountRow(account: a, budget: model.budget(accountId: a.id), m: m)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         case "shortcuts":
             let keys = SettingsOps.homeShortcuts(model.state)
+            let inner = size.width - 28
             let perRow = span.c >= 4 ? 4 : (span.c == 3 ? 3 : 2)
-            let tileH: CGFloat = span.r == 1 ? 0 : 78
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    SectionTitle(text: "میانبرها")
-                    Spacer()
-                    Button { showShortcutEditor = true } label: { Image(systemName: "slider.horizontal.3") }
-                        .buttonStyle(.glass)
+            let side = min((inner - CGFloat(perRow - 1) * 8) / CGFloat(perRow), span.r == 1 ? size.height - 28 : 120)
+            VStack(alignment: .leading, spacing: 8 * m.k) {
+                if span.r > 1 {
+                    HStack {
+                        widgetTitle("میانبرها", m)
+                        Spacer()
+                    }
                 }
                 if keys.isEmpty {
-                    Button { showShortcutEditor = true } label: {
-                        Text("هنوز میان‌بری اضافه نکردی — از «افزودن» شروع کن")
-                            .font(AppFont.regular(13)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(.vertical, 6)
-                    }
-                    .buttonStyle(.plain)
-                } else if span.r == 1 {
-                    // one row: icons only
-                    HStack(spacing: 8) {
-                        ForEach(keys.prefix(perRow * 2), id: \.self) { k in
-                            Button { go(k) } label: {
-                                Image(systemName: HomeShortcut.info(k).icon).font(.title3).foregroundStyle(t.accent).frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                    Text("هنوز میان‌بری اضافه نکردی — ویجت رو نگه دار و دکمه‌ی تنظیمش رو بزن")
+                        .font(m.font(12)).foregroundStyle(t.soft).frame(maxWidth: .infinity)
                 } else {
-                    let rows = max(1, Int((size.height - 70) / (tileH + 10)))
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: perRow), spacing: 10) {
+                    let rows = span.r == 1 ? 1 : max(1, Int((size.height - 28 - 40 * m.k + 8) / (side + 8)))
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: perRow), spacing: 8) {
                         ForEach(keys.prefix(rows * perRow), id: \.self) { k in
                             let d = HomeShortcut.info(k)
-                            ShortcutTile(title: d.title, icon: d.icon) { go(k) }
+                            WidgetShortcutTile(title: d.title, icon: d.icon, side: side) { go(k) }
                         }
                     }
                 }
             }
+            .frame(maxHeight: .infinity, alignment: span.r == 1 ? .center : .top)
         case "activity":
             let recent = model.recentRows
-            VStack(alignment: .leading, spacing: 8) {
-                SectionTitle(text: "فعالیت اخیر")
-                ForEach(recent.prefix(fit(size, row: 58))) { item in
-                    LedgerRowLine(row: item.row, color: model.categoryColor(item.row.category), subtitle: item.account)
+            VStack(alignment: .leading, spacing: 6 * m.k) {
+                widgetTitle("فعالیت اخیر", m)
+                if recent.isEmpty {
+                    Text("هنوز ردیفی ثبت نشده").font(m.font(13)).foregroundStyle(t.soft)
+                }
+                ForEach(recent.prefix(m.fit(m.compact ? 46 : 44))) { item in
+                    WidgetActivityRow(item: item, color: model.categoryColor(item.row.category), m: m)
                 }
             }
         default:
