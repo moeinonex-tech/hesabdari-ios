@@ -202,6 +202,7 @@ struct ReportsView: View {
     @State private var to = AppModel.today
     @State private var account: String?
     @State private var share: ExportFile?
+    @State private var makingPDF = false
 
     private var range: DateRange? { useRange ? DateRange(from: from, to: to) : nil }
 
@@ -249,8 +250,7 @@ struct ReportsView: View {
             .padding(.bottom, 40)
         }
         .background(AppBackground())
-        .navigationTitle("گزارش‌ها")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $share) { f in ActivityView(items: [f.url]) }
     }
 
@@ -323,7 +323,7 @@ struct ReportsView: View {
             let sub = model.breakdown(st, kind: .expense, sub: true)
             if !s.isEmpty { CategoryChartCard(slices: s) }
             if !sub.isEmpty { SubcategoryChartCard(slices: sub) }
-            exportButtons(pdf: { model.ledgerPDF(accountId: id, range: range) },
+            exportButtons(pdf: { await model.ledgerPDF(accountId: id, range: range) },
                           excel: { model.ledgerExcel(accountIds: [id], range: range) },
                           extra: model.accounts.count > 1 ? ("Excel همه‌ی دفترها", { model.ledgerExcel(accountIds: model.accounts.map(\.id), range: range) }) : nil)
         }
@@ -342,7 +342,7 @@ struct ReportsView: View {
             let sub = model.breakdown(st, kind: personal ? .expense : .income, sub: true)
             if !s.isEmpty { CategoryChartCard(slices: s) }
             if !sub.isEmpty { SubcategoryChartCard(slices: sub) }
-            exportButtons(pdf: { personal ? model.personalPDF(range: range) : model.incomePDF(range: range) },
+            exportButtons(pdf: { personal ? await model.personalPDF(range: range) : await model.incomePDF(range: range) },
                           excel: { personal ? model.personalExcel(range: range) : model.incomeExcel(range: range) }, extra: nil)
         }
     }
@@ -377,7 +377,7 @@ struct ReportsView: View {
                 }
                 .glassCard()
             }
-            exportButtons(pdf: { model.remindersPDF(range: range) }, excel: { model.remindersExcel(range: range) }, extra: nil)
+            exportButtons(pdf: { await model.remindersPDF(range: range) }, excel: { model.remindersExcel(range: range) }, extra: nil)
         }
     }
 
@@ -398,12 +398,23 @@ struct ReportsView: View {
         .glassCard()
     }
 
-    private func exportButtons(pdf: @escaping () -> ExportFile?, excel: @escaping () -> ExportFile?,
+    private func exportButtons(pdf: @escaping () async -> ExportFile?, excel: @escaping () -> ExportFile?,
                                extra: (String, () -> ExportFile?)?) -> some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                Button { share = pdf() } label: {
-                    Label("PDF", systemImage: "doc.richtext").font(AppFont.bold(15)).frame(maxWidth: .infinity).padding(.vertical, 4)
+                Button {
+                    guard !makingPDF else { return }
+                    makingPDF = true
+                    Task { @MainActor in
+                        share = await pdf()
+                        makingPDF = false
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if makingPDF { ProgressView().tint(.white) } else { Image(systemName: "doc.richtext") }
+                        Text(makingPDF ? "در حال ساخت…" : "PDF")
+                    }
+                    .font(AppFont.bold(15)).frame(maxWidth: .infinity).padding(.vertical, 4)
                 }
                 .buttonStyle(.glassProminent)
                 Button { share = excel() } label: {

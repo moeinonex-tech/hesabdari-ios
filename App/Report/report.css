@@ -1,0 +1,80 @@
+/* PDF reports — structure and wording of the web app's .pdf-report (buildPdfReportEl), drawn by iOS WebKit.
+   Neutral-blue paper, rows sized to their content, frosted (fairly opaque) glass rows for easy reading. */
+@font-face { font-family: 'Vazirmatn'; font-weight: 400; src: url('Vazirmatn-Regular.ttf'); }
+@font-face { font-family: 'Vazirmatn'; font-weight: 500; src: url('Vazirmatn-Medium.ttf'); }
+@font-face { font-family: 'Vazirmatn'; font-weight: 700; src: url('Vazirmatn-Bold.ttf'); }
+@font-face { font-family: 'Vazirmatn'; font-weight: 800; src: url('Vazirmatn-ExtraBold.ttf'); }
+
+:root {
+  --paper: #E9EEF5;
+  --ink: #161822;
+  --ink-soft: #585C68;
+  --line: rgba(20, 40, 80, 0.10);
+  --brass: #0066DC;
+  --brass-deep: #0056B9;
+  --maroon: #C8243F;
+  --tankhah: #147A53;
+  --glass: rgba(255, 255, 255, 0.90);
+  --glass-alt: rgba(246, 248, 252, 0.94);
+}
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html, body { margin: 0; padding: 0; background: transparent; }
+body { font-family: 'Vazirmatn', -apple-system, sans-serif; direction: rtl; color: var(--ink); font-size: 9.5px; line-height: 1.55; }
+
+/* header: title on the right, pay-method legend on the left (web .pr-header-row) */
+.hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.title { font-weight: 800; font-size: 17px; line-height: 1.35; }
+.sub { font-size: 9.5px; color: var(--ink-soft); }
+.legend { flex: 0 0 auto; max-width: 250px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 9px;
+          background: var(--glass); box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 3px rgba(20,40,80,0.06); }
+.legend-title { font-size: 8px; font-weight: 800; color: var(--ink-soft); margin-bottom: 4px; white-space: nowrap; }
+.legend-items { display: flex; flex-wrap: wrap; gap: 3px 10px; }
+.legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 8px; color: var(--ink-soft); white-space: nowrap; }
+.ic { display: inline-flex; width: 13px; height: 13px; color: var(--brass-deep); flex-shrink: 0; }
+.ic svg { width: 100%; height: 100%; display: block; }
+.legend-item .ic { width: 10px; height: 10px; }
+
+/* table */
+.head { display: flex; align-items: center; gap: 7px; padding: 7px 8px; margin-top: 10px; margin-bottom: 5px;
+        border-bottom: 2px solid var(--ink); font-size: 9.5px; font-weight: 700; }
+.row { display: flex; align-items: flex-start; gap: 7px; padding: 6px 8px; margin-bottom: 4px;
+       border: 1px solid var(--line); border-radius: 9px; background: var(--glass);
+       box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(20,40,80,0.05);
+       break-inside: avoid; page-break-inside: avoid; }
+.row.alt { background: var(--glass-alt); }
+.row.tk { background: rgba(20,122,83,0.09); border-color: rgba(20,122,83,0.45); }
+.c-num { width: 16px; flex-shrink: 0; color: var(--ink-soft); font-size: 8.5px; text-align: center; }
+.c-date { width: 54px; flex-shrink: 0; color: var(--ink-soft); font-size: 9px; white-space: nowrap; direction: ltr; text-align: right; unicode-bidi: isolate; }
+.c-cat { width: 66px; flex-shrink: 0; color: var(--brass-deep); font-weight: 500; overflow-wrap: break-word; }
+.c-sub { width: 66px; flex-shrink: 0; color: var(--ink-soft); font-size: 8.5px; overflow-wrap: break-word; }
+.c-pay { width: 38px; flex-shrink: 0; text-align: center; color: var(--brass-deep); }
+.head .c-pay { font-size: 7.5px; line-height: 1.15; color: var(--brass-deep); }
+.head .c-cat { color: var(--brass-deep); }
+.pay-label { display: block; font-size: 7px; color: var(--ink-soft); line-height: 1.2; margin-top: 1px; white-space: nowrap; }
+.c-desc { flex: 1; min-width: 0; overflow-wrap: break-word; }
+.c-amt { width: 76px; flex-shrink: 0; text-align: left; font-weight: 700; white-space: nowrap; }
+.multi > div + div { margin-top: 2px; padding-top: 2px; border-top: 1px dashed var(--line); }
+.items, .checks { margin-top: 3px; padding-top: 3px; border-top: 1px dashed var(--line); font-size: 8.5px; color: var(--ink-soft); }
+.item { display: flex; gap: 6px; line-height: 1.6; }
+.item .lbl { flex: 1; min-width: 0; }
+.item .amt { flex: 0 0 auto; text-align: left; }
+.chk b { color: var(--ink); }
+.chk .tag { color: var(--brass); font-weight: 700; }
+.ok { color: #1F8A4C; font-weight: 700; } .bad { color: var(--maroon); font-weight: 700; }
+.empty { text-align: center; color: var(--ink-soft); padding: 18px 4px; }
+
+/* closing blocks */
+.total, .card { break-inside: avoid; page-break-inside: avoid; border-radius: 11px;
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 3px rgba(20,40,80,0.06); }
+.total { margin-top: 10px; background: var(--glass); border: 1.5px solid var(--brass); padding: 10px 14px;
+         display: flex; align-items: center; justify-content: space-between; }
+.total .lbl { font-size: 10.5px; color: var(--ink-soft); }
+.total .amt { font-size: 16px; font-weight: 800; color: var(--brass-deep); direction: ltr; }
+.card { margin-top: 8px; background: var(--glass); border: 1px solid var(--line); padding: 9px 14px; }
+.card .lbl { font-size: 10.5px; color: var(--brass-deep); font-weight: 700; margin-bottom: 5px; }
+.card .vals { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 9.5px; color: var(--ink-soft); }
+.card .vals b { color: var(--ink); font-weight: 700; }
+.card .vals b.neg { color: var(--maroon); }
+.bar { height: 6px; border-radius: 3px; background: rgba(20,40,80,0.08); margin-top: 7px; overflow: hidden; }
+.bar > div { height: 100%; border-radius: 3px; background: #16786D; margin-right: 0; }
+.bar > div.warn { background: #C77700; } .bar > div.over { background: var(--maroon); }

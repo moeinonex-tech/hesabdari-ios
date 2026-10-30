@@ -71,27 +71,6 @@ struct CardEffect: ViewModifier {
     }
 }
 
-// MARK: - tab switching: a soft fade (pages pushed inside a tab keep the normal iOS slide)
-
-struct TabFade: ViewModifier {
-    let tab: AppTab
-    let current: AppTab
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var shown = true
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .scaleEffect(shown ? 1 : 0.985)
-            .onChange(of: current) { _, now in
-                guard now == tab, !reduceMotion else { return }
-                var tr = Transaction(); tr.disablesAnimations = true
-                withTransaction(tr) { shown = false }
-                DispatchQueue.main.async { withAnimation(.easeInOut(duration: 0.32)) { shown = true } }
-            }
-    }
-}
-
 // MARK: - settings section
 
 

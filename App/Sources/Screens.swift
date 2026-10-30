@@ -18,7 +18,6 @@ struct Themed<Content: View>: View {
     }
 }
 
-enum AppTab: Hashable { case home, ledger, personal, reminders, cards, search }
 
 // MARK: - root
 
@@ -37,29 +36,7 @@ struct RootView: View {
         Themed {
             Group {
                 if model.hasData {
-                    TabView(selection: $tab) {
-                        Tab("خانه", systemImage: "house.fill", value: AppTab.home) {
-                            NavigationStack {
-                                HomeView(model: model, tab: $tab, ledgerSheet: $ledgerSheet, exportFile: $exportFile, showImporter: $showImporter)
-                            }
-                            .modifier(TabFade(tab: .home, current: tab))
-                        }
-                        Tab("دفتر حساب", systemImage: "book.pages.fill", value: AppTab.ledger) {
-                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }.modifier(TabFade(tab: .ledger, current: tab))
-                        }
-                        Tab("شخصی", systemImage: "person.crop.circle.fill", value: AppTab.personal) {
-                            NavigationStack { PersonalView(model: model) }.modifier(TabFade(tab: .personal, current: tab))
-                        }
-                        Tab("یادآوری‌ها", systemImage: "bell.fill", value: AppTab.reminders) {
-                            NavigationStack { RemindersView(model: model) }.modifier(TabFade(tab: .reminders, current: tab))
-                        }
-                        Tab("کیف کارت", systemImage: "creditcard.fill", value: AppTab.cards) {
-                            NavigationStack { CardsView(model: model) }.modifier(TabFade(tab: .cards, current: tab))
-                        }
-                        Tab("جستجو", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
-                            NavigationStack { SearchView(model: model) }.modifier(TabFade(tab: .search, current: tab))
-                        }
-                    }
+                    AppShell(model: model, tab: $tab, ledgerSheet: $ledgerSheet, exportFile: $exportFile, showImporter: $showImporter)
                 } else {
                     WelcomeView(showImporter: $showImporter)
                 }
@@ -156,7 +133,7 @@ struct HomeView: View {
     @Environment(\.theme) private var t
     @State private var appeared = false
     @State private var showSettings = false
-    @State private var showReports = false
+    @State private var showSearch = false
     @State private var showShortcutEditor = false
     @State private var showAppointment = false
     @State private var editingWidgets = false
@@ -173,7 +150,7 @@ struct HomeView: View {
         case "personal", "income": tab = .personal
         case "cards": tab = .cards
         case "reminders": tab = .reminders
-        case "reports": showReports = true
+        case "reports": tab = .reports
         case "appointments": showAppointment = true
         default: break
         }
@@ -189,9 +166,9 @@ struct HomeView: View {
                     HStack(spacing: 8) {
                         Button {
                             Haptics.tap()
-                            showReports = true
+                            showSearch = true
                         } label: {
-                            Image(systemName: "chart.bar.xaxis").font(.title3).padding(10)
+                            Image(systemName: "magnifyingglass").font(.title3).padding(10)
                         }
                         .buttonStyle(.glass)
                         Button {
@@ -262,8 +239,8 @@ struct HomeView: View {
         .navigationDestination(isPresented: $showSettings) {
             SettingsView(model: model, showImporter: $showImporter, exportFile: $exportFile)
         }
-        .navigationDestination(isPresented: $showReports) {
-            ReportsView(model: model)
+        .navigationDestination(isPresented: $showSearch) {
+            SearchView(model: model)
         }
         .onAppear { withAnimation(.spring(duration: 0.55)) { appeared = true } }
         .sheet(isPresented: $showShortcutEditor) { NavigationStack { ShortcutsEditorView(model: model) } }
@@ -791,7 +768,7 @@ struct LedgerHomeView: View {
     @State private var showPassword = false
     @State private var password = ""
 
-    private var accountId: String? { selected ?? model.activeAccountId }
+    private var accountId: String? { model.activeAccountId }
 
     var body: some View {
         let account = model.accounts.first { $0.id == accountId }
@@ -815,7 +792,6 @@ struct LedgerHomeView: View {
                             let on = a.id == accountId
                             Button {
                                 Haptics.tap()
-                                withAnimation(.snappy) { selected = a.id }
                                 model.selectAccount(a.id)
                             } label: {
                                 Text(a.name)
@@ -943,7 +919,7 @@ struct LedgerHomeView: View {
         .sheet(isPresented: $showManage) {
             Themed {
                 NavigationStack {
-                    AccountManageView(model: model, accountId: accountId) { id in selected = id }
+                    AccountManageView(model: model, accountId: accountId) { id in model.selectAccount(id) }
                 }
             }
         }
@@ -961,7 +937,7 @@ struct LedgerHomeView: View {
             }
         }
         .onChange(of: model.accounts.map(\.id)) { _, ids in
-            if let s = selected, !ids.contains(s) { selected = nil }
+            _ = ids
         }
         .sheet(item: $sheet) { s in
             Themed {
