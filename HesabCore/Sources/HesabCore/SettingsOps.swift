@@ -277,4 +277,28 @@ public enum SettingsOps {
         st["homeWidgets"] = .object(w)
         return st
     }
+
+    // MARK: home shortcuts (web HOME_SHORTCUT_TARGETS / state.homeShortcuts) and typewriter speed
+
+    public static let shortcutKeys = ["ledger", "personal", "income", "cards", "reminders", "reports", "appointments"]
+
+    public static func homeShortcuts(_ st: [String: JSONValue]) -> [String] {
+        (st["homeShortcuts"]?.arrayValue ?? []).compactMap(\.stringValue).filter { shortcutKeys.contains($0) }
+    }
+
+    public static func setHomeShortcuts(_ state: [String: JSONValue], _ keys: [String]) -> [String: JSONValue] {
+        var st = state
+        var seen = Set<String>()
+        st["homeShortcuts"] = .array(keys.filter { shortcutKeys.contains($0) && seen.insert($0).inserted }.map { .string($0) })
+        return st
+    }
+
+    /// web quoteTypewriterMsPerChar
+    public static func typewriterMs(_ st: [String: JSONValue]) -> Int {
+        switch st["quoteTypewriterSpeed"]?.stringValue {
+        case "slow": return 55
+        case "fast": return 16
+        default: return 32
+        }
+    }
 }

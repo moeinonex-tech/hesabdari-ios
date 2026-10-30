@@ -154,6 +154,21 @@ struct HomeView: View {
     @State private var appeared = false
     @State private var showSettings = false
     @State private var showReports = false
+    @State private var showShortcutEditor = false
+    @State private var showAppointment = false
+
+    private func go(_ k: String) {
+        Haptics.tap()
+        switch k {
+        case "ledger": tab = .ledger
+        case "personal", "income": tab = .personal
+        case "cards": tab = .cards
+        case "reminders": tab = .reminders
+        case "reports": showReports = true
+        case "appointments": showAppointment = true
+        default: break
+        }
+    }
 
     var body: some View {
         let greet = AppModel.greeting(hour: Calendar.current.component(.hour, from: Date()))
@@ -187,7 +202,7 @@ struct HomeView: View {
                 }
 
                 if let q = SettingsOps.quoteOfNow(model.state) {
-                    QuoteCard(quote: q, typewriter: model.state["quoteTypewriterEnabled"]?.boolValue ?? true)
+                    QuoteCard(quote: q, typewriter: model.state["quoteTypewriterEnabled"]?.boolValue ?? true, msPerChar: SettingsOps.typewriterMs(model.state))
                 }
 
                 ForEach(order, id: \.self) { key in
@@ -208,6 +223,8 @@ struct HomeView: View {
             ReportsView(model: model)
         }
         .onAppear { withAnimation(.spring(duration: 0.55)) { appeared = true } }
+        .sheet(isPresented: $showShortcutEditor) { NavigationStack { ShortcutsEditorView(model: model) } }
+        .sheet(isPresented: $showAppointment) { Themed { NavigationStack { AppointmentFormView(model: model, editingId: nil) } } }
     }
 
     @ViewBuilder
@@ -255,18 +272,27 @@ struct HomeView: View {
             }
             .glassCard()
         case "shortcuts":
+            let keys = SettingsOps.homeShortcuts(model.state)
             VStack(alignment: .leading, spacing: 12) {
-                SectionTitle(text: "میانبرها")
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-                    ShortcutTile(title: "ثبت هزینه", icon: "plus.circle.fill") { tab = .ledger; ledgerSheet = .new }
-                    ShortcutTile(title: "پرداخت کمیسیون", icon: "banknote.fill") { tab = .ledger; ledgerSheet = .settle }
-                    ShortcutTile(title: "کیف کارت", icon: "creditcard.fill") { tab = .cards }
-                    ShortcutTile(title: "خروجی پشتیبان", icon: "square.and.arrow.up.fill") { exportFile = model.makeExportFile() }
-                    ShortcutTile(title: "ثبت درآمد", icon: "arrow.down.circle.fill") { tab = .personal }
-                    ShortcutTile(title: "یادآوری‌ها", icon: "bell.fill") { tab = .reminders }
-                    ShortcutTile(title: "گزارش‌ها", icon: "chart.bar.xaxis") { showReports = true }
-                    ShortcutTile(title: "جستجو", icon: "magnifyingglass") { tab = .search }
-                    ShortcutTile(title: "تنظیمات", icon: "paintpalette.fill") { showSettings = true }
+                HStack {
+                    SectionTitle(text: "میانبرها")
+                    Spacer()
+                    Button { showShortcutEditor = true } label: { Image(systemName: "slider.horizontal.3") }
+                        .buttonStyle(.glass)
+                }
+                if keys.isEmpty {
+                    Button { showShortcutEditor = true } label: {
+                        Text("هنوز میان‌بری اضافه نکردی — از «افزودن» شروع کن")
+                            .font(AppFont.regular(13)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                        ForEach(keys, id: \.self) { k in
+                            let d = HomeShortcut.info(k)
+                            ShortcutTile(title: d.title, icon: d.icon) { go(k) }
+                        }
+                    }
                 }
             }
             .glassCard()
@@ -290,6 +316,7 @@ struct HomeView: View {
 struct QuoteCard: View {
     let quote: Quote
     let typewriter: Bool
+    var msPerChar = 32
     @Environment(\.theme) private var t
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = 0
@@ -313,7 +340,7 @@ struct QuoteCard: View {
             QuoteCard.typedOnce = true
             shown = 0
             for i in 1...max(1, chars.count) {
-                try? await Task.sleep(nanoseconds: 35_000_000)
+                try? await Task.sleep(nanoseconds: UInt64(msPerChar) * 1_000_000)
                 shown = i
             }
         }

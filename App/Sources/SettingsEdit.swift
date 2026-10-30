@@ -241,6 +241,14 @@ struct QuotesSettingsView: View {
         List {
             Section {
                 Toggle("نمایش تایپی در خانه", isOn: Binding(get: { model.quoteTypewriter }, set: { model.setQuoteTypewriter($0) }))
+                if model.quoteTypewriter {
+                    Picker("سرعت تایپ", selection: Binding(get: { model.state["quoteTypewriterSpeed"]?.stringValue ?? "normal" },
+                                                          set: { model.setTypewriterSpeed($0) })) {
+                        Text("آهسته").tag("slow")
+                        Text("معمولی").tag("normal")
+                        Text("سریع").tag("fast")
+                    }
+                }
             } footer: {
                 Text("هر نیم‌روز یک جمله نشان داده می‌شود و تا همه دیده نشوند تکرار نمی‌شود.")
             }
@@ -349,4 +357,63 @@ struct WidgetsSettingsView: View {
     }
 
     private func persist() { model.setWidgets(order: order, visible: visible) }
+}
+
+
+// MARK: - home shortcuts (web openHomeShortcutPicker)
+
+enum HomeShortcut {
+    static func info(_ k: String) -> (title: String, icon: String) {
+        switch k {
+        case "ledger": return ("دفتر حساب", "book.closed.fill")
+        case "personal": return ("دفتر شخصی", "note.text")
+        case "income": return ("درآمد", "chart.line.uptrend.xyaxis")
+        case "cards": return ("کیف کارت", "creditcard.fill")
+        case "reminders": return ("یادآوری‌ها", "bell.fill")
+        case "reports": return ("گزارش‌ها", "chart.bar.xaxis")
+        case "appointments": return ("ثبت قرار", "calendar.badge.plus")
+        default: return (k, "square")
+        }
+    }
+}
+
+extension AppModel {
+    func setHomeShortcuts(_ keys: [String]) { _ = change { SettingsOps.setHomeShortcuts(state, keys) } }
+    func setTypewriterSpeed(_ id: String) { _ = change { var st = state; st["quoteTypewriterSpeed"] = .string(id); return st } }
+}
+
+struct ShortcutsEditorView: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var keys: [String] = []
+
+    var body: some View {
+        List {
+            Section("روی صفحه‌ی خانه") {
+                if keys.isEmpty { Text("هیچ میان‌بری نیست").foregroundStyle(.secondary) }
+                ForEach(keys, id: \.self) { k in
+                    Label(HomeShortcut.info(k).title, systemImage: HomeShortcut.info(k).icon)
+                }
+                .onMove { keys.move(fromOffsets: $0, toOffset: $1); model.setHomeShortcuts(keys) }
+                .onDelete { keys.remove(atOffsets: $0); model.setHomeShortcuts(keys) }
+            }
+            let rest = SettingsOps.shortcutKeys.filter { !keys.contains($0) }
+            if !rest.isEmpty {
+                Section("افزودن") {
+                    ForEach(rest, id: \.self) { k in
+                        Button {
+                            keys.append(k); model.setHomeShortcuts(keys); Haptics.tap()
+                        } label: {
+                            Label(HomeShortcut.info(k).title, systemImage: "plus.circle.fill")
+                        }
+                    }
+                }
+            }
+        }
+        .environment(\.editMode, .constant(.active))
+        .navigationTitle("میان‌برهای خانه")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تمام") { dismiss() } } }
+        .onAppear { keys = SettingsOps.homeShortcuts(model.state) }
+    }
 }
