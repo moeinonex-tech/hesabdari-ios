@@ -150,6 +150,7 @@ struct HomeView: View {
     @Environment(\.theme) private var t
     @State private var appeared = false
     @State private var showSettings = false
+    @State private var showReports = false
 
     var body: some View {
         let greet = AppModel.greeting(hour: Calendar.current.component(.hour, from: Date()))
@@ -159,13 +160,22 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "خانه", subtitle: "نمای کلی و امروز")
-                    Button {
-                        Haptics.tap()
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape.fill").font(.title3).padding(10)
+                    HStack(spacing: 8) {
+                        Button {
+                            Haptics.tap()
+                            showReports = true
+                        } label: {
+                            Image(systemName: "chart.bar.xaxis").font(.title3).padding(10)
+                        }
+                        .buttonStyle(.glass)
+                        Button {
+                            Haptics.tap()
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape.fill").font(.title3).padding(10)
+                        }
+                        .buttonStyle(.glass)
                     }
-                    .buttonStyle(.glass)
                     .padding(.top, 8)
                 }
 
@@ -224,7 +234,7 @@ struct HomeView: View {
                         ShortcutTile(title: "خروجی پشتیبان", icon: "square.and.arrow.up.fill") { exportFile = model.makeExportFile() }
                         ShortcutTile(title: "ثبت درآمد", icon: "arrow.down.circle.fill") { tab = .personal }
                         ShortcutTile(title: "یادآوری‌ها", icon: "bell.fill") { tab = .reminders }
-                        ShortcutTile(title: "تنظیمات", icon: "paintpalette.fill") { showSettings = true }
+                        ShortcutTile(title: "گزارش‌ها", icon: "chart.bar.xaxis") { showReports = true }
                     }
                 }
                 .glassCard()
@@ -250,6 +260,9 @@ struct HomeView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showSettings) {
             SettingsView(model: model, showImporter: $showImporter, exportFile: $exportFile)
+        }
+        .navigationDestination(isPresented: $showReports) {
+            ReportsView(model: model)
         }
         .onAppear { withAnimation(.spring(duration: 0.55)) { appeared = true } }
     }
