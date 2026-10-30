@@ -1,0 +1,494 @@
+{
+ "timeZone": "Asia/Tehran",
+ "state": {
+  "reminderChecks": [
+   {
+    "id": "cA",
+    "amount": 1000000,
+    "party": "طرف cA",
+    "checkNumber": "CA",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 30
+    },
+    "status": "pending",
+    "accountId": "aT",
+    "linkedExpenseId": null,
+    "muted": false,
+    "alertShown3d": false
+   },
+   {
+    "id": "cB",
+    "amount": 1000000,
+    "party": "طرف cB",
+    "checkNumber": "CB",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 29
+    },
+    "status": "pending",
+    "accountId": "aT",
+    "linkedExpenseId": null,
+    "muted": false,
+    "alertShown3d": false
+   },
+   {
+    "id": "cC",
+    "amount": 1000000,
+    "party": "طرف cC",
+    "checkNumber": "CC",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 28
+    },
+    "status": "pending",
+    "accountId": "aT",
+    "linkedExpenseId": null,
+    "muted": false,
+    "alertShown3d": false
+   },
+   {
+    "id": "cD",
+    "amount": 1000000,
+    "party": "طرف cD",
+    "checkNumber": "CD",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 27
+    },
+    "status": "pending",
+    "accountId": "aT",
+    "linkedExpenseId": null,
+    "muted": false,
+    "alertShown3d": false
+   },
+   {
+    "id": "cE",
+    "amount": 1000000,
+    "party": "طرف cE",
+    "checkNumber": "CE",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 30
+    },
+    "status": "pending",
+    "accountId": "aT",
+    "linkedExpenseId": null,
+    "muted": true,
+    "alertShown3d": false
+   },
+   {
+    "id": "cF",
+    "amount": 1000000,
+    "party": "طرف cF",
+    "checkNumber": "CF",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 30
+    },
+    "status": "cashed",
+    "accountId": "aT",
+    "linkedExpenseId": null,
+    "muted": false,
+    "alertShown3d": false
+   },
+   {
+    "id": "cG",
+    "amount": 1000000,
+    "party": "طرف cG",
+    "checkNumber": "CG",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 30
+    },
+    "status": "pending",
+    "accountId": "aT",
+    "linkedExpenseId": null,
+    "muted": false,
+    "alertShown3d": false,
+    "direction": "receive",
+    "sourceKind": "tankhah"
+   },
+   {
+    "id": "cH",
+    "amount": 1000000,
+    "party": "طرف cH",
+    "checkNumber": "CH",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 1
+    },
+    "status": "pending",
+    "accountId": null,
+    "linkedExpenseId": null,
+    "muted": false,
+    "alertShown3d": false
+   },
+   {
+    "id": "cI",
+    "amount": 1000000,
+    "party": "طرف cI",
+    "checkNumber": "CI",
+    "bankName": "ملت",
+    "dueDate": {
+     "jy": 1405,
+     "jm": 8,
+     "jd": 2
+    },
+    "status": "bounced",
+    "accountId": "aT",
+    "linkedExpenseId": null,
+    "muted": false,
+    "alertShown3d": false
+   }
+  ],
+  "reminderPersons": [
+   {
+    "id": "pCr",
+    "name": "طلبکار",
+    "type": "creditor",
+    "installments": [
+     {
+      "id": "iA",
+      "amount": 500000,
+      "description": "قسط ۱",
+      "dueDate": {
+       "jy": 1405,
+       "jm": 7,
+       "jd": 30
+      },
+      "paid": false,
+      "paidDate": null,
+      "accountId": null,
+      "linkedExpenseId": null,
+      "muted": false,
+      "alertShown3d": false
+     },
+     {
+      "id": "iB",
+      "amount": 500000,
+      "description": "قسط ۲",
+      "dueDate": {
+       "jy": 1405,
+       "jm": 8,
+       "jd": 1
+      },
+      "paid": true,
+      "paidDate": {
+       "jy": 1405,
+       "jm": 7,
+       "jd": 20
+      },
+      "accountId": null,
+      "linkedExpenseId": null,
+      "muted": false,
+      "alertShown3d": false
+     }
+    ]
+   },
+   {
+    "id": "pDb",
+    "name": "بدهکار",
+    "type": "debtor",
+    "installments": [
+     {
+      "id": "iC",
+      "amount": 300000,
+      "description": "طلب ۱",
+      "dueDate": {
+       "jy": 1405,
+       "jm": 8,
+       "jd": 1
+      },
+      "paid": false,
+      "paidDate": null,
+      "accountId": null,
+      "linkedExpenseId": null,
+      "muted": false,
+      "alertShown3d": false
+     },
+     {
+      "id": "iD",
+      "amount": 300000,
+      "description": "طلب ۲",
+      "dueDate": {
+       "jy": 1405,
+       "jm": 8,
+       "jd": 1
+      },
+      "paid": false,
+      "paidDate": null,
+      "accountId": null,
+      "linkedExpenseId": null,
+      "muted": true,
+      "alertShown3d": false
+     }
+    ]
+   }
+  ],
+  "appointments": [
+   {
+    "id": "apt1",
+    "title": "جلسه کارفرما",
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 28
+    },
+    "time": "15:00",
+    "note": "",
+    "kind": "work",
+    "apptType": "meeting",
+    "projectId": null,
+    "projectManualName": "پروژه آزمون",
+    "location": {
+     "label": "دفتر",
+     "lat": 0,
+     "lng": 0
+    },
+    "done": false
+   },
+   {
+    "id": "apt2",
+    "title": "بازدید",
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 28
+    },
+    "time": "11:30",
+    "note": "",
+    "kind": "work",
+    "apptType": "presence",
+    "projectId": null,
+    "projectManualName": "",
+    "location": null,
+    "done": false
+   },
+   {
+    "id": "apt3",
+    "title": "بدون ساعت",
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 29
+    },
+    "time": "",
+    "note": "",
+    "kind": "personal",
+    "apptType": "meeting",
+    "projectId": null,
+    "projectManualName": "",
+    "location": null,
+    "done": false
+   },
+   {
+    "id": "apt4",
+    "title": "انجام‌شده",
+    "date": {
+     "jy": 1405,
+     "jm": 7,
+     "jd": 29
+    },
+    "time": "09:00",
+    "note": "",
+    "kind": "work",
+    "apptType": "meeting",
+    "projectId": null,
+    "projectManualName": "",
+    "location": null,
+    "done": true
+   }
+  ]
+ },
+ "cases": [
+  {
+   "now": "2026-10-20T10:00:00+03:30",
+   "schedule": {
+    "immediate": [
+     {
+      "id": "chk-cC",
+      "kind": "check",
+      "deliver": "now",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CC به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cC است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "apt-apt2",
+      "kind": "appointment",
+      "deliver": "now",
+      "title": "یادآوریِ قرار",
+      "body": "۳ ساعت دیگر: بازدید",
+      "textStatus": "PROPOSAL"
+     }
+    ],
+    "scheduled": [
+     {
+      "id": "apt-apt1",
+      "kind": "appointment",
+      "fireAt": "2026-10-20T08:30:00.000Z",
+      "title": "یادآوریِ قرار",
+      "body": "۳ ساعت دیگر: جلسه کارفرما — دفتر",
+      "textStatus": "PROPOSAL"
+     },
+     {
+      "id": "chk-cB",
+      "kind": "check",
+      "fireAt": "2026-10-20T16:30:00.000Z",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CB به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cB است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "apt-apt3",
+      "kind": "appointment",
+      "fireAt": "2026-10-21T05:30:00.000Z",
+      "title": "یادآوریِ قرار",
+      "body": "امروز: بدون ساعت",
+      "textStatus": "PROPOSAL"
+     },
+     {
+      "id": "chk-cA",
+      "kind": "check",
+      "fireAt": "2026-10-21T16:30:00.000Z",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CA به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cA است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "chk-cG",
+      "kind": "check",
+      "fireAt": "2026-10-21T16:30:00.000Z",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CG به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cG است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "ins-iA",
+      "kind": "installment",
+      "fireAt": "2026-10-21T16:30:00.000Z",
+      "title": "یادآوریِ قسطِ پرداختی",
+      "body": "فردا سررسیدِ قسطِ ۵۰۰.۰۰۰ تومان به طلبکار است.",
+      "textStatus": "PROPOSAL"
+     },
+     {
+      "id": "chk-cH",
+      "kind": "check",
+      "fireAt": "2026-10-22T16:30:00.000Z",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CH به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cH است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "ins-iC",
+      "kind": "installment",
+      "fireAt": "2026-10-22T16:30:00.000Z",
+      "title": "یادآوریِ قسطِ دریافتی",
+      "body": "فردا سررسیدِ قسطِ ۳۰۰.۰۰۰ تومان از بدهکار است.",
+      "textStatus": "PROPOSAL"
+     }
+    ],
+    "droppedByCap": [],
+    "none": [
+     "chk-cD"
+    ]
+   }
+  },
+  {
+   "now": "2026-10-20T20:05:00+03:30",
+   "schedule": {
+    "immediate": [
+     {
+      "id": "chk-cB",
+      "kind": "check",
+      "deliver": "now",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CB به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cB است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "chk-cC",
+      "kind": "check",
+      "deliver": "now",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CC به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cC است.",
+      "textStatus": "same as web"
+     }
+    ],
+    "scheduled": [
+     {
+      "id": "apt-apt3",
+      "kind": "appointment",
+      "fireAt": "2026-10-21T05:30:00.000Z",
+      "title": "یادآوریِ قرار",
+      "body": "امروز: بدون ساعت",
+      "textStatus": "PROPOSAL"
+     },
+     {
+      "id": "chk-cA",
+      "kind": "check",
+      "fireAt": "2026-10-21T16:30:00.000Z",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CA به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cA است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "chk-cG",
+      "kind": "check",
+      "fireAt": "2026-10-21T16:30:00.000Z",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CG به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cG است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "ins-iA",
+      "kind": "installment",
+      "fireAt": "2026-10-21T16:30:00.000Z",
+      "title": "یادآوریِ قسطِ پرداختی",
+      "body": "فردا سررسیدِ قسطِ ۵۰۰.۰۰۰ تومان به طلبکار است.",
+      "textStatus": "PROPOSAL"
+     },
+     {
+      "id": "chk-cH",
+      "kind": "check",
+      "fireAt": "2026-10-22T16:30:00.000Z",
+      "title": "یادآوریِ سررسیدِ چک",
+      "body": "فردا سررسیدِ چک CH به مبلغ ۱.۰۰۰.۰۰۰ تومان در وجه طرف cH است.",
+      "textStatus": "same as web"
+     },
+     {
+      "id": "ins-iC",
+      "kind": "installment",
+      "fireAt": "2026-10-22T16:30:00.000Z",
+      "title": "یادآوریِ قسطِ دریافتی",
+      "body": "فردا سررسیدِ قسطِ ۳۰۰.۰۰۰ تومان از بدهکار است.",
+      "textStatus": "PROPOSAL"
+     }
+    ],
+    "droppedByCap": [],
+    "none": [
+     "chk-cD",
+     "apt-apt1",
+     "apt-apt2"
+    ]
+   }
+  }
+ ]
+}

@@ -18,7 +18,7 @@ struct Themed<Content: View>: View {
     }
 }
 
-enum AppTab: Hashable { case home, ledger, cards, settings }
+enum AppTab: Hashable { case home, ledger, personal, reminders, cards }
 
 // MARK: - root
 
@@ -38,16 +38,21 @@ struct RootView: View {
                 if model.hasData {
                     TabView(selection: $tab) {
                         Tab("خانه", systemImage: "house.fill", value: AppTab.home) {
-                            NavigationStack { HomeView(model: model, tab: $tab, ledgerSheet: $ledgerSheet, exportFile: $exportFile) }
+                            NavigationStack {
+                                HomeView(model: model, tab: $tab, ledgerSheet: $ledgerSheet, exportFile: $exportFile, showImporter: $showImporter)
+                            }
                         }
                         Tab("دفتر حساب", systemImage: "book.pages.fill", value: AppTab.ledger) {
                             NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }
                         }
+                        Tab("شخصی", systemImage: "person.crop.circle.fill", value: AppTab.personal) {
+                            NavigationStack { PersonalView(model: model) }
+                        }
+                        Tab("یادآوری‌ها", systemImage: "bell.fill", value: AppTab.reminders) {
+                            NavigationStack { RemindersView(model: model) }
+                        }
                         Tab("کیف کارت", systemImage: "creditcard.fill", value: AppTab.cards) {
                             NavigationStack { CardsView(model: model) }
-                        }
-                        Tab("تنظیمات", systemImage: "gearshape.fill", value: AppTab.settings) {
-                            NavigationStack { SettingsView(model: model, showImporter: $showImporter, exportFile: $exportFile) }
                         }
                     }
                 } else {
@@ -64,7 +69,7 @@ struct RootView: View {
         }
         .onChange(of: phase) { _, p in
             if p == .background { lock.didEnterBackground() }
-            if p == .active { lock.didBecomeActive(); model.backupToday() }
+            if p == .active { lock.didBecomeActive(); model.backupToday(); if model.hasData { Notifier.sync(model.state) } }
         }
         .preferredColorScheme(Appearance(rawValue: appearanceRaw)?.scheme)
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .plainText, .data]) { result in
@@ -141,8 +146,10 @@ struct HomeView: View {
     @Binding var tab: AppTab
     @Binding var ledgerSheet: LedgerSheet?
     @Binding var exportFile: ExportFile?
+    @Binding var showImporter: Bool
     @Environment(\.theme) private var t
     @State private var appeared = false
+    @State private var showSettings = false
 
     var body: some View {
         let greet = AppModel.greeting(hour: Calendar.current.component(.hour, from: Date()))
@@ -150,7 +157,17 @@ struct HomeView: View {
         let attention = model.attentionItems
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "خانه", subtitle: "نمای کلی و امروز")
+                HStack(alignment: .top) {
+                    ScreenHeader(title: "خانه", subtitle: "نمای کلی و امروز")
+                    Button {
+                        Haptics.tap()
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill").font(.title3).padding(10)
+                    }
+                    .buttonStyle(.glass)
+                    .padding(.top, 8)
+                }
 
                 HStack(spacing: 8) {
                     Image(systemName: greet.icon).foregroundStyle(t.accent).symbolEffect(.pulse, options: .repeating)
@@ -205,7 +222,9 @@ struct HomeView: View {
                         ShortcutTile(title: "پرداخت کمیسیون", icon: "banknote.fill") { tab = .ledger; ledgerSheet = .settle }
                         ShortcutTile(title: "کیف کارت", icon: "creditcard.fill") { tab = .cards }
                         ShortcutTile(title: "خروجی پشتیبان", icon: "square.and.arrow.up.fill") { exportFile = model.makeExportFile() }
-                        ShortcutTile(title: "تنظیمات", icon: "paintpalette.fill") { tab = .settings }
+                        ShortcutTile(title: "ثبت درآمد", icon: "arrow.down.circle.fill") { tab = .personal }
+                        ShortcutTile(title: "یادآوری‌ها", icon: "bell.fill") { tab = .reminders }
+                        ShortcutTile(title: "تنظیمات", icon: "paintpalette.fill") { showSettings = true }
                     }
                 }
                 .glassCard()
@@ -229,6 +248,9 @@ struct HomeView: View {
         }
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $showSettings) {
+            SettingsView(model: model, showImporter: $showImporter, exportFile: $exportFile)
+        }
         .onAppear { withAnimation(.spring(duration: 0.55)) { appeared = true } }
     }
 }
@@ -730,6 +752,7 @@ struct SettingsView: View {
     @AppStorage("palette") private var paletteRaw = Palette.web.rawValue
     @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
     @AppStorage(AppLock.enabledKey) private var lockEnabled = true
+    @AppStorage(Notifier.enabledKey) private var notifyEnabled = true
     @AppStorage(Backups.lastAtKey) private var lastBackupAt: Double = 0
     @AppStorage(Backups.lastICloudKey) private var lastICloud: Int = -2
     @Environment(\.colorScheme) private var scheme
@@ -774,10 +797,14 @@ struct SettingsView: View {
                 Toggle(isOn: $lockEnabled) {
                     Label("قفل با Face ID", systemImage: "faceid")
                 }
+                Toggle(isOn: $notifyEnabled) {
+                    Label("اعلان سررسید چک، قسط و قرار", systemImage: "bell.badge")
+                }
+                .onChange(of: notifyEnabled) { _, _ in Notifier.sync(model.state) }
             } header: {
                 Text("امنیت").font(AppFont.medium(13))
             } footer: {
-                Text("وقتی بیش از یک دقیقه از اپ بیرون باشید، برای باز کردن دوباره Face ID (یا رمز گوشی) خواسته می‌شود.").font(AppFont.caption)
+                Text("قفل: وقتی بیش از یک دقیقه از اپ بیرون باشید، Face ID (یا رمز گوشی) خواسته می‌شود. اعلان‌ها: شب قبل از سررسید چک و قسط ساعت ۲۰، و قرارها ۳ ساعت قبل (قرار بدون ساعت: ۹ صبح همان روز).").font(AppFont.caption)
             }
 
             Section {

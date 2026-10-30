@@ -1,0 +1,76 @@
+import Foundation
+import XCTest
+@testable import HesabCore
+
+final class RecordAndNotifyTests: XCTestCase {
+
+    private func json(_ name: String) throws -> JSONValue {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Goldens/import"))
+        return try JSONCoding.decode(try Data(contentsOf: url))
+    }
+
+    private let fixed = IdSource(nowMs: { 1_770_000_000_000 }, random5: { "abcde" })
+    private let d = JalaliDate(jy: 1405, jm: 8, jd: 8)
+
+    /// Same rule and texts as phase1 model/notify_ios_model.js (approved), on the phase1 a7 fixture.
+    func testNotificationPlanMatchesPhase1Model() throws {
+        let f = try json("notify_fixture")
+        let st = try XCTUnwrap(f["state"]?.objectValue)
+        let tz = try XCTUnwrap(TimeZone(identifier: f["timeZone"]?.stringValue ?? ""))
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        let isoMs = ISO8601DateFormatter()
+        isoMs.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        for c in try XCTUnwrap(f["cases"]?.arrayValue) {
+            let nowText = try XCTUnwrap(c["now"]?.stringValue)
+            let now = try XCTUnwrap(iso.date(from: nowText))
+            let plan = NotificationPlanner.plan(st, now: now, timeZone: tz)
+            let expImm = c["schedule"]?["immediate"]?.arrayValue ?? []
+            let expSch = c["schedule"]?["scheduled"]?.arrayValue ?? []
+            XCTAssertEqual(plan.immediate.map(\.id), expImm.compactMap { $0["id"]?.stringValue }, nowText)
+            XCTAssertEqual(plan.immediate.map(\.body), expImm.compactMap { $0["body"]?.stringValue }, nowText)
+            XCTAssertEqual(plan.scheduled.map(\.id), expSch.compactMap { $0["id"]?.stringValue }, nowText)
+            XCTAssertEqual(plan.scheduled.map(\.title), expSch.compactMap { $0["title"]?.stringValue }, nowText)
+            XCTAssertEqual(plan.scheduled.map(\.body), expSch.compactMap { $0["body"]?.stringValue }, nowText)
+            XCTAssertEqual(plan.scheduled.compactMap(\.fireAt), expSch.compactMap { $0["fireAt"]?.stringValue }.compactMap { isoMs.date(from: $0) }, nowText)
+        }
+    }
+
+    func testCapKeepsNearestSixty() {
+        var checks: [JSONValue] = []
+        for k in 0..<75 {
+            checks.append(.object(["id": .string("cap\(k)"), "amount": .int(1000), "party": .string(""), "status": .string("pending"),
+                                   "muted": .bool(false), "dueDate": LedgerOps.date(JalaliDate(jy: 1406, jm: 1 + k % 12, jd: 1 + k / 12))]))
+        }
+        let plan = NotificationPlanner.plan(["reminderChecks": .array(checks)], now: Date(timeIntervalSince1970: 1_792_000_000),
+                                            timeZone: TimeZone(identifier: "Asia/Tehran")!)
+        XCTAssertEqual(plan.scheduled.count, 60)
+        XCTAssertEqual(plan.scheduled.first?.id, "cap0")
+    }
+
+    func testPersonalAndIncomeRecordsLikeWeb() throws {
+        let st: [String: JSONValue] = ["personalExpenses": .array([]), "incomes": .array([]), "personalCategories": .array([]),
+                                       "personalSubcategories": .object([:]), "incomeCategories": .array([]), "incomeSubcategories": .object([:]),
+                                       "accounts": .array([.object(["id": .string("a1"), "name": .string("پروژه")])])]
+        let p = try RecordOps.addPersonal(st, PersonalInput(desc: "نان", category: "خانه", subcategory: "خوراک", toman: 50_000,
+                                                             date: d, payMethod: "hamrahbank", cardId: "c1"), ids: fixed)
+        let row = try XCTUnwrap(p.state["personalExpenses"]?.arrayValue?.first?.objectValue)
+        XCTAssertEqual(Set(row.keys), ["id", "desc", "toman", "date", "ts", "category", "subcategory", "payMethod", "cardId"])
+        XCTAssertEqual(row["id"]?.stringValue, "p1770000000000abcde")
+        XCTAssertEqual(p.state["personalSubcategories"]?["خانه"]?.arrayValue, [.string("خوراک")])
+
+        let i = try RecordOps.addIncome(st, IncomeInput(desc: "حقوق", category: "حقوق", subcategory: "", toman: 9_000_000,
+                                                         date: d, accountLink: "a1"), ids: fixed)
+        let inc = try XCTUnwrap(i.state["incomes"]?.arrayValue?.first?.objectValue)
+        XCTAssertEqual(Set(inc.keys), ["id", "desc", "toman", "date", "ts", "category", "subcategory", "accountId", "accountName", "source", "commissionSettlementId"])
+        XCTAssertEqual(inc["accountName"]?.stringValue, "پروژه")
+        XCTAssertEqual(inc["source"]?.stringValue, "manual")
+        XCTAssertEqual(inc["commissionSettlementId"], .null)
+
+        // commission incomes are managed from the ledger
+        let withCommission: [String: JSONValue] = ["incomes": .array([.object(["id": .string("i1"), "commissionSettlementId": .string("s1")])])]
+        XCTAssertThrowsError(try RecordOps.deleteIncome(withCommission, id: "i1")) { e in
+            XCTAssertEqual(e as? LedgerError, .commissionIncome)
+        }
+    }
+}

@@ -26,7 +26,7 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
-      - name: Test (Jalali, commission, import, ledger ops)
+      - name: Test (Jalali, commission, import, ledger, records, notifications)
         run: |
           set -o pipefail
           swift test --package-path HesabCore 2>&1 | tee "$RUNNER_TEMP/test.log"
@@ -64,8 +64,20 @@ jobs:
           if [ -n "$missing" ]; then echo "::error::Missing:$missing"; exit 1; fi
 
       - name: Generate Xcode project
+        env:
+          ICLOUD_ENABLED: ${{ vars.ICLOUD_ENABLED }}
         run: |
           brew install xcodegen
+          if [ "$ICLOUD_ENABLED" != "true" ]; then
+            # iCloud container not set up on developer.apple.com yet: build without the iCloud entitlement
+            python3 - <<'PY'
+          import re
+          s = open('project.yml').read()
+          s = re.sub(r"\n    entitlements:\n(      .*\n)+", "\n", s)
+          open('project.yml', 'w').write(s)
+          PY
+            echo "::notice title=iCloud::built without iCloud (set repository variable ICLOUD_ENABLED=true after creating the container)"
+          fi
           xcodegen generate
 
       - name: Write App Store Connect key

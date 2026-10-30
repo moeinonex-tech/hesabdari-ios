@@ -94,6 +94,7 @@ final class AppModel: ObservableObject {
         guard let store else { return }
         state = (try? store.loadState()) ?? [:]
         hasData = !store.isEmpty
+        if hasData { Notifier.sync(state) }
         if let last = try? store.lastImport() {
             lastImportText = last.sourceExportedAtJalali.map { "داده از پشتیبان \($0)" }
         }
@@ -204,6 +205,7 @@ final class AppModel: ObservableObject {
             try store.save(newState)
             state = newState
             backupToday()
+            Notifier.sync(newState)
             if let m = undoMessage {
                 let item = UndoItem(message: m, previous: previous)
                 undo = item
@@ -222,6 +224,11 @@ final class AppModel: ObservableObject {
         do { return apply(try op(), undoMessage: undoMessage) }
         catch let e as LedgerError { errorMessage = e.message; return false }
         catch { errorMessage = error.localizedDescription; return false }
+    }
+
+    /// Runs a change and saves it (one transaction); used by the other screens.
+    func change(_ op: () throws -> [String: JSONValue], undoMessage: String? = nil) -> Bool {
+        run(op, undoMessage: undoMessage)
     }
 
     func add(_ input: ExpenseInput) -> Bool { run { try LedgerOps.addExpense(state, input).state } }
