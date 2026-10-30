@@ -34,6 +34,7 @@ jobs:
         if: always()
         run: |
           grep -E "commission parity:|Executed [0-9]+ tests" "$RUNNER_TEMP/test.log" | tail -4 | while read -r l; do echo "::notice title=HesabCore::$l"; done
+          grep -E "error:|failed" "$RUNNER_TEMP/test.log" | grep -v "^Test Suite" | head -15 | while read -r l; do echo "::error title=test::${l:0:900}"; done
 
   testflight:
     name: Archive and upload to TestFlight
