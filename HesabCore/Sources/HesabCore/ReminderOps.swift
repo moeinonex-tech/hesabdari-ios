@@ -69,7 +69,7 @@ public struct AppointmentInput: Sendable {
 
 public enum ReminderOps {
 
-    typealias Obj = [String: JSONValue]
+    public typealias Obj = [String: JSONValue]
 
     // MARK: texts (web reminderExpenseDesc)
 
