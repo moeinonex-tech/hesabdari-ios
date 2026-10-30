@@ -274,15 +274,19 @@ struct PersonalView: View {
                 }
                 .glassCard()
 
-                let s = model.slices(rows)
+                let st = model.statItems(showIncome ? "incomes" : "personalExpenses")
+                let s = model.breakdown(st, kind: showIncome ? .income : .expense)
+                let sub = model.breakdown(st, kind: showIncome ? .income : .expense, sub: true)
+                let colors = model.colorMap(s)
                 if !s.isEmpty { CategoryChartCard(slices: s) }
+                if !sub.isEmpty { SubcategoryChartCard(slices: sub) }
 
                 if rows.isEmpty {
                     Text("هنوز ردیفی نیست").font(AppFont.regular(14)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(30)
                 } else {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(rows) { r in
-                            SimpleRowLine(row: r, income: showIncome, color: model.categoryColor(r.category))
+                            SimpleRowLine(row: r, income: showIncome, color: colors[r.category.isEmpty ? "بدون دسته" : r.category])
                                 .onTapGesture { open(r) }
                                 .contextMenu {
                                     Button { open(r) } label: { Label("ویرایش", systemImage: "pencil") }

@@ -7,7 +7,6 @@ import HesabCore
 // page transition, home card effect, Liquid Glass amount, custom background photo.
 
 enum Look {
-    static let pageFxKey = "look.pageFx"          // slide | zoom | fade
     static let cardFxKey = "look.cardFx"          // none | glint | parallax | scroll
     static let glassKey = "look.glass"            // 0...100, how "liquid" (clear) the cards are
     static let bgVersionKey = "look.bgVersion"    // bumps when the photo changes
@@ -41,49 +40,6 @@ final class BackgroundCache {
     func reload() {
         image = Look.backgroundURL.flatMap { try? Data(contentsOf: $0) }.flatMap(UIImage.init(data:))
     }
-}
-
-// MARK: - page transitions (main pages)
-// The three built-in iOS 27 navigation styles that the top apps use: push slide (.automatic),
-// zoom (.zoom — Photos, App Store, Instagram) and the new cross-fade (.crossFade).
-
-enum PageFx: String, CaseIterable, Identifiable {
-    case slide, zoom, fade
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .slide: return "لغزش (Push)"
-        case .zoom: return "زوم"
-        case .fade: return "محو شدن (Cross-fade)"
-        }
-    }
-}
-
-struct PageEnter: ViewModifier {
-    let active: Bool
-    @AppStorage(Look.pageFxKey) private var fxRaw = PageFx.slide.rawValue
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var shown = true
-
-    func body(content: Content) -> some View {
-        let fx = PageFx(rawValue: fxRaw) ?? .slide
-        content
-            .opacity(shown ? 1 : 0)
-            .scaleEffect(fx == .zoom && !shown ? 0.9 : 1)
-            // RTL: the new page comes in from the left, like a push in an RTL app
-            .offset(x: fx == .slide && !shown ? -60 : 0)
-            .onChange(of: active) { _, now in
-                guard now, !reduceMotion else { return }
-                var t = Transaction(); t.disablesAnimations = true
-                withTransaction(t) { shown = false }
-                let anim: Animation = fx == .fade ? .easeInOut(duration: 0.28) : .spring(duration: 0.42, bounce: fx == .zoom ? 0.18 : 0.08)
-                DispatchQueue.main.async { withAnimation(anim) { shown = true } }
-            }
-    }
-}
-
-extension View {
-    func pageEnter(_ active: Bool) -> some View { modifier(PageEnter(active: active)) }
 }
 
 // MARK: - home card effects
@@ -176,7 +132,6 @@ struct CardEffect: ViewModifier {
 
 
 struct AppearanceSection: View {
-    @AppStorage(Look.pageFxKey) private var pageFx = PageFx.slide.rawValue
     @AppStorage(Look.cardFxKey) private var cardFx = CardFx.none.rawValue
     @AppStorage(Look.glassKey) private var glass: Double = 0
     @AppStorage(Look.bgVersionKey) private var bgVersion = 0
@@ -185,9 +140,6 @@ struct AppearanceSection: View {
 
     var body: some View {
         Section {
-            Picker("افکت عوض شدن صفحه", selection: $pageFx) {
-                ForEach(PageFx.allCases) { Text($0.title).tag($0.rawValue) }
-            }
             Picker("افکت کارت‌های خانه", selection: $cardFx) {
                 ForEach(CardFx.allCases) { Text($0.title).tag($0.rawValue) }
             }

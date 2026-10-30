@@ -342,8 +342,11 @@ struct ReportsView: View {
             CashFlowCard(income: ReportCharts.ledgerIncomes(model.state, accountId: id), expense: ReportCharts.ledgerExpenses(model.state, accountId: id))
             ComparisonCard(title: "درآمد در برابر هزینه — " + (model.accounts.first { $0.id == id }?.name ?? ""),
                            c: ReportCharts.comparisonLedger(model.state, accountId: id))
-            let s = model.categoryBreakdown(accountId: id)
+            let st = model.statItems("expenses", accountId: id, range: range)
+            let s = model.breakdown(st, kind: .expense)
+            let sub = model.breakdown(st, kind: .expense, sub: true)
             if !s.isEmpty { CategoryChartCard(slices: s) }
+            if !sub.isEmpty { SubcategoryChartCard(slices: sub) }
             exportButtons(pdf: { model.ledgerPDF(accountId: id, range: range) },
                           excel: { model.ledgerExcel(accountIds: [id], range: range) },
                           extra: model.accounts.count > 1 ? ("Excel همه‌ی دفترها", { model.ledgerExcel(accountIds: model.accounts.map(\.id), range: range) }) : nil)
@@ -358,8 +361,11 @@ struct ReportsView: View {
                            items: personal ? ReportCharts.personalExpenses(model.state) : ReportCharts.allIncomes(model.state),
                            color: personal ? t.accent2 : t.success)
             ComparisonCard(title: "درآمد شخصی در برابر هزینه شخصی", c: ReportCharts.comparisonPersonal(model.state))
-            let s = model.slices(rows)
+            let st = model.statItems(personal ? "personalExpenses" : "incomes", range: range)
+            let s = model.breakdown(st, kind: personal ? .expense : .income)
+            let sub = model.breakdown(st, kind: personal ? .expense : .income, sub: true)
             if !s.isEmpty { CategoryChartCard(slices: s) }
+            if !sub.isEmpty { SubcategoryChartCard(slices: sub) }
             exportButtons(pdf: { personal ? model.personalPDF(range: range) : model.incomePDF(range: range) },
                           excel: { personal ? model.personalExcel(range: range) : model.incomeExcel(range: range) }, extra: nil)
         }

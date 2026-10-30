@@ -41,22 +41,21 @@ struct RootView: View {
                             NavigationStack {
                                 HomeView(model: model, tab: $tab, ledgerSheet: $ledgerSheet, exportFile: $exportFile, showImporter: $showImporter)
                             }
-                            .pageEnter(tab == .home)
                         }
                         Tab("دفتر حساب", systemImage: "book.pages.fill", value: AppTab.ledger) {
-                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }.pageEnter(tab == .ledger)
+                            NavigationStack { LedgerHomeView(model: model, sheet: $ledgerSheet) }
                         }
                         Tab("شخصی", systemImage: "person.crop.circle.fill", value: AppTab.personal) {
-                            NavigationStack { PersonalView(model: model) }.pageEnter(tab == .personal)
+                            NavigationStack { PersonalView(model: model) }
                         }
                         Tab("یادآوری‌ها", systemImage: "bell.fill", value: AppTab.reminders) {
-                            NavigationStack { RemindersView(model: model) }.pageEnter(tab == .reminders)
+                            NavigationStack { RemindersView(model: model) }
                         }
                         Tab("کیف کارت", systemImage: "creditcard.fill", value: AppTab.cards) {
-                            NavigationStack { CardsView(model: model) }.pageEnter(tab == .cards)
+                            NavigationStack { CardsView(model: model) }
                         }
                         Tab("جستجو", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
-                            NavigationStack { SearchView(model: model) }.pageEnter(tab == .search)
+                            NavigationStack { SearchView(model: model) }
                         }
                     }
                 } else {
@@ -274,13 +273,16 @@ struct HomeView: View {
         CGSize(width: max(0, frame.width - WidgetCard<EmptyView>.padding * 2), height: max(0, frame.height - WidgetCard<EmptyView>.padding * 2))
     }
     private static let titleH: CGFloat = 26
+    private static let tileMargin: CGFloat = 6
     /// how many rows of height `rowH` (with `spacing`) fit under the title
     private func fit(_ inner: CGSize, rowH: CGFloat, spacing: CGFloat = 6) -> Int {
         max(1, Int((inner.height - Self.titleH - 6 + spacing) / (rowH + spacing)))
     }
     private func shortcutTiles(_ s: WidgetSize, _ inner: CGSize, count: Int) -> (WidgetLayout.Tiles, top: CGFloat) {
         let top: CGFloat = s == .small ? 0 : Self.titleH + 6
-        return (WidgetLayout.tiles(count: count, width: Double(inner.width), height: Double(inner.height - top)), top)
+        // tiles keep a soft margin inside the card so the glass edge/shadow is never cut by the card's clip
+        let m = Self.tileMargin
+        return (WidgetLayout.tiles(count: count, width: Double(inner.width - 2 * m), height: Double(inner.height - top - 2 * m)), top)
     }
 
     private func tapWidget(_ key: String, _ point: CGPoint, _ frame: CGSize) {
@@ -295,8 +297,9 @@ struct HomeView: View {
             let inn = inner(frame)
             let (t, top) = shortcutTiles(size, inn, count: keys.count)
             let p = WidgetCard<EmptyView>.padding
-            if let i = WidgetLayout.tileIndex(at: Double(point.x - p), Double(point.y - p - top), count: keys.count, t,
-                                               areaWidth: Double(inn.width), rtl: true) {
+            let m = Self.tileMargin
+            if let i = WidgetLayout.tileIndex(at: Double(point.x - p - m), Double(point.y - p - top - m), count: keys.count, t,
+                                               areaWidth: Double(inn.width - 2 * m), rtl: true) {
                 go(keys[i])
             }
         default: break
@@ -554,7 +557,7 @@ struct HomeView: View {
             } else {
                 ZStack(alignment: .topLeading) {
                     ForEach(Array(keys.prefix(tiles.capacity).enumerated()), id: \.offset) { i, k in
-                        let r = WidgetLayout.tileRect(i, tiles, areaWidth: Double(inn.width), rtl: true)
+                        let r = WidgetLayout.tileRect(i, tiles, areaWidth: Double(inn.width - 2 * Self.tileMargin), rtl: true)
                         let d = HomeShortcut.info(k)
                         VStack(spacing: r.w * 0.07) {
                             Image(systemName: d.icon).font(.system(size: r.w * 0.3)).foregroundStyle(t.accent)
@@ -566,11 +569,11 @@ struct HomeView: View {
                         .frame(width: r.w, height: r.h)
                         // same Liquid Glass as the settings / reports buttons: raised, glossy, with depth
                         .glassEffect(.regular.tint(t.accent.opacity(0.06)), in: RoundedRectangle(cornerRadius: r.w * 0.28, style: .continuous))
-                        .shadow(color: .black.opacity(0.10), radius: 6, y: 4)
                         .position(x: r.x + r.w / 2, y: r.y + r.h / 2)
                     }
                 }
-                .frame(width: inn.width, height: inn.height - top, alignment: .topLeading)
+                .frame(width: inn.width - 2 * Self.tileMargin, height: inn.height - top - 2 * Self.tileMargin, alignment: .topLeading)
+                .padding(Self.tileMargin)
                 .environment(\.layoutDirection, .leftToRight)
             }
         }
@@ -781,6 +784,7 @@ struct LedgerHomeView: View {
     @State private var showPartyReport = false
     @State private var showIncome = false
     @State private var incomeSheet: PersonalSheet?
+    @State private var showAllRows = false
     @State private var showPassword = false
     @State private var password = ""
 
@@ -860,30 +864,64 @@ struct LedgerHomeView: View {
                         }
                         .buttonStyle(.glass)
                     }
-                    let slices = model.categoryBreakdown(accountId: a.id)
+                    let items = model.statItems("expenses", accountId: a.id)
+                    let slices = model.breakdown(items, kind: .expense)
+                    let subs = model.breakdown(items, kind: .expense, sub: true)
+                    let colors = model.colorMap(slices)
                     if !slices.isEmpty { CategoryChartCard(slices: slices) }
+                    if !subs.isEmpty { SubcategoryChartCard(slices: subs) }
 
-                    ForEach(model.monthGroups(accountId: a.id)) { g in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(g.title).font(AppFont.bold(15)).foregroundStyle(t.ink)
-                                Spacer()
-                                Text(Fmt.toman(g.total)).font(AppFont.medium(13)).foregroundStyle(t.soft)
-                            }
-                            .padding(.bottom, 4)
-                            ForEach(g.rows) { r in
-                                LedgerRowLine(row: r, color: model.categoryColor(r.category))
-                                    .onTapGesture { guarded(r) { sheet = .edit(r) } }
-                                    .contextMenu {
-                                        Button { guarded(r) { sheet = .edit(r) } } label: { Label("ویرایش", systemImage: "pencil") }
-                                        Button(role: .destructive) {
-                                            guarded(r) { if model.delete(rowId: r.rowId) { Haptics.warning() } }
-                                        } label: { Label("حذف", systemImage: "trash") }
-                                    }
-                                if r.id != g.rows.last?.id { Divider().opacity(0.5) }
-                            }
+                    // this month: the latest 5 rows; older months stay folded
+                    let today = AppModel.today
+                    let all = model.rows(accountId: a.id)
+                    let thisMonth = Array(all.filter { $0.dateValue.jy == today.jy && $0.dateValue.jm == today.jm }.reversed())
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("تراکنش‌های " + BackupExporter.months[today.jm - 1]).font(AppFont.bold(15)).foregroundStyle(t.ink)
+                            Spacer()
+                            Text(Fmt.toman(thisMonth.reduce(0) { $0 + ($1.kind == .tankhah ? 0 : $1.toman) }))
+                                .font(AppFont.medium(13)).foregroundStyle(t.soft)
                         }
-                        .glassCard()
+                        .padding(.bottom, 4)
+                        if thisMonth.isEmpty {
+                            Text("این ماه هنوز تراکنشی ثبت نشده").font(AppFont.regular(13)).foregroundStyle(t.soft).padding(.vertical, 8)
+                        }
+                        ForEach(Array(thisMonth.prefix(5))) { r in
+                            ledgerRow(r, colors)
+                            if r.id != thisMonth.prefix(5).last?.id { Divider().opacity(0.5) }
+                        }
+                        if all.count > min(5, thisMonth.count) {
+                            Button {
+                                Haptics.tap()
+                                withAnimation(.spring(duration: 0.45, bounce: 0.15)) { showAllRows.toggle() }
+                            } label: {
+                                Label(showAllRows ? "بستن تراکنش‌های قبلی" : "همه‌ی تراکنش‌ها (" + Fmt.count(all.count) + ")",
+                                      systemImage: showAllRows ? "chevron.up" : "chevron.down")
+                                    .font(AppFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 4)
+                            }
+                            .buttonStyle(.glass)
+                            .padding(.top, 8)
+                        }
+                    }
+                    .glassCard()
+
+                    if showAllRows {
+                        ForEach(model.monthGroups(accountId: a.id)) { g in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(g.title).font(AppFont.bold(15)).foregroundStyle(t.ink)
+                                    Spacer()
+                                    Text(Fmt.toman(g.total)).font(AppFont.medium(13)).foregroundStyle(t.soft)
+                                }
+                                .padding(.bottom, 4)
+                                ForEach(g.rows) { r in
+                                    ledgerRow(r, colors)
+                                    if r.id != g.rows.last?.id { Divider().opacity(0.5) }
+                                }
+                            }
+                            .glassCard()
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
                     }
                 }
             }
@@ -1004,6 +1042,17 @@ struct LedgerHomeView: View {
         incomeSheet = .editIncome(r)
     }
 
+    private func ledgerRow(_ r: LedgerRowVM, _ colors: [String: Color]) -> some View {
+        LedgerRowLine(row: r, color: colors[r.category] ?? model.categoryColor(r.category))
+            .onTapGesture { guarded(r) { sheet = .edit(r) } }
+            .contextMenu {
+                Button { guarded(r) { sheet = .edit(r) } } label: { Label("ویرایش", systemImage: "pencil") }
+                Button(role: .destructive) {
+                    guarded(r) { if model.delete(rowId: r.rowId) { Haptics.warning() } }
+                } label: { Label("حذف", systemImage: "trash") }
+            }
+    }
+
     private func guarded(_ r: LedgerRowVM, _ action: @escaping () -> Void) {
         if r.isLinked {
             model.errorMessage = LedgerError.linkedRow("چک یا بدهی").message
@@ -1121,45 +1170,6 @@ struct GradientBar: View {
             }
         }
         .frame(height: 7)
-    }
-}
-
-struct CategoryChartCard: View {
-    let slices: [CategorySlice]
-    @Environment(\.theme) private var t
-
-    var body: some View {
-        let total = slices.reduce(0) { $0 + $1.total }
-        let top = Array(slices.prefix(6))
-        VStack(alignment: .leading, spacing: 12) {
-            SectionTitle(text: "تفکیک دسته‌ها")
-            HStack(spacing: 16) {
-                Chart(slices) { s in
-                    SectorMark(angle: .value("مبلغ", s.total), innerRadius: .ratio(0.62), angularInset: 1.5)
-                        .cornerRadius(3)
-                        .foregroundStyle(s.color)
-                }
-                .frame(width: 130, height: 130)
-                .overlay {
-                    VStack(spacing: 0) {
-                        Text(Fmt.count(slices.count)).font(AppFont.heavy(20)).foregroundStyle(t.ink)
-                        Text("دسته").font(AppFont.caption).foregroundStyle(t.soft)
-                    }
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(top) { s in
-                        HStack(spacing: 6) {
-                            Circle().fill(s.color).frame(width: 8, height: 8)
-                            Text(s.name).font(AppFont.regular(12)).foregroundStyle(t.ink).lineLimit(1)
-                            Spacer(minLength: 4)
-                            Text(Money.persianDigits(total > 0 ? Money.jsRound(Double(s.total) / Double(total) * 100) : 0) + "٪")
-                                .font(AppFont.bold(12)).foregroundStyle(t.soft)
-                        }
-                    }
-                }
-            }
-        }
-        .glassCard()
     }
 }
 
