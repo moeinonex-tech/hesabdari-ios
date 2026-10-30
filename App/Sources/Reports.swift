@@ -308,6 +308,10 @@ struct ReportsView: View {
                 .frame(height: 220)
             }
             .glassCard()
+            let ac = ReportCharts.accountsCompare(model.accounts)
+            if ac.count >= 2 { CompareBarCard(title: "مقایسه‌ی هزینه‌ی دفترها", data: ac, color: t.accent) }
+            let cc = ReportCharts.commissionCompare(model.accounts)
+            if !cc.isEmpty { CompareBarCard(title: "کمیسیون تعلق‌گرفته‌ی هر دفتر (تا امروز)", data: cc, color: t.accent2) }
             ForEach(model.accounts.filter { $0.commissionEnabled || $0.percent != 0 }) { a in
                 VStack(alignment: .leading, spacing: 6) {
                     SectionTitle(text: "کمیسیون — " + a.name)
@@ -334,6 +338,10 @@ struct ReportsView: View {
                 .pickerStyle(.segmented)
             }
             monthChart(items, color: t.accent)
+            TrendChartCard(title: "نمودار نوسانات هزینه‌ی دفتر", items: ReportCharts.ledgerExpenses(model.state, accountId: id), color: t.accent)
+            CashFlowCard(income: ReportCharts.ledgerIncomes(model.state, accountId: id), expense: ReportCharts.ledgerExpenses(model.state, accountId: id))
+            ComparisonCard(title: "درآمد در برابر هزینه — " + (model.accounts.first { $0.id == id }?.name ?? ""),
+                           c: ReportCharts.comparisonLedger(model.state, accountId: id))
             let s = model.categoryBreakdown(accountId: id)
             if !s.isEmpty { CategoryChartCard(slices: s) }
             exportButtons(pdf: { model.ledgerPDF(accountId: id, range: range) },
@@ -346,6 +354,10 @@ struct ReportsView: View {
         let rows = (personal ? model.personalRows : model.incomeRows).filter { r in range.map { $0.contains(r.dateValue) } ?? true }
         return VStack(alignment: .leading, spacing: 16) {
             monthChart(rows.map { ($0.dateValue, $0.toman) }, color: personal ? t.accent2 : t.success)
+            TrendChartCard(title: personal ? "نمودار نوسانات هزینه‌ی شخصی" : "نمودار نوسانات درآمد",
+                           items: personal ? ReportCharts.personalExpenses(model.state) : ReportCharts.allIncomes(model.state),
+                           color: personal ? t.accent2 : t.success)
+            ComparisonCard(title: "درآمد شخصی در برابر هزینه شخصی", c: ReportCharts.comparisonPersonal(model.state))
             let s = model.slices(rows)
             if !s.isEmpty { CategoryChartCard(slices: s) }
             exportButtons(pdf: { personal ? model.personalPDF(range: range) : model.incomePDF(range: range) },
