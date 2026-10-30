@@ -133,7 +133,9 @@ struct CheckFormView: View {
             }
             Section {
                 SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
+                LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
                 SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
+                LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: true)
                 AccountLinkPicker(model: model, accountId: $accountId)
             } header: {
                 Text("دسته و دفتر")
@@ -307,7 +309,7 @@ struct PersonDetailView: View {
         .background(AppBackground())
         .navigationTitle(person?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, 8) }
+        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(item: $editing) { e in
             Themed {
                 NavigationStack {
@@ -348,7 +350,9 @@ struct InstallmentFormView: View {
             if creditor {
                 Section {
                     SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
+                    LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
                     SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
+                    LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: true)
                     AccountLinkPicker(model: model, accountId: $accountId)
                 } header: {
                     Text("دسته و دفتر")

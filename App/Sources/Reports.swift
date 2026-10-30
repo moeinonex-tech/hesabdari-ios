@@ -195,8 +195,8 @@ struct MonthBar: Identifiable {
 
 struct ReportsView: View {
     @ObservedObject var model: AppModel
+    @Binding var scope: Int
     @Environment(\.theme) private var t
-    @State private var scope = 0
     @State private var useRange = false
     @State private var from = JalaliDate(jy: AppModel.today.jy, jm: 1, jd: 1)
     @State private var to = AppModel.today
@@ -250,7 +250,9 @@ struct ReportsView: View {
             .padding(.bottom, 40)
         }
         .background(AppBackground())
+        .scrollsToTopOnDockTap(.reports)
         .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: scope) { _, _ in account = nil }
         .sheet(item: $share) { f in ActivityView(items: [f.url]) }
     }
 

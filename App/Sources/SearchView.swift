@@ -5,6 +5,7 @@ struct SearchView: View {
     @ObservedObject var model: AppModel
     @Environment(\.theme) private var t
     @State private var query = ""
+    @FocusState private var focused: Bool
     @State private var sheet: SearchSheet?
 
     enum SearchSheet: Identifiable {
@@ -22,6 +23,25 @@ struct SearchView: View {
     var body: some View {
         let results = query.trimmingCharacters(in: .whitespaces).isEmpty ? [] : SearchEngine.search(model.state, query: query)
         List {
+            // search field at the top of the page (the system search bar sits at the bottom on iOS 26,
+            // under our dock, so it is drawn here instead)
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(t.soft)
+                TextField("جستجو در همه‌ی بخش‌ها…", text: $query)
+                    .font(AppFont.regular(16))
+                    .focused($focused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(t.soft) }
+                        .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             if query.trimmingCharacters(in: .whitespaces).isEmpty {
                 Text("در دفترها، هزینه‌های شخصی، درآمدها، چک‌ها و اشخاص جستجو کنید. عدد را با رقم فارسی یا انگلیسی بنویسید.")
                     .font(AppFont.regular(14)).foregroundStyle(t.soft)
@@ -48,7 +68,7 @@ struct SearchView: View {
         .scrollContentBackground(.hidden)
         .background(AppBackground())
         .navigationTitle("جستجو")
-        .searchable(text: $query, prompt: "جستجو…")
+        .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { focused = true } }
         .navigationDestination(isPresented: Binding(get: { personTarget != nil }, set: { if !$0 { personTarget = nil } })) {
             if let id = personTarget { PersonDetailView(model: model, personId: id) }
         }

@@ -302,8 +302,9 @@ struct PersonalView: View {
             .padding(.bottom, 90)
         }
         .background(AppBackground())
+        .scrollsToTopOnDockTap(.personal)
         .toolbar(.hidden, for: .navigationBar)
-        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, 8) }
+        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(isPresented: $showBudget) {
             NavigationStack {
                 BudgetEditor(title: "بودجه‌ی شخصی", current: model.personalBudget) { _ = model.setPersonalBudget($0) }
@@ -393,7 +394,9 @@ struct PersonalFormView: View {
             Section {
                 TextField("شرح", text: $desc)
                 SuggestField(title: "نوع هزینه", text: $category, suggestions: model.personalCategories)
+                LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: false)
                 SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.personalSubcategories(of: category))
+                LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: true)
             }
             Section {
                 AmountField(title: "مبلغ (تومان)", text: $amount)
@@ -487,7 +490,9 @@ struct IncomeFormView: View {
             Section {
                 TextField("شرح", text: $desc)
                 SuggestField(title: "نوع درآمد", text: $category, suggestions: model.incomeCategories)
+                LearnChips(model: model, ctx: .income, desc: desc, category: $category, subcategory: $subcategory, sub: false)
                 SuggestField(title: "زیردسته (اختیاری)", text: $subcategory, suggestions: model.incomeSubcategories(of: category))
+                LearnChips(model: model, ctx: .income, desc: desc, category: $category, subcategory: $subcategory, sub: true)
             }
             Section {
                 AmountField(title: "مبلغ (تومان)", text: $amount)
@@ -608,8 +613,9 @@ struct RemindersView: View {
             .padding(.bottom, 90)
         }
         .background(AppBackground())
+        .scrollsToTopOnDockTap(.reminders)
         .toolbar(.hidden, for: .navigationBar)
-        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, 8) }
+        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(item: $sheet) { s in
             Themed {
                 NavigationStack {

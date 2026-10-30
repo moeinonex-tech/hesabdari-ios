@@ -260,7 +260,9 @@ struct ExpenseFormView: View {
                 Section {
                     TextField("شرح", text: $desc)
                     SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
+                    LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
                     SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
+                    LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: true)
                 }
             }
 
@@ -432,4 +434,51 @@ struct ActivityView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+/// Smart suggestions (web «suggest chips»): the category chips appear while the category is empty, the subcategory
+/// chips once a category is chosen and the subcategory is still empty. Tapping one fills the field.
+struct LearnChips: View {
+    @ObservedObject var model: AppModel
+    let ctx: LearnContext
+    let desc: String
+    @Binding var category: String
+    @Binding var subcategory: String
+    let sub: Bool
+    @Environment(\.theme) private var t
+
+    var body: some View {
+        let cat = category.trimmingCharacters(in: .whitespaces)
+        let items: [String] = {
+            guard !desc.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
+            if sub {
+                guard !cat.isEmpty, subcategory.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
+                return Learning.subcategoryCandidates(model.state, ctx, category: cat, desc: desc)
+            }
+            guard cat.isEmpty else { return [] }
+            return Learning.categoryCandidates(model.state, ctx, desc: desc)
+        }()
+        if !items.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles").font(.system(size: 13, weight: .semibold)).foregroundStyle(t.accent)
+                    ForEach(items, id: \.self) { s in
+                        Button {
+                            Haptics.tap()
+                            withAnimation(.spring(duration: 0.3)) {
+                                if sub { subcategory = s } else { category = s }
+                            }
+                        } label: {
+                            Text(s).font(AppFont.medium(13)).foregroundStyle(t.accent)
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .glassEffect(.regular.tint(t.accent.opacity(0.10)).interactive(), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
 }

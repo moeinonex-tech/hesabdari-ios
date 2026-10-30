@@ -109,8 +109,10 @@ public enum RecordOps {
 
     static func learnPersonal(_ st: inout [String: JSONValue], _ input: PersonalInput) {
         LedgerOps.addCategoryIfNew(&st, list: "personalCategories", input.category)
+        Learning.learnCategory(&st, .personal, desc: input.desc, category: input.category)
         if !input.category.isEmpty && !input.subcategory.isEmpty {
             LedgerOps.addSubcategoryIfNew(&st, map: "personalSubcategories", category: input.category, input.subcategory)
+            Learning.learnSubcategory(&st, .personal, category: input.category, desc: input.desc, sub: input.subcategory)
         }
     }
 
@@ -172,8 +174,10 @@ public enum RecordOps {
 
     static func learnIncome(_ st: inout [String: JSONValue], _ input: IncomeInput) {
         LedgerOps.addCategoryIfNew(&st, list: "incomeCategories", input.category)
+        Learning.learnCategory(&st, .income, desc: input.desc, category: input.category)
         if !input.subcategory.isEmpty {
             LedgerOps.addSubcategoryIfNew(&st, map: "incomeSubcategories", category: input.category, input.subcategory)
+            Learning.learnSubcategory(&st, .income, category: input.category, desc: input.desc, sub: input.subcategory)
         }
     }
 }

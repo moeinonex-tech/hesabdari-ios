@@ -220,6 +220,7 @@ struct HomeView: View {
         }
         .scrollDisabled(draggingWidget)
         .background(AppBackground())
+        .scrollsToTopOnDockTap(.home)
         .safeAreaInset(edge: .top, spacing: 0) {
             if editingWidgets {
                 WidgetEditBar(hidden: SettingsOps.widgetKeys.filter { !SettingsOps.widgetVisible(model.state, $0) },
@@ -908,8 +909,9 @@ struct LedgerHomeView: View {
             .padding(.bottom, 90)
         }
         .background(AppBackground())
+        .scrollsToTopOnDockTap(.ledger)
         .toolbar(.hidden, for: .navigationBar)
-        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, 8) }
+        .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(item: Binding(get: { budgetAccount.map { IdBox(id: $0) } }, set: { budgetAccount = $0?.id })) { b in
             NavigationStack {
                 BudgetEditor(title: "بودجه‌ی دفتر", current: model.budget(accountId: b.id)) { _ = model.setAccountBudget(b.id, $0) }
@@ -1220,6 +1222,7 @@ struct CardsView: View {
             .padding(.bottom, 24)
         }
         .background(AppBackground())
+        .scrollsToTopOnDockTap(.cards)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $editing) { e in
             NavigationStack { CardFormView(model: model, editingId: e.id.isEmpty ? nil : e.id) }

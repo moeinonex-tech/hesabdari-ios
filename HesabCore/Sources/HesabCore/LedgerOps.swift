@@ -374,8 +374,10 @@ public enum LedgerOps {
 
     static func learn(_ st: inout [String: JSONValue], _ input: ExpenseInput) {
         addCategoryIfNew(&st, list: "ledgerCategories", input.category)
+        Learning.learnCategory(&st, .ledger, desc: input.desc, category: input.category)
         if !input.category.isEmpty && !input.subcategory.isEmpty {
             addSubcategoryIfNew(&st, map: "ledgerSubcategories", category: input.category, input.subcategory)
+            Learning.learnSubcategory(&st, .ledger, category: input.category, desc: input.desc, sub: input.subcategory)
         }
     }
 

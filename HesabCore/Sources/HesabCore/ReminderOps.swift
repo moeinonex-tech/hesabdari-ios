@@ -173,6 +173,9 @@ public enum ReminderOps {
         var st = state
         LedgerOps.addCategoryIfNew(&st, list: "ledgerCategories", input.category)
         LedgerOps.addSubcategoryIfNew(&st, map: "ledgerSubcategories", category: input.category, input.subcategory)
+        Learning.learnCategory(&st, .ledger, desc: input.desc, category: input.category.trimmingCharacters(in: .whitespaces))
+        Learning.learnSubcategory(&st, .ledger, category: input.category.trimmingCharacters(in: .whitespaces), desc: input.desc,
+                                  sub: input.subcategory.trimmingCharacters(in: .whitespaces))
         let now = ids.nowMs()
         var checks = LedgerOps.array(st, "reminderChecks")
         var c: Obj
@@ -329,6 +332,9 @@ public enum ReminderOps {
         }
         LedgerOps.addCategoryIfNew(&st, list: "ledgerCategories", input.category)
         LedgerOps.addSubcategoryIfNew(&st, map: "ledgerSubcategories", category: input.category, input.subcategory)
+        Learning.learnCategory(&st, .ledger, desc: input.desc, category: input.category.trimmingCharacters(in: .whitespaces))
+        Learning.learnSubcategory(&st, .ledger, category: input.category.trimmingCharacters(in: .whitespaces), desc: input.desc,
+                                  sub: input.subcategory.trimmingCharacters(in: .whitespaces))
         let now = ids.nowMs()
         var list = person["installments"]?.arrayValue ?? []
         var inst: Obj
