@@ -323,8 +323,9 @@ struct ReportsView: View {
             let st = model.statItems("expenses", accountId: id, range: range)
             let s = model.breakdown(st, kind: .expense)
             let sub = model.breakdown(st, kind: .expense, sub: true)
-            if !s.isEmpty { CategoryChartCard(slices: s) }
-            if !sub.isEmpty { SubcategoryChartCard(slices: sub) }
+            let scope = model.accounts.first { $0.id == id }?.name ?? "دفتر حساب"
+            if !s.isEmpty { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }
+            if !sub.isEmpty { SubcategoryChartCard(slices: sub, model: model, scope: scope) }
             exportButtons(pdf: { await model.ledgerPDF(accountId: id, range: range) },
                           excel: { model.ledgerExcel(accountIds: [id], range: range) },
                           extra: model.accounts.count > 1 ? ("Excel همه‌ی دفترها", { model.ledgerExcel(accountIds: model.accounts.map(\.id), range: range) }) : nil)
@@ -342,8 +343,9 @@ struct ReportsView: View {
             let st = model.statItems(personal ? "personalExpenses" : "incomes", range: range)
             let s = model.breakdown(st, kind: personal ? .expense : .income)
             let sub = model.breakdown(st, kind: personal ? .expense : .income, sub: true)
-            if !s.isEmpty { CategoryChartCard(slices: s) }
-            if !sub.isEmpty { SubcategoryChartCard(slices: sub) }
+            let scope = personal ? "دفتر شخصی" : "درآمد"
+            if !s.isEmpty { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }
+            if !sub.isEmpty { SubcategoryChartCard(slices: sub, model: model, scope: scope) }
             exportButtons(pdf: { personal ? await model.personalPDF(range: range) : await model.incomePDF(range: range) },
                           excel: { personal ? model.personalExcel(range: range) : model.incomeExcel(range: range) }, extra: nil)
         }

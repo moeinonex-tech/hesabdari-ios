@@ -175,19 +175,7 @@ struct Dock: View {
                 GlassEffectContainer(spacing: 8) {
                     HStack(spacing: 0) {
                         mainCapsule
-                        // liquid bridge: while reports is open, a drop of glass joins it to the page it came from
-                        ZStack {
-                            if tab == .reports {
-                                Capsule()
-                                    .frame(width: 34, height: 22)
-                                    .glassEffect(.regular.tint(t.accent.opacity(0.2)), in: Capsule())
-                                    .glassEffectID("bridge", in: glassNS)
-                                    .transition(.scale(scale: 0.2).combined(with: .opacity))
-                            }
-                        }
-                        .frame(width: 12, height: 22)
-                        .allowsHitTesting(false)
-                        .zIndex(-1)
+                        Color.clear.frame(width: 12, height: 1)
                         reportsButton
                     }
                 }
@@ -218,6 +206,8 @@ struct Dock: View {
                         let on = i == selectedIndex
                         Image(systemName: pack.icon(item))
                             .symbolVariant(on ? .fill : .none)
+                            // the page «گزارش‌ها» was opened from breathes in step with the reports button
+                            .symbolEffect(.breathe.pulse.byLayer, options: .repeating.speed(0.7), isActive: on && tab == .reports)
                             .font(.system(size: 20, weight: on ? .semibold : .regular))
                             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
                             .scaleEffect(pressed == i ? 1.18 : 1)
@@ -272,7 +262,7 @@ struct Dock: View {
         holdTask?.cancel()
         guard items[i] == .ledger, model.accounts.count > 1 else { return }
         holdTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 280_000_000)
+            try? await Task.sleep(nanoseconds: 170_000_000)
             guard !Task.isCancelled, pressed == i else { return }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             menuOpenedByHold = true
@@ -305,6 +295,7 @@ struct Dock: View {
         let on = tab == .reports
         return Image(systemName: pack.icon(.reports))
             .symbolVariant(on ? .fill : .none)
+            .symbolEffect(.breathe.pulse.byLayer, options: .repeating.speed(0.7), isActive: on && reportsFrom != nil)
             .font(.system(size: 20, weight: on ? .semibold : .regular))
             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
             .scaleEffect(reportsPressed ? 1.15 : 1)

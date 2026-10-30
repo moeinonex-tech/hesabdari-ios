@@ -157,7 +157,12 @@ struct BreakdownCard: View {
     let title: String
     let unit: String
     let slices: [CategorySlice]
+    /// PDF of this chart; the Bool asks for the subcategories in the same file (category card only)
+    var export: ((Bool) async -> ExportFile?)? = nil
+    var canAddSubs = false
     @State private var open = false
+    @State private var share: ExportFile?
+    @State private var building = false
     @State private var hand: Int?
     @State private var sweep: Task<Void, Never>?
     @Environment(\.theme) private var t
@@ -171,6 +176,7 @@ struct BreakdownCard: View {
             HStack {
                 SectionTitle(text: title)
                 Spacer()
+                if export != nil { pdfMenu }
                 if more {
                     HStack(spacing: 4) {
                         Text(open ? "بستن" : "همه (" + Fmt.count(slices.count) + ")").font(AppFont.medium(12))
@@ -204,6 +210,35 @@ struct BreakdownCard: View {
             runSweep()
         }
         .onDisappear { sweep?.cancel() }
+        .sheet(item: $share) { f in ActivityView(items: [f.url]) }
+    }
+
+    @ViewBuilder private var pdfMenu: some View {
+        if building {
+            ProgressView().controlSize(.small).padding(.horizontal, 6)
+        } else if canAddSubs {
+            Menu {
+                Button { make(false) } label: { Label("PDF فقط دسته‌ها", systemImage: "doc.richtext") }
+                Button { make(true) } label: { Label("PDF دسته‌ها + زیردسته‌ها", systemImage: "doc.on.doc") }
+            } label: { pdfIcon }
+        } else {
+            Button { make(false) } label: { pdfIcon }.buttonStyle(.plain)
+        }
+    }
+
+    private var pdfIcon: some View {
+        Image(systemName: "square.and.arrow.up").font(.system(size: 14, weight: .semibold)).foregroundStyle(t.accent)
+            .frame(width: 32, height: 28).contentShape(Rectangle())
+    }
+
+    private func make(_ subs: Bool) {
+        guard let export, !building else { return }
+        Haptics.tap()
+        building = true
+        Task { @MainActor in
+            share = await export(subs)
+            building = false
+        }
     }
 
     /// clockwise pass over the slices: about 0.8 s in total, 40–110 ms per slice
@@ -226,10 +261,22 @@ struct BreakdownCard: View {
 
 struct CategoryChartCard: View {
     let slices: [CategorySlice]
-    var body: some View { BreakdownCard(title: "تفکیک دسته‌ها", unit: "دسته", slices: slices) }
+    var subs: [CategorySlice] = []
+    var model: AppModel? = nil
+    var scope = ""
+    var body: some View {
+        BreakdownCard(title: "تفکیک دسته‌ها", unit: "دسته", slices: slices,
+                      export: model.map { m in { withSubs in await m.breakdownPDF(scopeTitle: scope, cats: slices, subs: withSubs ? subs : nil) } },
+                      canAddSubs: !subs.isEmpty)
+    }
 }
 
 struct SubcategoryChartCard: View {
     let slices: [CategorySlice]
-    var body: some View { BreakdownCard(title: "تفکیک زیردسته‌ها", unit: "زیردسته", slices: slices) }
+    var model: AppModel? = nil
+    var scope = ""
+    var body: some View {
+        BreakdownCard(title: "تفکیک زیردسته‌ها", unit: "زیردسته", slices: slices,
+                      export: model.map { m in { _ in await m.breakdownPDF(scopeTitle: scope, cats: slices, subs: nil, firstIsSub: true) } })
+    }
 }

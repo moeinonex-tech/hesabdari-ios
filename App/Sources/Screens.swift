@@ -884,8 +884,8 @@ struct LedgerHomeView: View {
                     let slices = model.breakdown(items, kind: .expense)
                     let subs = model.breakdown(items, kind: .expense, sub: true)
                     let colors = model.colorMap(slices)
-                    if !slices.isEmpty { CategoryChartCard(slices: slices) }
-                    if !subs.isEmpty { SubcategoryChartCard(slices: subs) }
+                    if !slices.isEmpty { CategoryChartCard(slices: slices, subs: subs, model: model, scope: a.name) }
+                    if !subs.isEmpty { SubcategoryChartCard(slices: subs, model: model, scope: a.name) }
 
                     // this month: the latest 5 rows; older months stay folded
                     let today = AppModel.today

@@ -278,8 +278,9 @@ struct PersonalView: View {
                 let s = model.breakdown(st, kind: showIncome ? .income : .expense)
                 let sub = model.breakdown(st, kind: showIncome ? .income : .expense, sub: true)
                 let colors = model.colorMap(s)
-                if !s.isEmpty { CategoryChartCard(slices: s) }
-                if !sub.isEmpty { SubcategoryChartCard(slices: sub) }
+                let scope = showIncome ? "درآمد" : "دفتر شخصی"
+                if !s.isEmpty { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }
+                if !sub.isEmpty { SubcategoryChartCard(slices: sub, model: model, scope: scope) }
 
                 if rows.isEmpty {
                     Text("هنوز ردیفی نیست").font(AppFont.regular(14)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(30)
