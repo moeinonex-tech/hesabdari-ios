@@ -203,7 +203,8 @@ struct HomeView: View {
                                withAnimation(.spring) { model.setWidgets(order: SettingsOps.widgetOrder(model.state), visible: v) }
                            },
                            onConfigure: { key in if key == "shortcuts" { showShortcutEditor = true } },
-                           onDragging: { draggingWidget = $0 }) { key, size, frame in
+                           onDragging: { draggingWidget = $0 },
+                           blocks: ["attention": attentionHeight]) { key, size, frame in
                     WidgetCard(size: frame) { widget(key, size, inner(frame)) }
                 }
             }
@@ -279,8 +280,12 @@ struct HomeView: View {
             }
             // otherwise the row under the finger decides where to go
             let top = WidgetCard<EmptyView>.padding + Self.titleH + Self.attGap
-            let idx = Int((point.y - top) / (Self.attRowH + Self.attGap))
-            let item = items.indices.contains(idx) ? items[idx] : items.first
+            var y = top, item = items.first
+            for it in items.prefix(attentionOpen ? items.count : 3) {
+                let h = Self.rowH(it)
+                if point.y < y + h + Self.attGap { item = it; break }
+                y += h + Self.attGap
+            }
             tab = item?.id.hasPrefix("budget") == true ? .ledger : .reminders
         case "financial", "activity": tab = .ledger
         case "shortcuts":
@@ -329,23 +334,18 @@ struct HomeView: View {
 
     /// the big day-number tile used by every size
     private func dayTile(_ today: JalaliDate, side: CGFloat) -> some View {
-        VStack(spacing: 0) {
+        // typography only — no box inside the card: month in the accent gradient, the day number big
+        VStack(spacing: -side * 0.04) {
             Text(BackupExporter.months[today.jm - 1])
-                .font(AppFont.bold(max(10, side * 0.13)))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: side * 0.26)
-                .background(LinearGradient(colors: [t.accent, t.accent2], startPoint: .leading, endPoint: .trailing))
+                .font(AppFont.heavy(max(12, side * 0.2)))
+                .foregroundStyle(LinearGradient(colors: [t.accent, t.accent2], startPoint: .leading, endPoint: .trailing))
+                .lineLimit(1).minimumScaleFactor(0.6)
             Text(Money.persianDigits(String(today.jd)))
-                .font(AppFont.heavy(side * 0.46))
+                .font(AppFont.heavy(side * 0.68))
                 .foregroundStyle(t.ink)
                 .lineLimit(1).minimumScaleFactor(0.5)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: side, height: side)
-        .background(t.card.opacity(0.85))
-        .clipShape(RoundedRectangle(cornerRadius: side * 0.22, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
     }
 
     /// current week, Saturday → Friday, today highlighted
@@ -415,12 +415,22 @@ struct HomeView: View {
         let today = AppModel.today
         switch s {
         case .small:
-            // day tile on top, weekday + full date below — fills the square
-            let side = max(40, min(inn.width, inn.height - 50))
-            VStack(spacing: 4) {
-                dayTile(today, side: side)
-                Text(title.weekday).font(AppFont.heavy(17)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.7)
-                Text(Money.persianDigits(String(today.jy))).font(AppFont.regular(11)).foregroundStyle(t.soft)
+            // text only, filling the square: month · big day · weekday · year
+            let h = inn.height
+            VStack(spacing: 0) {
+                Text(BackupExporter.months[today.jm - 1])
+                    .font(AppFont.heavy(h * 0.13))
+                    .foregroundStyle(LinearGradient(colors: [t.accent, t.accent2], startPoint: .leading, endPoint: .trailing))
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                Text(Money.persianDigits(String(today.jd)))
+                    .font(AppFont.heavy(h * 0.46))
+                    .foregroundStyle(t.ink)
+                    .lineLimit(1).minimumScaleFactor(0.5)
+                    .frame(height: h * 0.5)
+                Text(title.weekday)
+                    .font(AppFont.heavy(h * 0.115)).foregroundStyle(t.ink).lineLimit(1).minimumScaleFactor(0.6)
+                Text(Money.persianDigits(String(today.jy)))
+                    .font(AppFont.medium(h * 0.075)).foregroundStyle(t.soft)
             }
             .frame(width: inn.width, height: inn.height)
         case .medium:
@@ -455,15 +465,22 @@ struct HomeView: View {
         }
     }
 
-    // MARK: «نیازمند توجه» — height follows its content: up to 3 rows, more unfold with a spring
+    // MARK: «نیازمند توجه» — 4 automatic heights: 1, 2 or 3 rows, or 3 rows + «همه» (more unfold with a spring)
 
-    private static let attRowH: CGFloat = 46, attGap: CGFloat = 6, attMoreH: CGFloat = 32
+    private static let attRowH: CGFloat = 40, attGap: CGFloat = 6, attMoreH: CGFloat = 30
     private var attentionHeight: CGFloat {
         let n = model.attentionItems.count
         let pad = WidgetCard<EmptyView>.padding * 2 + Self.titleH + 6
         if n == 0 { return pad + 24 }
-        let rows = attentionOpen ? n : min(3, n)
-        return pad + CGFloat(rows) * Self.attRowH + CGFloat(rows - 1) * Self.attGap + (n > 3 ? Self.attGap + Self.attMoreH : 0)
+        let shown = model.attentionItems.prefix(attentionOpen ? n : 3)
+        let rows = shown.reduce(CGFloat(0)) { $0 + Self.rowH($1) }
+        return pad + rows + CGFloat(shown.count - 1) * Self.attGap + (n > 3 ? Self.attGap + Self.attMoreH : 0)
+    }
+
+    /// one line for a short notice, two for a long one (the card stays slim)
+    private static func rowH(_ it: AttentionItem) -> CGFloat {
+        let oneLine = (UIScreen.main.bounds.width - 32 - 28 - 50) / 6.6
+        return CGFloat(it.text.count) > oneLine ? 58 : attRowH
     }
 
     @ViewBuilder
@@ -484,7 +501,7 @@ struct HomeView: View {
             }
             ForEach(Array(items.prefix(attentionOpen ? items.count : 3).enumerated()), id: \.element.id) { i, it in
                 attentionRow(it, lines: 2, font: 13)
-                    .frame(height: Self.attRowH)
+                    .frame(height: Self.rowH(it))
                     .transition(.asymmetric(
                         insertion: .move(edge: .top).combined(with: .opacity)
                             .animation(.spring(duration: 0.45, bounce: 0.25).delay(Double(max(0, i - 3)) * 0.04)),
@@ -855,11 +872,7 @@ struct LedgerHomeView: View {
                 }
 
                 if account != nil {
-                    Picker("", selection: $showIncome.animation(.snappy)) {
-                        Text("هزینه و تنخواه").tag(false)
-                        Text("درآمد این دفتر").tag(true)
-                    }
-                    .pickerStyle(.segmented)
+                    Segmented(selection: $showIncome.animation(.snappy), [(false, "هزینه و تنخواه"), (true, "درآمد این دفتر")])
                 }
 
                 if let a = account, showIncome {
@@ -1226,11 +1239,7 @@ struct CardsView: View {
                     .buttonStyle(.glass)
                     .padding(.top, 8)
                 }
-                Picker("", selection: $showArchived) {
-                    Text("کارت‌های فعال").tag(false)
-                    Text("بایگانی‌شده").tag(true)
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: $showArchived, [(false, "کارت‌های فعال"), (true, "بایگانی‌شده")])
                 if cards.isEmpty {
                     Text("کارتی نیست").font(AppFont.regular(14)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(40)
                 }

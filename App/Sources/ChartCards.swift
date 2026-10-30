@@ -23,12 +23,7 @@ struct TrendChartCard: View {
         }()
         VStack(alignment: .leading, spacing: 10) {
             SectionTitle(text: title)
-            Picker("", selection: $mode.animation(.snappy)) {
-                Text("ماهانه").tag(0)
-                Text("روزانه").tag(1)
-                Text("سالانه").tag(2)
-            }
-            .pickerStyle(.segmented)
+            Segmented(selection: $mode.animation(.snappy), [(0, "ماهانه"), (1, "روزانه"), (2, "سالانه")])
             if mode == 1, !months.isEmpty {
                 Picker("ماه", selection: Binding(get: { key ?? 0 }, set: { monthKey = $0 })) {
                     ForEach(Array(months.enumerated()), id: \.offset) { _, m in
@@ -85,11 +80,7 @@ struct CashFlowCard: View {
                         Text((net >= 0 ? "+" : "−") + Fmt.toman(abs(net))).font(AppFont.bold(13)).foregroundStyle(net >= 0 ? t.success : t.danger)
                     }
                 }
-                Picker("", selection: $yearly.animation(.snappy)) {
-                    Text("ماهانه").tag(false)
-                    Text("سالانه").tag(true)
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: $yearly.animation(.snappy), [(false, "ماهانه"), (true, "سالانه")])
                 Chart {
                     ForEach(Array(data.enumerated()), id: \.offset) { i, p in
                         BarMark(x: .value("بازه", "\(i)|" + p.label), y: .value("مبلغ", p.income))

@@ -154,13 +154,7 @@ struct CheckFormView: View {
             }
             if editingId != nil {
                 Section("وضعیت") {
-                    Picker("وضعیت", selection: $status) {
-                        Text("در انتظار وصول").tag("pending")
-                        Text("وصول شد").tag("cashed")
-                        Text("برگشتی").tag("bounced")
-                        Text("باطل").tag("cancelled")
-                    }
-                    .pickerStyle(.segmented)
+                    Segmented(selection: $status, [("pending", "در انتظار وصول"), ("cashed", "وصول شد"), ("bounced", "برگشتی"), ("cancelled", "باطل")])
                 }
                 Section {
                     Button("حذف چک", role: .destructive) { confirmDelete = true }
@@ -435,16 +429,8 @@ struct AppointmentFormView: View {
         Form {
             Section {
                 TextField("عنوان", text: $title)
-                Picker("نوع", selection: $work) {
-                    Text("کاری").tag(true)
-                    Text("شخصی").tag(false)
-                }
-                .pickerStyle(.segmented)
-                Picker("قرار", selection: $presence) {
-                    Text("جلسه").tag(false)
-                    Text("حضور").tag(true)
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: $work, [(true, "کاری"), (false, "شخصی")])
+                Segmented(selection: $presence, [(false, "جلسه"), (true, "حضور")])
             }
             Section {
                 JalaliDateField(title: "تاریخ", date: $date)

@@ -208,12 +208,7 @@ struct TankhahPartyPicker: View {
         }
         List {
             Section {
-                Picker("", selection: $filter) {
-                    Text("همه").tag(0)
-                    Text("شخص").tag(1)
-                    Text("شرکت").tag(2)
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: $filter, [(0, "همه"), (1, "شخص"), (2, "شرکت")])
             }
             Section {
                 if list.isEmpty { Text("موردی یافت نشد.").foregroundStyle(.secondary) }
@@ -237,11 +232,7 @@ struct TankhahPartyPicker: View {
             }
             Section("افزودن طرف حساب جدید") {
                 TextField("مثلاً حامد یا شرکت آریا", text: $newName)
-                Picker("نوع", selection: $newCompany) {
-                    Text("شخص").tag(false)
-                    Text("شرکت").tag(true)
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: $newCompany, [(false, "شخص"), (true, "شرکت")])
                 Button("افزودن") {
                     if let id = model.addTankhahParty(newName, company: newCompany) { partyId = id; Haptics.success(); dismiss() }
                 }

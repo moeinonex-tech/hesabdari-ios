@@ -1,4 +1,5 @@
 import SwiftUI
+import AudioToolbox
 import HesabCore
 
 // Web «تعداد اقلام» (multi-item invoice, 1–20) and «تعداد چک» (multi-check, 1–10), plus bank logos.
@@ -6,30 +7,106 @@ import HesabCore
 
 // MARK: - count row (web compact tactile stepper)
 
+/// web createCompactTactileStepper: a little drum — swipe up to add, down to take away (tap = +1),
+/// one click sound + one haptic tick per step, a firmer bump at the ends.
 struct CountRow: View {
     let title: String
     @Binding var count: Int
     let max: Int
     var disabled = false
     @Environment(\.theme) private var t
+    @State private var drag: CGFloat = 0          // finger travel not yet turned into steps
+    @State private var phase: CGFloat = 0         // drum line offset (follows the finger, springs back)
+    @State private var lastStep = Date.distantPast
+    private let stepPx: CGFloat = 22
+    private let lineGap: CGFloat = 7
 
     var body: some View {
         HStack(spacing: 10) {
             Text(title).font(AppFont.medium(15))
             Spacer()
-            Button { step(-1) } label: { Image(systemName: "minus").frame(width: 30, height: 30) }
-                .buttonStyle(.glass).disabled(disabled || count <= 1)
-            Text(Money.persianDigits(count))
-                .font(AppFont.heavy(20)).monospacedDigit().frame(minWidth: 30)
-                .contentTransition(.numericText(value: Double(count)))
-            Button { step(1) } label: { Image(systemName: "plus").frame(width: 30, height: 30) }
-                .buttonStyle(.glass).disabled(disabled || count >= max)
+            HStack(spacing: 8) {
+                drum
+                Text(Money.persianDigits(count))
+                    .font(AppFont.heavy(19)).monospacedDigit()
+                    .contentTransition(.numericText(value: Double(count)))
+                    .frame(width: 40, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(t.ink.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(t.ink.opacity(0.12), lineWidth: 1))
+            }
+            .padding(5)
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 3)
+                    .onChanged { v in
+                        guard !disabled else { return }
+                        let dy = -v.translation.height - drag          // up = more
+                        phase = (-v.translation.height).truncatingRemainder(dividingBy: lineGap * 2)
+                        if abs(dy) >= stepPx {
+                            let dir = dy > 0 ? 1 : -1
+                            drag += CGFloat(dir) * stepPx
+                            if Date().timeIntervalSince(lastStep) > 0.045 { step(dir) }
+                        }
+                    }
+                    .onEnded { _ in
+                        drag = 0
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) { phase = 0 }
+                    }
+            )
+            .onTapGesture { guard !disabled else { return }; step(1); nudge(1) }
+            .opacity(disabled ? 0.5 : 1)
+            .accessibilityElement()
+            .accessibilityLabel(title)
+            .accessibilityValue(Money.persianDigits(count))
+            .accessibilityAdjustableAction { d in step(d == .increment ? 1 : -1) }
         }
-        .sensoryFeedback(.selection, trigger: count)
+    }
+
+    /// drum: short dashes either side, ruled lines in the middle that roll with the finger
+    private var drum: some View {
+        HStack(spacing: 6) {
+            Capsule().fill(t.accent.opacity(0.55)).frame(width: 8, height: 2.5)
+            ZStack {
+                ForEach(-3...3, id: \.self) { k in
+                    let y = CGFloat(k) * lineGap + phase
+                    let fade = Swift.max(0, 1 - abs(y) / (lineGap * 3))
+                    Capsule().fill(t.accent.opacity(0.25 + 0.6 * fade))
+                        .frame(width: 30 * (0.7 + 0.3 * fade), height: 1.6)
+                        .offset(y: y)
+                }
+            }
+            .frame(width: 34, height: 36)
+            .clipped()
+            Capsule().fill(t.accent.opacity(0.55)).frame(width: 8, height: 2.5)
+        }
+    }
+
+    private func nudge(_ dir: Int) {
+        phase = CGFloat(dir) * -lineGap
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) { phase = 0 }
     }
 
     private func step(_ d: Int) {
-        withAnimation(.snappy) { count = Swift.min(max, Swift.max(1, count + d)) }
+        let next = Swift.min(max, Swift.max(1, count + d))
+        lastStep = Date()
+        guard next != count else {
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.8)   // end stop
+            return
+        }
+        withAnimation(.snappy(duration: 0.18)) { count = next }
+        TactileClick.play()
+    }
+}
+
+/// one «tick»: the system keyboard click + a light selection haptic
+@MainActor
+enum TactileClick {
+    static let haptic = UISelectionFeedbackGenerator()
+    static func play() {
+        AudioServicesPlaySystemSound(1104)
+        haptic.selectionChanged()
+        haptic.prepare()
     }
 }
 

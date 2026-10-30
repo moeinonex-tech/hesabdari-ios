@@ -266,8 +266,8 @@ struct CategoryChartCard: View {
     var scope = ""
     var body: some View {
         BreakdownCard(title: "تفکیک دسته‌ها", unit: "دسته", slices: slices,
-                      export: model.map { m in { withSubs in await m.breakdownPDF(scopeTitle: scope, cats: slices, subs: withSubs ? subs : nil) } },
-                      canAddSubs: !subs.isEmpty)
+                      // each chart exports on its own (categories and subcategories are separate files)
+                      export: model.map { m in { _ in await m.breakdownPDF(scopeTitle: scope, cats: slices, subs: nil) } })
     }
 }
 

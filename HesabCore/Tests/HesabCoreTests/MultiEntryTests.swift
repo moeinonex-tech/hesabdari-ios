@@ -88,3 +88,43 @@ final class MultiEntryTests: XCTestCase {
         XCTAssertEqual(SettingsOps.banks.count, 29)
     }
 }
+
+final class NotesImportTests: XCTestCase {
+    func testParseLikeWeb() {
+        let text = """
+        1405/6/19
+        8.520.000
+        بابت خرید ۲۰۰ عدد بلوک
+        از فروشگاه
+
+        ۱۴۰۵/۶/۲۰
+        ۱,۲۰۰,۰۰۰ تومان
+        کرایه وانت
+        05-6-21
+        نامعتبر
+        1405/13/1
+        """
+        let r = NotesImport.parse(text)
+        XCTAssertEqual(r.entries.count, 2)
+        XCTAssertEqual(r.entries[0].date, JalaliDate(jy: 1405, jm: 6, jd: 19))
+        XCTAssertEqual(r.entries[0].toman, 8_520_000)
+        XCTAssertEqual(r.entries[0].desc, "بابت خرید ۲۰۰ عدد بلوک از فروشگاه")
+        XCTAssertEqual(r.entries[1].toman, 1_200_000)
+        XCTAssertEqual(r.entries[1].desc, "کرایه وانت")
+        XCTAssertEqual(r.skipped, 3)   // 05-6-21 (no amount after it), «نامعتبر», 1405/13/1
+    }
+
+    func testAdd() {
+        let ids = IdSource(nowMs: { 1_000 }, random5: { "abcde" })
+        let e = [NotesEntry(id: 0, date: JalaliDate(jy: 1405, jm: 1, jd: 1), toman: 10, desc: "سیمان", category: "مصالح", subcategory: "سیمان"),
+                 NotesEntry(id: 1, date: JalaliDate(jy: 1405, jm: 1, jd: 2), toman: 20, desc: "x")]
+        let st = NotesImport.add(["expenses": .array([])], e, ledgerAccountId: "a1", ids: ids)
+        let rows = st["expenses"]!.arrayValue!
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[0]["category"]?.stringValue, "مصالح")
+        XCTAssertEqual(rows[0]["accountId"]?.stringValue, "a1")
+        XCTAssertEqual(rows[1]["ts"]?.intValue, 1_001)
+        XCTAssertNil(rows[1]["category"])
+        XCTAssertEqual(st["ledgerCategories"]?.arrayValue?.count, 1)
+    }
+}

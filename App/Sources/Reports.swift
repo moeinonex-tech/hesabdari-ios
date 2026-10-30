@@ -310,10 +310,7 @@ struct ReportsView: View {
         let items = rows.filter { $0.kind != .tankhah }.map { ($0.dateValue, $0.toman) }
         return VStack(alignment: .leading, spacing: 16) {
             if model.accounts.count > 1 {
-                Picker("دفتر", selection: Binding(get: { id }, set: { account = $0 })) {
-                    ForEach(model.accounts) { a in Text(a.name).tag(a.id) }
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: Binding(get: { id }, set: { account = $0 }), model.accounts.map { ($0.id, $0.name) })
             }
             monthChart(items, color: t.accent)
             TrendChartCard(title: "نمودار نوسانات هزینه‌ی دفتر", items: ReportCharts.ledgerExpenses(model.state, accountId: id), color: t.accent)

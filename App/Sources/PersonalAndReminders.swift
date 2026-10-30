@@ -238,11 +238,7 @@ struct PersonalView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
                 ScreenHeader(title: showIncome ? "درآمد" : "دفتر شخصی", subtitle: showIncome ? "همه‌ی درآمدها" : "هزینه‌های شخصی")
-                Picker("", selection: $showIncome.animation(.snappy)) {
-                    Text("هزینه‌های شخصی").tag(false)
-                    Text("درآمد").tag(true)
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: $showIncome.animation(.snappy), [(false, "هزینه‌های شخصی"), (true, "درآمد")])
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -402,6 +398,9 @@ struct PersonalFormView: View {
 
     var body: some View {
         Form {
+            if editing == nil {
+                NotesImportLink(model: model, ledgerAccountId: nil) { dismiss() }
+            }
             Section {
                 TextField("شرح", text: $desc)
                 if !makesCheck { CountRow(title: "تعداد اقلام", count: $itemCount, max: MultiItem.maxCount) }
@@ -609,12 +608,7 @@ struct RemindersView: View {
                     SummaryTile(title: "بدهی من", value: model.iOwe, color: t.danger)
                 }
 
-                Picker("", selection: $filter) {
-                    Text("چک‌ها").tag(0)
-                    Text("اشخاص").tag(1)
-                    Text("قرارها").tag(2)
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: $filter, [(0, "چک‌ها"), (1, "اشخاص"), (2, "قرارها")])
 
                 switch filter {
                 case 0:

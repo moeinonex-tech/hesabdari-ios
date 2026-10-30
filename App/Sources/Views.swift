@@ -289,12 +289,11 @@ struct ExpenseFormView: View {
 
     var body: some View {
         Form {
+            if editing == nil && !isTankhah {
+                NotesImportLink(model: model, ledgerAccountId: accountId) { dismiss() }
+            }
             if editing == nil {
-                Picker("نوع", selection: $isTankhah) {
-                    Text("هزینه").tag(false)
-                    Text("تنخواه").tag(true)
-                }
-                .pickerStyle(.segmented)
+                Segmented(selection: $isTankhah, [(false, "هزینه"), (true, "تنخواه")])
                 .onChange(of: isTankhah) { _, t in
                     payMethod = PayMethod.defaultFor(tankhah: t)
                 }
