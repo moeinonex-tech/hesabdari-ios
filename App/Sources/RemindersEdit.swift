@@ -284,6 +284,9 @@ struct PersonDetailView: View {
                                 Button { _ = model.toggleInstallment(personId: personId, id: i.id) } label: {
                                     Label(i.paid ? "پرداخت‌نشده" : "پرداخت شد", systemImage: "checkmark.circle")
                                 }
+                                Button { Task { await model.addInstallmentToPhoneReminders(personId: personId, id: i.id) } } label: {
+                                    Label("افزودن به Reminders گوشی", systemImage: "checklist")
+                                }
                                 Button(role: .destructive) { _ = model.deleteInstallment(personId: personId, id: i.id) } label: {
                                     Label("حذف", systemImage: "trash")
                                 }

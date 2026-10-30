@@ -144,6 +144,34 @@ public enum SettingsOps {
         return Money.persianDigits("\(y)/" + String(format: "%02d", m))
     }
 
+    // MARK: card copy / share text (web cwComposeCopyText / cwCopyAllFields)
+
+    public static func cardCopyText(_ card: JSONValue) -> String? {
+        func raw(_ f: String) -> String {
+            switch f {
+            case "cardNumber":
+                if let n = card["cardNumber"]?.idString, !n.isEmpty { return n }
+                if let l = card["last4"]?.idString, !l.isEmpty { return "****" + l }
+                return ""
+            default: return card[f]?.idString ?? card[f]?.stringValue ?? ""
+            }
+        }
+        let fields = ["cardNumber", "accountNumber", "iban"].filter { !raw($0).isEmpty }
+        guard !fields.isEmpty else { return nil }
+        let bank = card["bankName"]?.stringValue ?? ""
+        var short = bank
+        if let r = short.range(of: "^بانک\\s+", options: .regularExpression) { short.removeSubrange(r) }
+        var lines: [String] = []
+        if !bank.isEmpty { lines.append(bank); lines.append("") }
+        let word = ["cardNumber": "کارت", "accountNumber": "حساب", "iban": "شبا"]
+        for f in fields {
+            lines.append("شماره " + word[f]! + " " + short + " :")
+            lines.append(raw(f))
+        }
+        if let h = card["holderName"]?.stringValue, !h.isEmpty { lines.append("به نام " + h) }
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: budgets
 
     public static func setAccountBudget(_ state: [String: JSONValue], accountId: String, budget: Int) throws -> [String: JSONValue] {

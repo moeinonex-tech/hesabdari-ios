@@ -37,4 +37,12 @@ final class ReportChartsTests: XCTestCase {
         XCTAssertEqual(ReportCharts.personalIncomes(st).reduce(0) { $0 + $1.toman }, 3)
         XCTAssertEqual(ReportCharts.ledgerIncomes(st, accountId: "a1").reduce(0) { $0 + $1.toman }, 4)
     }
+
+    func testCardCopyText() {
+        let c: JSONValue = .object(["bankName": .string("بانک ملت"), "cardNumber": .string("6104330000000000"),
+                                    "iban": .string("IR12"), "holderName": .string("معین")])
+        XCTAssertEqual(SettingsOps.cardCopyText(c), "بانک ملت\n\nشماره کارت ملت :\n6104330000000000\nشماره شبا ملت :\nIR12\nبه نام معین")
+        XCTAssertNil(SettingsOps.cardCopyText(.object(["bankName": .string("x")])))
+        XCTAssertEqual(SettingsOps.cardCopyText(.object(["last4": .string("1234")])), "شماره کارت  :\n****1234")
+    }
 }

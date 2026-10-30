@@ -71,3 +71,4 @@ targets:
           - Vazirmatn-Bold.ttf
           - Vazirmatn-ExtraBold.ttf
         NSFaceIDUsageDescription: برای باز کردن دفتر حساب با Face ID
+        NSRemindersFullAccessUsageDescription: برای افزودن سررسید چک، قسط و قرار به اپ Reminders گوشی

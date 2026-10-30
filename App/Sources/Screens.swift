@@ -838,7 +838,18 @@ struct CardsView: View {
     @State private var showArchived = false
     @State private var editing: IdBox?
     @State private var confirmDelete: String?
+    @State private var shareFile: ExportFile?
     @Environment(\.theme) private var t
+
+    /// web cwShareAsPng: a clean picture of the card
+    @MainActor private func shareImage(_ c: WalletCard) {
+        let r = ImageRenderer(content: BankCardView(card: c).frame(width: 640).padding(24).environment(\.layoutDirection, .rightToLeft))
+        r.scale = 3
+        guard let img = r.uiImage, let data = img.pngData() else { return }
+        let name = (c.bankName.isEmpty ? "کارت" : c.bankName) + ".png"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        do { try data.write(to: url); shareFile = ExportFile(url: url) } catch { model.errorMessage = error.localizedDescription }
+    }
 
     var body: some View {
         let cards = model.walletCards.filter { $0.archived == showArchived }
@@ -867,6 +878,14 @@ struct CardsView: View {
                     BankCardView(card: c)
                         .contextMenu {
                             Button { editing = IdBox(id: c.id) } label: { Label("ویرایش", systemImage: "pencil") }
+                            if let text = model.record("cards", c.id).flatMap(SettingsOps.cardCopyText) {
+                                Button {
+                                    UIPasteboard.general.string = text
+                                    Haptics.success()
+                                } label: { Label("کپی همه‌ی اطلاعات", systemImage: "doc.on.doc") }
+                                ShareLink(item: text) { Label("اشتراک به صورت متن", systemImage: "text.bubble") }
+                            }
+                            Button { shareImage(c) } label: { Label("اشتراک به صورت عکس", systemImage: "photo") }
                             Button {
                                 _ = model.setCardArchived(c.id, !c.archived)
                             } label: {
@@ -884,6 +903,7 @@ struct CardsView: View {
         .sheet(item: $editing) { e in
             NavigationStack { CardFormView(model: model, editingId: e.id.isEmpty ? nil : e.id) }
         }
+        .sheet(item: $shareFile) { f in ActivityView(items: [f.url]) }
         .confirmationDialog("این کارت حذف شود؟", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
                             titleVisibility: .visible) {
             Button("حذف", role: .destructive) {

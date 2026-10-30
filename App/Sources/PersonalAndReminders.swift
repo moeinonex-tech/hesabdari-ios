@@ -589,6 +589,9 @@ struct RemindersView: View {
                                 Button { _ = model.toggleAppointment(a.id) } label: {
                                     Label(a.done ? "انجام‌نشده" : "انجام شد", systemImage: "checkmark.circle")
                                 }
+                                Button { Task { await model.addAppointmentToPhoneReminders(a.id) } } label: {
+                                    Label("افزودن به Reminders گوشی", systemImage: "checklist")
+                                }
                                 Button(role: .destructive) { _ = model.deleteAppointment(a.id) } label: { Label("حذف", systemImage: "trash") }
                             }
                     }
@@ -631,6 +634,9 @@ struct RemindersView: View {
                 }
                 if c.status != "bounced" {
                     Button { _ = model.setCheckStatus(c.id, "bounced") } label: { Label("برگشت خورد", systemImage: "xmark.octagon") }
+                }
+                Button { Task { await model.addCheckToPhoneReminders(c.id) } } label: {
+                    Label("افزودن به Reminders گوشی", systemImage: "checklist")
                 }
                 Button(role: .destructive) { _ = model.deleteCheck(c.id) } label: { Label("حذف", systemImage: "trash") }
             }
