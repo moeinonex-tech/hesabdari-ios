@@ -97,6 +97,11 @@ final class HTMLPDF: NSObject, WKNavigationDelegate {
             w.loadHTMLString(html, baseURL: nil)
         }
         _ = try? await w.callAsyncJavaScript("await document.fonts.ready; return 1", contentWorld: .page)
+        // exact page breaks: nothing may straddle a page edge (the print engine slices blindly)
+        if let url = Bundle.main.url(forResource: "paginate", withExtension: "js"), let js = try? String(contentsOf: url, encoding: .utf8) {
+            _ = try? await w.evaluateJavaScript(js)
+            _ = try? await w.callAsyncJavaScript("return window.paginate(h)", arguments: ["h": Double(printable.height)], contentWorld: .page)
+        }
         let renderer = PagedRenderer()
         renderer.addPrintFormatter(w.viewPrintFormatter(), startingAtPageAt: 0)
         renderer.setValue(NSValue(cgRect: Self.paper), forKey: "paperRect")
@@ -432,30 +437,34 @@ extension ReportHTML {
             + "<text x=\"75\" y=\"91\" text-anchor=\"middle\" font-size=\"10\" fill=\"#585C68\">مورد</text></svg>"
     }
 
-    static func breakdownSection(title: String, unit: String, slices: [Slice], newPage: Bool) -> String {
+    static func breakdownSection(title: String, unit: String, slices: [Slice]) -> String {
         let total = slices.reduce(0) { $0 + $1.total }
         let mx = max(1, slices.map(\.total).max() ?? 1)
-        func pct(_ v: Int) -> String { Money.persianDigits(total > 0 ? Money.jsRound(Double(v) / Double(total) * 100) : 0) + "٪" }
-        var h = "<div class=\"bd-sec" + (newPage ? " newpage" : "") + "\"><div class=\"bd-title\">" + esc(title)
+        func pct(_ v: Int) -> String {
+            let p = total > 0 ? Double(v) / Double(total) * 100 : 0
+            return p > 0 && p < 0.5 ? "زیر ۱٪" : Money.persianDigits(Money.jsRound(p)) + "٪"
+        }
+        var h = "<div class=\"bd-sec\"><div class=\"bd-title\">" + esc(title)
             + "<small>" + Money.persianDigits(slices.count) + " " + esc(unit) + "</small></div>"
-        // ring + totals + top 5
+        // ring + total + the biggest one + colour legend
         h += "<div class=\"bd-top\">" + donut(slices) + "<div class=\"bd-sum\"><div><div class=\"k\">جمع (تومان)</div><div class=\"v\">"
             + Money.persianDigits(Money.format(total)) + "</div></div>"
         if let top = slices.first {
-            h += "<div><div class=\"k\">بیشترین</div><div style=\"font-size:11px;font-weight:700\"><span class=\"sw\" style=\"background:" + top.hex
-                + "\"></span> " + esc(top.name) + " — " + pct(top.total) + "</div></div>"
+            h += "<div><div class=\"k\">بیشترین</div><div class=\"best\"><span class=\"sw\" style=\"background:" + top.hex
+                + "\"></span>" + esc(top.name) + " — " + pct(top.total) + "</div></div>"
         }
         h += "<div class=\"bd-leg\">"
-        for s in slices.prefix(8) { h += "<span><span class=\"sw\" style=\"background:" + s.hex + "\"></span>" + esc(s.name) + "</span>" }
-        if slices.count > 8 { h += "<span style=\"color:#585C68\">و " + Money.persianDigits(slices.count - 8) + " مورد دیگر</span>" }
+        for s in slices.prefix(9) { h += "<span><span class=\"sw\" style=\"background:" + s.hex + "\"></span>" + esc(s.name) + "</span>" }
+        if slices.count > 9 { h += "<span style=\"color:#585C68\">و " + Money.persianDigits(slices.count - 9) + " مورد دیگر</span>" }
         h += "</div></div></div>"
-        // ranked rows: two columns when there are many, one column when few (fills the A4 width evenly)
-        h += "<div class=\"bd-rows" + (slices.count <= 6 ? " one" : "") + "\">"
+        // ranked list; paginate.js puts it in 1–3 columns, numbered top-to-bottom then the next column
+        h += "<div class=\"bd-flow\">"
         for (i, s) in slices.enumerated() {
-            let w = max(3, Int(Double(s.total) / Double(mx) * 100))
-            h += "<div class=\"bd-row\"><div class=\"rk\">" + Money.persianDigits(i + 1) + "</div><div class=\"nm\"><span class=\"sw\" style=\"background:" + s.hex
-                + "\"></span> " + esc(s.name) + "</div><div class=\"am\">" + Money.persianDigits(Money.format(s.total)) + " <span class=\"pc\">" + pct(s.total)
-                + "</span></div><div class=\"bar\"><div style=\"width:" + String(w) + "%;background:linear-gradient(90deg," + s.hex + "99," + s.hex + ")\"></div></div></div>"
+            let w = max(2, Int((Double(s.total) / Double(mx) * 100).rounded()))
+            h += "<div class=\"bd-row\"><div class=\"l1\"><span class=\"rk\">" + Money.persianDigits(i + 1) + "</span><span class=\"sw\" style=\"background:" + s.hex
+                + "\"></span><span class=\"nm\">" + esc(s.name) + "</span></div><div class=\"l2\"><span class=\"am\">" + Money.persianDigits(Money.format(s.total))
+                + "</span><span class=\"pc\">" + pct(s.total) + "</span></div><div class=\"bar\"><div style=\"width:" + String(w)
+                + "%;background:linear-gradient(270deg," + s.hex + "," + s.hex + "aa)\"></div></div></div>"
         }
         return h + "</div></div>"
     }
@@ -463,12 +472,8 @@ extension ReportHTML {
     static func breakdownPage(title: String, subtitle: String, cats: [Slice], subs: [Slice]?, firstIsSub: Bool = false) -> String {
         var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><style>" + css + "</style></head><body>"
         h += "<div class=\"hdr\"><div><div class=\"title\">" + esc(title) + "</div><div class=\"sub\">" + esc(subtitle) + "</div></div></div>"
-        h += breakdownSection(title: firstIsSub ? "تفکیک زیردسته‌ها" : "تفکیک دسته‌ها", unit: firstIsSub ? "زیردسته" : "دسته", slices: cats, newPage: false)
-        if let subs, !subs.isEmpty {
-            // a fresh page for the subcategories only when the first section already fills most of a page
-            let firstRows = cats.count <= 6 ? cats.count : (cats.count + 1) / 2
-            h += breakdownSection(title: "تفکیک زیردسته‌ها", unit: "زیردسته", slices: subs, newPage: firstRows > 9)
-        }
+        h += breakdownSection(title: firstIsSub ? "تفکیک زیردسته‌ها" : "تفکیک دسته‌ها", unit: firstIsSub ? "زیردسته" : "دسته", slices: cats)
+        if let subs, !subs.isEmpty { h += breakdownSection(title: "تفکیک زیردسته‌ها", unit: "زیردسته", slices: subs) }
         return h + "</body></html>"
     }
 }

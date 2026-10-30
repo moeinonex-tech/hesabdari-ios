@@ -158,25 +158,77 @@ struct JalaliDateField: View {
     }
 }
 
+/// Amount entry: the digits show big and bold while typing, grouped (۱۲.۵۰۰.۰۰۰) as they are typed, cursor kept at the end.
+/// UIKit text field, because SwiftUI's TextField loses the display when the text is rewritten while editing.
 struct AmountField: View {
     let title: String
     @Binding var text: String
+    @Environment(\.theme) private var t
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField(title, text: $text)
-                .keyboardType(.numberPad)
-                .font(.title3.monospacedDigit())
-                .onChange(of: text) { _, new in
-                    let n = Fmt.parseAmount(new)
-                    let formatted = n > 0 ? Money.persianDigits(Money.format(n)) : ""
-                    if formatted != new { text = formatted }
-                }
-            if Fmt.parseAmount(text) > 0 {
-                Text(Fmt.toman(Fmt.parseAmount(text)) + " · " + Money.persianDigits(Money.format(Fmt.parseAmount(text) * 10)) + " ریال")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        let n = Fmt.parseAmount(text)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(AppFont.medium(12)).foregroundStyle(t.soft)
+            MoneyTextField(text: $text, placeholder: "۰")
+                .frame(height: 34)
+            if n > 0 {
+                Text(Money.persianDigits(Money.format(n * 10)) + " ریال")
+                    .font(AppFont.regular(12)).foregroundStyle(t.soft)
             }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+struct MoneyTextField: UIViewRepresentable {
+    @Binding var text: String
+    var placeholder = ""
+    var size: CGFloat = 22
+
+    func makeUIView(context: Context) -> UITextField {
+        let f = UITextField()
+        f.keyboardType = .numberPad
+        f.font = UIFont(name: "Vazirmatn-Bold", size: size) ?? .systemFont(ofSize: size, weight: .bold)
+        f.textAlignment = .natural
+        f.semanticContentAttribute = .forceRightToLeft
+        f.placeholder = placeholder
+        f.adjustsFontSizeToFitWidth = true
+        f.minimumFontSize = 14
+        f.delegate = context.coordinator
+        f.text = text
+        f.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        f.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return f
+    }
+
+    func updateUIView(_ f: UITextField, context: Context) {
+        if f.text != text { f.text = text }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: MoneyTextField
+        init(_ p: MoneyTextField) { parent = p }
+
+        func textField(_ f: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+            let old = f.text ?? ""
+            guard let r = Range(range, in: old) else { return false }
+            var next = old.replacingCharacters(in: r, with: string)
+            // deleting a separator deletes the digit before it
+            if string.isEmpty, range.length == 1, old[r] == "." || old[r] == "٬" || old[r] == "," {
+                let digitsBefore = SearchEngine.latinDigits(String(old[..<r.lowerBound])).filter(\.isNumber)
+                let digitsAfter = SearchEngine.latinDigits(String(old[r.upperBound...])).filter(\.isNumber)
+                next = String(digitsBefore.dropLast()) + digitsAfter
+            }
+            let digits = String(SearchEngine.latinDigits(next).filter(\.isNumber).prefix(15))
+            let n = Int(digits) ?? 0
+            let formatted = n > 0 ? Money.persianDigits(Money.format(n)) : ""
+            f.text = formatted
+            parent.text = formatted
+            let end = f.endOfDocument
+            f.selectedTextRange = f.textRange(from: end, to: end)
+            return false
         }
     }
 }
@@ -223,8 +275,15 @@ struct ExpenseFormView: View {
     @State private var checkNumber = ""
     @State private var sayadId = ""
     @State private var nasiyehDue = AppModel.today
+    @State private var itemCount = 1
+    @State private var items: [ExpenseItem] = []
+    @State private var checkCount = 1
+    @State private var slots: [CheckSlot] = []
+    @State private var checkTotal = ""
 
     private var isCommission: Bool { editing?.kind == .commission }
+    private var isMulti: Bool { itemCount > 1 && !isTankhah && !isCommission && !makesCheck }
+    private var multiCheck: Bool { makesCheck && checkCount > 1 }
     private var makesCheck: Bool { editing == nil && !isTankhah && payMethod == .check }
     private var makesNasiyeh: Bool { editing == nil && !isTankhah && payMethod == .nasiyeh }
 
@@ -259,16 +318,25 @@ struct ExpenseFormView: View {
             } else {
                 Section {
                     TextField("شرح", text: $desc)
-                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
-                    LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
-                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
-                    LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: true)
+                    if !makesCheck { CountRow(title: "تعداد اقلام", count: $itemCount, max: MultiItem.maxCount) }
+                    if !isMulti {
+                        SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
+                        LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
+                        SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
+                        LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: true)
+                    }
+                }
+                if isMulti {
+                    MultiItemSections(model: model, ctx: .ledger, mainDesc: desc, items: $items,
+                                      categories: model.ledgerCategories, subcategories: { model.subcategories(of: $0) })
                 }
             }
 
-            Section {
-                AmountField(title: "مبلغ (تومان)", text: $amount)
-                JalaliDateField(title: makesCheck ? "تاریخ سررسید چک" : "تاریخ", date: $date)
+            if !multiCheck {
+                Section {
+                    if !isMulti { AmountField(title: "مبلغ (تومان)", text: $amount) }
+                    JalaliDateField(title: makesCheck ? "تاریخ سررسید چک" : "تاریخ", date: $date)
+                }
             }
 
             if !isCommission {
@@ -279,25 +347,24 @@ struct ExpenseFormView: View {
                         }
                     }
                     if payMethod.usesCard && !model.activeCards.isEmpty {
-                        Picker("کارت", selection: $cardId) {
-                            Text("بدون کارت").tag(String?.none)
-                            ForEach(model.activeCards) { c in
-                                Text(c.label).tag(Optional(c.id))
-                            }
-                        }
+                        CardPicker(model: model, cardId: $cardId)
                     }
                 }
                 if makesCheck {
                     Section {
+                        CountRow(title: "تعداد چک", count: $checkCount, max: CheckGroup.maxCount)
                         SuggestField(title: "در وجه (طرف چک)", text: $linkParty, suggestions: model.partyNames)
-                        TextField("بانک", text: $checkBank)
-                        TextField("شماره چک", text: $checkNumber).keyboardType(.numberPad)
-                        TextField("شناسه صیاد (اختیاری)", text: $sayadId).keyboardType(.numberPad)
+                        BankNameField(title: "بانک", text: $checkBank)
+                        if !multiCheck {
+                            TextField("شماره چک", text: $checkNumber).keyboardType(.numberPad)
+                            TextField("شناسه صیاد (اختیاری)", text: $sayadId).keyboardType(.numberPad)
+                        }
                     } header: {
                         Text("اطلاعات چک")
                     } footer: {
                         Text("چک در «یادآوری‌ها» ثبت می‌شود و یک ردیف «در انتظار وصول» در همین دفتر می‌سازد. وقتی وصول شد، از یادآوری‌ها علامتش بزنید.")
                     }
+                    if multiCheck { MultiCheckSections(slots: $slots, total: $checkTotal) }
                 }
                 if makesNasiyeh {
                     Section {
@@ -318,6 +385,27 @@ struct ExpenseFormView: View {
             ToolbarItem(placement: .confirmationAction) { Button("ذخیره") { save() }.bold() }
         }
         .onAppear(perform: load)
+        .onChange(of: itemCount) { old, new in
+            if new > 1 {
+                if items.count != new {
+                    MultiItemState.resize(&items, to: new, from: old, single: (category, subcategory, Fmt.parseAmount(amount)))
+                }
+            } else if old > 1, let first = items.first {
+                category = first.category; subcategory = first.subcategory
+                amount = first.toman > 0 ? Money.persianDigits(Money.format(first.toman)) : ""
+                items = []
+            }
+        }
+        .onChange(of: checkCount) { old, new in
+            if new > 1 {
+                MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: date, number: checkNumber, sayad: sayadId))
+            } else if old > 1, let first = slots.first {
+                amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
+                date = first.due; checkNumber = first.number; sayadId = first.sayad
+                slots = []
+            }
+        }
+        .onChange(of: makesCheck) { _, check in if check && itemCount > 1 { itemCount = 1 } }
     }
 
     /// New rows: every method (check / nasiyeh create linked reminders). Edits keep the row's own method selectable.
@@ -338,6 +426,8 @@ struct ExpenseFormView: View {
             date = r.dateValue
             payMethod = r.payMethod.flatMap(PayMethod.init(rawValue:)) ?? PayMethod.defaultFor(tankhah: isTankhah)
             cardId = r.cardId; partyId = r.partyId
+            let its = model.items(ofRow: "expenses", r.rowId)
+            if its.count > 1 && r.kind != .tankhah { items = its; itemCount = its.count }
         } else {
             payMethod = .hamrahbank
             cardId = model.defaultCard(accountId: accountId)
@@ -345,12 +435,17 @@ struct ExpenseFormView: View {
     }
 
     private func save() {
-        let input = ExpenseInput(accountId: accountId, isTankhah: isTankhah, desc: desc, category: category,
+        var input = ExpenseInput(accountId: accountId, isTankhah: isTankhah, desc: desc, category: category,
                                  subcategory: subcategory, toman: Fmt.parseAmount(amount), date: date,
                                  payMethod: payMethod, cardId: payMethod.usesCard ? cardId : nil,
                                  partyId: isTankhah ? partyId : nil)
+        if isMulti { input.items = items; input.toman = items.reduce(0) { $0 + $1.toman } }
         let ok: Bool
-        if makesCheck {
+        if multiCheck {
+            ok = model.addChecks(CheckInput(amount: 0, party: linkParty, bankName: checkBank, checkNumber: "", sayadId: "", checkSeries: "",
+                                            desc: desc, category: category, subcategory: subcategory, dueDate: date, accountId: accountId),
+                                 slots: slots, total: Fmt.parseAmount(checkTotal))
+        } else if makesCheck {
             ok = model.addCheck(CheckInput(amount: input.toman, party: linkParty, bankName: checkBank, checkNumber: checkNumber,
                                            sayadId: sayadId, checkSeries: "", desc: desc, category: category,
                                            subcategory: subcategory, dueDate: date, accountId: accountId))

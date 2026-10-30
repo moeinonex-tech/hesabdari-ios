@@ -758,6 +758,7 @@ struct LedgerRowLine: View {
                 Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(2)
                 HStack(spacing: 6) {
                     if let s = subtitle, !s.isEmpty { Text(s) }
+                    if row.itemCount > 1 { InvoiceTag(count: row.itemCount) }
                     if !row.category.isEmpty { Text(row.category) }
                     Text(row.date)
                     if row.kind == .tankhah { Text("تنخواه").foregroundStyle(t.success) }
@@ -1285,7 +1286,8 @@ struct BankCardView: View {
             background
             LinearGradient(colors: [.black.opacity(0.05), .black.opacity(0.45)], startPoint: .top, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
+                HStack(spacing: 10) {
+                    BankLogo(bank: card.bank, name: card.bankName, size: 34, tile: true)
                     Text(card.bankName).font(AppFont.heavy(18))
                     Spacer()
                     if !card.accountType.isEmpty { Text(card.accountType).font(AppFont.medium(12)).opacity(0.85) }

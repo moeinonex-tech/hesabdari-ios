@@ -153,6 +153,7 @@ struct Dock: View {
     @State private var holdTask: Task<Void, Never>?
     @State private var menuOpenedByHold = false
     @State private var reportsPressed = false
+    @State private var holdHaptic = UIImpactFeedbackGenerator(style: .medium)
 
     private let height: CGFloat = 62
     private let reportsSide: CGFloat = 62
@@ -207,7 +208,7 @@ struct Dock: View {
                         Image(systemName: pack.icon(item))
                             .symbolVariant(on ? .fill : .none)
                             // the page «گزارش‌ها» was opened from breathes in step with the reports button
-                            .symbolEffect(.breathe.pulse.byLayer, options: .repeating.speed(0.7), isActive: on && tab == .reports)
+                            .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(0.8), isActive: on && tab == .reports)
                             .font(.system(size: 20, weight: on ? .semibold : .regular))
                             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
                             .scaleEffect(pressed == i ? 1.18 : 1)
@@ -229,6 +230,7 @@ struct Dock: View {
                         if v.location.y < -40 || v.location.y > height + 30 { pressed = nil; holdTask?.cancel(); return }
                         let i = slot(at: v.location.x, slotW: slotW)
                         if pressed == nil {
+                            holdHaptic.prepare()
                             UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.6)
                             startHold(for: i)
                         } else if i != pressed {
@@ -262,9 +264,9 @@ struct Dock: View {
         holdTask?.cancel()
         guard items[i] == .ledger, model.accounts.count > 1 else { return }
         holdTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 170_000_000)
+            try? await Task.sleep(nanoseconds: 120_000_000)
             guard !Task.isCancelled, pressed == i else { return }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            holdHaptic.impactOccurred()
             menuOpenedByHold = true
             menu = .ledger
         }
@@ -295,7 +297,7 @@ struct Dock: View {
         let on = tab == .reports
         return Image(systemName: pack.icon(.reports))
             .symbolVariant(on ? .fill : .none)
-            .symbolEffect(.breathe.pulse.byLayer, options: .repeating.speed(0.7), isActive: on && reportsFrom != nil)
+            .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(0.8), isActive: on && reportsFrom != nil)
             .font(.system(size: 20, weight: on ? .semibold : .regular))
             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
             .scaleEffect(reportsPressed ? 1.15 : 1)

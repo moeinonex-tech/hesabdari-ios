@@ -19,6 +19,7 @@ struct SimpleRowVM: Identifiable {
     let accountName: String
     let isLinked: Bool
     let isCommission: Bool
+    var itemCount = 0
 }
 
 struct CheckVM: Identifiable {
@@ -81,7 +82,8 @@ extension AppModel {
                                payMethod: e["payMethod"]?.stringValue, cardId: e["cardId"]?.idString,
                                accountLink: e["accountId"]?.idString ?? "personal", accountName: e["accountName"]?.stringValue ?? "",
                                isLinked: e["linked"]?["kind"]?.stringValue != nil,
-                               isCommission: e["commissionSettlementId"]?.idString != nil)
+                               isCommission: e["commissionSettlementId"]?.idString != nil,
+                               itemCount: e["items"]?.arrayValue?.count ?? 0)
         }
     }
 
@@ -354,6 +356,7 @@ struct SimpleRowLine: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(2)
                 HStack(spacing: 6) {
+                    if row.itemCount > 1 { InvoiceTag(count: row.itemCount) }
                     if !row.category.isEmpty { Text(row.category) }
                     Text(row.date)
                     if income && row.accountLink != "personal" && !row.accountName.isEmpty { Text("· " + row.accountName) }
@@ -386,40 +389,55 @@ struct PersonalFormView: View {
     @State private var checkBank = ""
     @State private var checkNumber = ""
     @State private var nasiyehDue = AppModel.today
+    @State private var itemCount = 1
+    @State private var items: [ExpenseItem] = []
+    @State private var checkCount = 1
+    @State private var slots: [CheckSlot] = []
+    @State private var checkTotal = ""
 
     private var makesCheck: Bool { editing == nil && method == "check" }
     private var makesNasiyeh: Bool { editing == nil && method == "nasiyeh" }
+    private var isMulti: Bool { itemCount > 1 && !makesCheck }
+    private var multiCheck: Bool { makesCheck && checkCount > 1 }
 
     var body: some View {
         Form {
             Section {
                 TextField("شرح", text: $desc)
-                SuggestField(title: "نوع هزینه", text: $category, suggestions: model.personalCategories)
-                LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: false)
-                SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.personalSubcategories(of: category))
-                LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: true)
+                if !makesCheck { CountRow(title: "تعداد اقلام", count: $itemCount, max: MultiItem.maxCount) }
+                if !isMulti {
+                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.personalCategories)
+                    LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: false)
+                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.personalSubcategories(of: category))
+                    LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: true)
+                }
             }
-            Section {
-                AmountField(title: "مبلغ (تومان)", text: $amount)
-                JalaliDateField(title: "تاریخ", date: $date)
+            if isMulti {
+                MultiItemSections(model: model, ctx: .personal, mainDesc: desc, items: $items,
+                                  categories: model.personalCategories, subcategories: { model.personalSubcategories(of: $0) })
+            }
+            if !multiCheck {
+                Section {
+                    if !isMulti { AmountField(title: "مبلغ (تومان)", text: $amount) }
+                    JalaliDateField(title: makesCheck ? "تاریخ سررسید چک" : "تاریخ", date: $date)
+                }
             }
             Section("روش پرداخت") {
                 Picker("روش", selection: $method) {
                     ForEach(methodChoices) { m in Text(m.label).tag(m.id) }
                 }
                 if PersonalInput.usesCard(method) && !model.activeCards.isEmpty {
-                    Picker("کارت", selection: $cardId) {
-                        Text("بدون کارت").tag(String?.none)
-                        ForEach(model.activeCards) { c in Text(c.label).tag(Optional(c.id)) }
-                    }
+                    CardPicker(model: model, cardId: $cardId)
                 }
             }
             if makesCheck {
                 Section("اطلاعات چک") {
+                    CountRow(title: "تعداد چک", count: $checkCount, max: CheckGroup.maxCount)
                     SuggestField(title: "در وجه", text: $linkParty, suggestions: model.partyNames)
-                    TextField("بانک", text: $checkBank)
-                    TextField("شماره چک", text: $checkNumber).keyboardType(.numberPad)
+                    BankNameField(title: "بانک", text: $checkBank)
+                    if !multiCheck { TextField("شماره چک", text: $checkNumber).keyboardType(.numberPad) }
                 }
+                if multiCheck { MultiCheckSections(slots: $slots, total: $checkTotal, showSayad: false) }
             }
             if makesNasiyeh {
                 Section("نسیه") {
@@ -441,10 +459,33 @@ struct PersonalFormView: View {
                 desc = r.desc; category = r.category; subcategory = r.subcategory
                 amount = Money.persianDigits(Money.format(r.toman)); date = r.dateValue
                 method = r.payMethod ?? "hamrahbank"; cardId = r.cardId
+                let its = model.items(ofRow: "personalExpenses", r.rowId)
+                if its.count > 1 { items = its; itemCount = its.count }
             } else {
                 cardId = model.activeCards.first?.id
             }
         }
+        .onChange(of: itemCount) { old, new in
+            if new > 1 {
+                if items.count != new {
+                    MultiItemState.resize(&items, to: new, from: old, single: (category, subcategory, Fmt.parseAmount(amount)))
+                }
+            } else if old > 1, let first = items.first {
+                category = first.category; subcategory = first.subcategory
+                amount = first.toman > 0 ? Money.persianDigits(Money.format(first.toman)) : ""
+                items = []
+            }
+        }
+        .onChange(of: checkCount) { old, new in
+            if new > 1 {
+                MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: date, number: checkNumber, sayad: ""))
+            } else if old > 1, let first = slots.first {
+                amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
+                date = first.due; checkNumber = first.number
+                slots = []
+            }
+        }
+        .onChange(of: makesCheck) { _, check in if check && itemCount > 1 { itemCount = 1 } }
     }
 
     private var methodChoices: [Choice] {
@@ -457,10 +498,15 @@ struct PersonalFormView: View {
     }
 
     private func save() {
-        let input = PersonalInput(desc: desc, category: category, subcategory: subcategory, toman: Fmt.parseAmount(amount),
+        var input = PersonalInput(desc: desc, category: category, subcategory: subcategory, toman: Fmt.parseAmount(amount),
                                   date: date, payMethod: method, cardId: PersonalInput.usesCard(method) ? cardId : nil)
+        if isMulti { input.items = items; input.toman = items.reduce(0) { $0 + $1.toman } }
         let ok: Bool
-        if makesCheck {
+        if multiCheck {
+            ok = model.addChecks(CheckInput(amount: 0, party: linkParty, bankName: checkBank, checkNumber: "", sayadId: "", checkSeries: "",
+                                            desc: desc, category: category, subcategory: subcategory, dueDate: date, accountId: "personal"),
+                                 slots: slots, total: Fmt.parseAmount(checkTotal))
+        } else if makesCheck {
             ok = model.addCheck(CheckInput(amount: input.toman, party: linkParty, bankName: checkBank, checkNumber: checkNumber,
                                            sayadId: "", checkSeries: "", desc: desc, category: category, subcategory: subcategory,
                                            dueDate: date, accountId: "personal"))
@@ -717,7 +763,13 @@ struct CheckCard: View {
             HStack(spacing: 8) {
                 Text(BackupExporter.formatJalali(check.due))
                 if !check.ident.isEmpty { Text("· چک " + check.ident) }
-                if !check.bank.isEmpty { Text("· " + check.bank) }
+                if !check.bank.isEmpty {
+                    HStack(spacing: 4) {
+                        Text("·")
+                        if let bk = SettingsOps.bank(named: check.bank) { BankLogo(bank: bk, size: 16) }
+                        Text(check.bank)
+                    }
+                }
                 Spacer()
                 Text(statusText).foregroundStyle(statusColor)
             }

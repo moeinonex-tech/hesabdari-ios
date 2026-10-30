@@ -311,7 +311,7 @@ struct PartyFormView: View {
                 TextField("شماره کارت", text: $card).keyboardType(.numberPad)
                 TextField("شماره حساب", text: $account)
                 TextField("شماره شبا (IR…)", text: $iban).textInputAutocapitalization(.characters)
-                TextField("نام بانک", text: $bank)
+                BankNameField(title: "نام بانک", text: $bank)
             }
         }
         .navigationTitle(party == nil ? "افزودن طرف حساب" : "ویرایش طرف حساب")

@@ -43,6 +43,7 @@ struct WalletCard: Identifiable {
     let archived: Bool
     let image: UIImage?
     let color: Color?
+    var bank: Bank? = nil
 }
 
 extension AppModel {
@@ -176,7 +177,9 @@ extension AppModel {
                               holder: c["holderName"]?.stringValue ?? "", expiry: SettingsOps.expiryText(c["expiry"]),
                               accountType: c["accountType"]?.stringValue ?? "",
                               archived: c["archived"]?.isTruthy ?? false, image: image,
-                              color: Color.web(c["bgColor"]?.stringValue))
+                              color: Color.web(c["bgColor"]?.stringValue),
+                              bank: SettingsOps.resolveBank(key: c["bankKey"]?.stringValue, cardNumber: c["cardNumber"]?.idString,
+                                                            name: c["bankName"]?.stringValue))
         }
     }
 }

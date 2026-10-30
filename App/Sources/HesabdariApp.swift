@@ -34,6 +34,7 @@ struct LedgerRowVM: Identifiable {
     let payMethod: String?
     let cardId: String?
     let partyId: String?
+    var itemCount = 0
     enum Kind { case expense, tankhah, commission }
 }
 
@@ -207,7 +208,7 @@ final class AppModel: ObservableObject {
                                category: e["category"]?.stringValue ?? "",
                                subcategory: e["subcategory"]?.stringValue ?? "",
                                payMethod: e["payMethod"]?.stringValue, cardId: e["cardId"]?.idString,
-                               partyId: e["partyId"]?.idString)
+                               partyId: e["partyId"]?.idString, itemCount: e["items"]?.arrayValue?.count ?? 0)
         }
     }
 
@@ -277,7 +278,10 @@ final class AppModel: ObservableObject {
     }
 
     func unlock(password: String) -> Bool {
-        guard let p = state["editLockPassword"]?.stringValue, !p.isEmpty, password == p else { return false }
+        // Persian / Arabic / Latin digits are the same password (the web keyboard gave ۱۲۳۴, the iPhone keypad gives 1234)
+        guard let p = state["editLockPassword"]?.stringValue, !p.isEmpty,
+              SearchEngine.latinDigits(password.trimmingCharacters(in: .whitespaces)) == SearchEngine.latinDigits(p.trimmingCharacters(in: .whitespaces))
+        else { return false }
         unlockedUntil = Date().addingTimeInterval(LedgerOps.unlockSeconds)
         return true
     }

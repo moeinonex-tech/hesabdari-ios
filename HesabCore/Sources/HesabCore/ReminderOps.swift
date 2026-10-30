@@ -35,6 +35,23 @@ public struct CheckInput: Sendable {
     }
 }
 
+/// web mcCreate / mcStampCheck: 2–10 checks for one payment, each its own record, tagged with one group.
+public struct CheckGroup: Sendable, Equatable {
+    public static let maxCount = 10
+    public var groupId: String
+    public var index: Int          // 1-based
+    public var count: Int
+    public var total: Int          // optional «مبلغ کل», 0 = not given
+    public init(groupId: String, index: Int, count: Int, total: Int) {
+        self.groupId = groupId; self.index = index; self.count = count; self.total = total
+    }
+    /// web: 'cg' + Date.now() + 4 random base-36 chars
+    public static func newId(ids: IdSource = .system) -> String {
+        let now = ids.nowMs()
+        return String(ids.make("cg", now).dropLast(1))
+    }
+}
+
 public struct InstallmentInput: Sendable {
     public var amount: Int
     public var desc: String
@@ -166,7 +183,7 @@ public enum ReminderOps {
 
     // MARK: checks
 
-    public static func saveCheck(_ state: [String: JSONValue], editingId: String?, _ input: CheckInput,
+    public static func saveCheck(_ state: [String: JSONValue], editingId: String?, _ input: CheckInput, group: CheckGroup? = nil,
                                  ids: IdSource = .system, today: JalaliDate) throws -> (state: [String: JSONValue], id: String) {
         let missing = input.missingFields
         guard missing.isEmpty else { throw LedgerError.invalid(missing) }
@@ -193,6 +210,10 @@ public enum ReminderOps {
                  // web mcStampCheck (single check)
                  "direction": .string("pay"), "sourceKind": .string(input.accountId == "personal" ? "personal" : "expense"),
                  "createdTs": .int(Int64(now)), "groupId": .null, "groupIndex": .int(1), "groupCount": .int(1), "groupTotal": .null]
+            if let g = group, g.count > 1 {
+                c["groupId"] = .string(g.groupId); c["groupIndex"] = .int(Int64(g.index)); c["groupCount"] = .int(Int64(g.count))
+                c["groupTotal"] = g.total > 0 ? .int(Int64(g.total)) : .null
+            }
         }
         c["amount"] = .int(Int64(input.amount)); c["party"] = .string(input.party); c["bankName"] = .string(input.bankName)
         c["checkSeries"] = .string(input.checkSeries); c["checkNumber"] = .string(input.checkNumber); c["sayadId"] = .string(input.sayadId)

@@ -54,6 +54,64 @@ public enum PayMethod: String, CaseIterable, Sendable {
     public var usesCard: Bool { self == .hamrahbank || self == .pos || self == .transfer }
 }
 
+/// One «قلم» of a multi-item invoice (web makeMultiItemController row: category, subcategory, amount, optional desc).
+public struct ExpenseItem: Sendable, Equatable {
+    public var category: String
+    public var subcategory: String
+    public var toman: Int
+    public var desc: String
+    public init(category: String = "", subcategory: String = "", toman: Int = 0, desc: String = "") {
+        self.category = category; self.subcategory = subcategory; self.toman = toman; self.desc = desc
+    }
+}
+
+/// web «فاکتور چندقلمی»: one row (one payment) with items[]; total = sum, the row's own category/subcategory only when
+/// every item shares it (distinctNonEmpty length 1).
+public enum MultiItem {
+    public static let maxCount = 20
+
+    public static func missing(desc: String, _ items: [ExpenseItem], catTitle: String = "نوع هزینه") -> [String] {
+        var m: [String] = []
+        if desc.trimmingCharacters(in: .whitespaces).isEmpty { m.append("شرح") }
+        for (i, it) in items.enumerated() {
+            let n = " قلم " + Money.persianDigits(i + 1)
+            if it.category.trimmingCharacters(in: .whitespaces).isEmpty { m.append(catTitle + n) }
+            if it.subcategory.trimmingCharacters(in: .whitespaces).isEmpty { m.append("زیردسته" + n) }
+            if it.toman <= 0 { m.append("مبلغ" + n) }
+        }
+        return m
+    }
+
+    static func distinctNonEmpty(_ a: [String]) -> [String] {
+        var seen = Set<String>(), out: [String] = []
+        for v in a { let t = v.trimmingCharacters(in: .whitespaces); if !t.isEmpty, seen.insert(t).inserted { out.append(t) } }
+        return out
+    }
+
+    /// writes toman / category / subcategory / items[] on the row exactly like the web
+    static func apply(_ row: inout [String: JSONValue], _ items: [ExpenseItem]) {
+        let total = items.reduce(0) { $0 + $1.toman }
+        row["toman"] = .int(Int64(total))
+        let cats = distinctNonEmpty(items.map(\.category)), subs = distinctNonEmpty(items.map(\.subcategory))
+        if cats.count == 1 { row["category"] = .string(cats[0]) } else { row.removeValue(forKey: "category") }
+        if subs.count == 1 { row["subcategory"] = .string(subs[0]) } else { row.removeValue(forKey: "subcategory") }
+        // web stores the trimmed values (it.category = input.value.trim())
+        row["items"] = .array(items.map { it in
+            .object(["category": .string(it.category.trimmingCharacters(in: .whitespaces)),
+                     "subcategory": .string(it.subcategory.trimmingCharacters(in: .whitespaces)),
+                     "toman": .int(Int64(it.toman)), "desc": .string(it.desc.trimmingCharacters(in: .whitespaces))])
+        })
+    }
+
+    /// stored items[] → editable items
+    public static func items(of row: JSONValue) -> [ExpenseItem] {
+        (row["items"]?.arrayValue ?? []).map {
+            ExpenseItem(category: $0["category"]?.stringValue ?? "", subcategory: $0["subcategory"]?.stringValue ?? "",
+                        toman: ImportAnalyzer.toman($0), desc: $0["desc"]?.stringValue ?? "")
+        }
+    }
+}
+
 public struct ExpenseInput: Sendable {
     public var accountId: String
     public var isTankhah: Bool
@@ -65,6 +123,9 @@ public struct ExpenseInput: Sendable {
     public var payMethod: PayMethod
     public var cardId: String?
     public var partyId: String?
+    /// more than one = a multi-item invoice (expense only, never tankhah)
+    public var items: [ExpenseItem] = []
+    public var isMulti: Bool { !isTankhah && items.count > 1 }
 
     public init(accountId: String, isTankhah: Bool, desc: String, category: String, subcategory: String,
                 toman: Int, date: JalaliDate, payMethod: PayMethod, cardId: String?, partyId: String?) {
@@ -75,6 +136,7 @@ public struct ExpenseInput: Sendable {
 
     /// Web required fields: tankhah → party + amount; expense → desc, category, subcategory, amount.
     public var missingFields: [String] {
+        if isMulti { return MultiItem.missing(desc: desc, items) }
         var m: [String] = []
         if isTankhah {
             if (partyId ?? "").isEmpty { m.append("طرف حساب") }
@@ -162,6 +224,7 @@ public enum LedgerOps {
         if !cat.isEmpty { row["category"] = .string(input.category) }
         if !input.isTankhah && !input.subcategory.isEmpty { row["subcategory"] = .string(input.subcategory) }
         if input.isTankhah, let p = input.partyId, !p.isEmpty { row["partyId"] = .string(p) }
+        if input.isMulti { MultiItem.apply(&row, input.items) }
         applyPayMethod(&row, &st, input)
         var rows = array(st, "expenses")
         rows.append(.object(row))
@@ -200,7 +263,8 @@ public enum LedgerOps {
         if cat.isEmpty { row.removeValue(forKey: "category") } else { row["category"] = .string(input.category) }
         if !input.isTankhah && !input.subcategory.isEmpty { row["subcategory"] = .string(input.subcategory) } else { row.removeValue(forKey: "subcategory") }
         if input.isTankhah, let p = input.partyId, !p.isEmpty { row["partyId"] = .string(p) } else { row.removeValue(forKey: "partyId") }
-        row.removeValue(forKey: "items")          // web: an edited multi-item invoice becomes a single row
+        // web: an invoice edited through the single fields becomes a single row; edited as multi it keeps its items
+        if input.isMulti { row.removeValue(forKey: "partyId"); MultiItem.apply(&row, input.items) } else { row.removeValue(forKey: "items") }
         if !isCommission { applyPayMethod(&row, &st, input) }
         rows[i] = .object(row)
         st["expenses"] = .array(rows)
@@ -373,6 +437,19 @@ public enum LedgerOps {
     }
 
     static func learn(_ st: inout [String: JSONValue], _ input: ExpenseInput) {
+        if input.isMulti {
+            for it in input.items {
+                let c = it.category.trimmingCharacters(in: .whitespaces), s = it.subcategory.trimmingCharacters(in: .whitespaces)
+                let d = it.desc.trimmingCharacters(in: .whitespaces).isEmpty ? input.desc : it.desc
+                addCategoryIfNew(&st, list: "ledgerCategories", c)
+                Learning.learnCategory(&st, .ledger, desc: d, category: c)
+                if !c.isEmpty && !s.isEmpty {
+                    addSubcategoryIfNew(&st, map: "ledgerSubcategories", category: c, s)
+                    Learning.learnSubcategory(&st, .ledger, category: c, desc: d, sub: s)
+                }
+            }
+            return
+        }
         addCategoryIfNew(&st, list: "ledgerCategories", input.category)
         Learning.learnCategory(&st, .ledger, desc: input.desc, category: input.category)
         if !input.category.isEmpty && !input.subcategory.isEmpty {

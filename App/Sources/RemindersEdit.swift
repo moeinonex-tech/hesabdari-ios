@@ -116,21 +116,31 @@ struct CheckFormView: View {
     @State private var status = "pending"
     @State private var loaded = false
     @State private var confirmDelete = false
+    @State private var checkCount = 1
+    @State private var slots: [CheckSlot] = []
+    @State private var checkTotal = ""
+    private var multiCheck: Bool { editingId == nil && checkCount > 1 }
 
     var body: some View {
         Form {
-            Section {
-                AmountField(title: "مبلغ چک (تومان)", text: $amount)
-                JalaliDateField(title: "تاریخ سررسید", date: $due)
+            if editingId == nil {
+                Section { CountRow(title: "تعداد چک", count: $checkCount, max: CheckGroup.maxCount) }
+            }
+            if !multiCheck {
+                Section {
+                    AmountField(title: "مبلغ چک (تومان)", text: $amount)
+                    JalaliDateField(title: "تاریخ سررسید", date: $due)
+                }
             }
             Section("اطلاعات چک") {
                 SuggestField(title: "در وجه", text: $party, suggestions: model.partyNames)
-                TextField("بانک", text: $bank)
-                TextField("شماره چک", text: $number).keyboardType(.numberPad)
+                BankNameField(title: "بانک", text: $bank)
+                if !multiCheck { TextField("شماره چک", text: $number).keyboardType(.numberPad) }
                 TextField("سری", text: $series)
-                TextField("شناسه صیاد", text: $sayad).keyboardType(.numberPad)
+                if !multiCheck { TextField("شناسه صیاد", text: $sayad).keyboardType(.numberPad) }
                 TextField("توضیحات", text: $desc)
             }
+            if multiCheck { MultiCheckSections(slots: $slots, total: $checkTotal) }
             Section {
                 SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
                 LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
@@ -169,6 +179,15 @@ struct CheckFormView: View {
             }
         }
         .onAppear(perform: load)
+        .onChange(of: checkCount) { old, new in
+            if new > 1 {
+                MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: due, number: number, sayad: sayad))
+            } else if old > 1, let first = slots.first {
+                amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
+                due = first.due; number = first.number; sayad = first.sayad
+                slots = []
+            }
+        }
     }
 
     private func load() {
@@ -186,7 +205,12 @@ struct CheckFormView: View {
         let input = CheckInput(amount: Fmt.parseAmount(amount), party: party, bankName: bank, checkNumber: number, sayadId: sayad,
                                checkSeries: series, desc: desc, category: category, subcategory: subcategory, dueDate: due,
                                accountId: accountId, status: status)
-        let ok = editingId.map { model.editCheck($0, input) } ?? model.addCheck(input)
+        let ok: Bool
+        if multiCheck {
+            ok = model.addChecks(input, slots: slots, total: Fmt.parseAmount(checkTotal))
+        } else {
+            ok = editingId.map { model.editCheck($0, input) } ?? model.addCheck(input)
+        }
         if ok { Haptics.success(); dismiss() }
     }
 }

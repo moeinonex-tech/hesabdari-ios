@@ -10,6 +10,8 @@ public struct PersonalInput: Sendable {
     public var date: JalaliDate
     public var payMethod: String          // web personal methods: card (پوز), hamrahbank, cash, …
     public var cardId: String?
+    public var items: [ExpenseItem] = []
+    public var isMulti: Bool { items.count > 1 }
 
     public init(desc: String, category: String, subcategory: String, toman: Int, date: JalaliDate, payMethod: String, cardId: String?) {
         self.desc = desc; self.category = category; self.subcategory = subcategory; self.toman = toman
@@ -17,6 +19,7 @@ public struct PersonalInput: Sendable {
     }
 
     public var missingFields: [String] {
+        if isMulti { return MultiItem.missing(desc: desc, items) }
         var m: [String] = []
         if desc.trimmingCharacters(in: .whitespaces).isEmpty { m.append("شرح") }
         if category.trimmingCharacters(in: .whitespaces).isEmpty { m.append("نوع هزینه") }
@@ -99,6 +102,7 @@ public enum RecordOps {
     }
 
     static func fill(_ row: inout [String: JSONValue], _ input: PersonalInput) {
+        defer { if input.isMulti { MultiItem.apply(&row, input.items) } }
         let c = input.category.trimmingCharacters(in: .whitespaces), s = input.subcategory.trimmingCharacters(in: .whitespaces)
         if c.isEmpty { row.removeValue(forKey: "category") } else { row["category"] = .string(input.category) }
         if s.isEmpty { row.removeValue(forKey: "subcategory") } else { row["subcategory"] = .string(input.subcategory) }
@@ -108,6 +112,19 @@ public enum RecordOps {
     }
 
     static func learnPersonal(_ st: inout [String: JSONValue], _ input: PersonalInput) {
+        if input.isMulti {
+            for it in input.items {
+                let c = it.category.trimmingCharacters(in: .whitespaces), s = it.subcategory.trimmingCharacters(in: .whitespaces)
+                let d = it.desc.trimmingCharacters(in: .whitespaces).isEmpty ? input.desc : it.desc
+                LedgerOps.addCategoryIfNew(&st, list: "personalCategories", c)
+                Learning.learnCategory(&st, .personal, desc: d, category: c)
+                if !c.isEmpty && !s.isEmpty {
+                    LedgerOps.addSubcategoryIfNew(&st, map: "personalSubcategories", category: c, s)
+                    Learning.learnSubcategory(&st, .personal, category: c, desc: d, sub: s)
+                }
+            }
+            return
+        }
         LedgerOps.addCategoryIfNew(&st, list: "personalCategories", input.category)
         Learning.learnCategory(&st, .personal, desc: input.desc, category: input.category)
         if !input.category.isEmpty && !input.subcategory.isEmpty {

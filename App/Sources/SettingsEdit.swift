@@ -67,11 +67,21 @@ struct CardFormView: View {
     var body: some View {
         Form {
             Section("بانک") {
-                Picker("بانک", selection: $bankKey) {
-                    Text("سایر / دستی").tag(String?.none)
-                    ForEach(SettingsOps.banks, id: \.key) { b in Text(b.name).tag(Optional(b.key)) }
+                NavigationLink {
+                    BankChooser(bankKey: $bankKey)
+                } label: {
+                    HStack(spacing: 10) {
+                        Text("بانک")
+                        Spacer()
+                        if let b = SettingsOps.bank(key: bankKey) {
+                            BankLogo(bank: b, size: 24)
+                            Text(b.name).foregroundStyle(.secondary)
+                        } else {
+                            Text("سایر / دستی").foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                if bankKey == nil { TextField("نام بانک", text: $bankName) }
+                if bankKey == nil { BankNameField(title: "نام بانک", text: $bankName) }
             }
             Section("شماره‌ها") {
                 TextField("شماره کارت ۱۶ رقمی", text: $number)
@@ -415,5 +425,32 @@ struct ShortcutsEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تمام") { dismiss() } } }
         .onAppear { keys = SettingsOps.homeShortcuts(model.state) }
+    }
+}
+
+
+/// the 29 banks with their logos (web bank picker sheet)
+struct BankChooser: View {
+    @Binding var bankKey: String?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List {
+            Button { bankKey = nil; dismiss() } label: {
+                HStack { Text("سایر / دستی"); Spacer(); if bankKey == nil { Image(systemName: "checkmark") } }
+            }
+            ForEach(SettingsOps.banks, id: \.key) { b in
+                Button { bankKey = b.key; Haptics.tap(); dismiss() } label: {
+                    HStack(spacing: 12) {
+                        BankLogo(bank: b, size: 30)
+                        Text(b.name)
+                        Spacer()
+                        if bankKey == b.key { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        }
+        .tint(.primary)
+        .navigationTitle("انتخاب بانک")
     }
 }

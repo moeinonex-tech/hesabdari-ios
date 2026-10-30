@@ -77,6 +77,35 @@ public enum SettingsOps {
     public static let defaultAccountTypes = ["جاری", "جاری با دسته‌چک", "قرض‌الحسنه", "کوتاه‌مدت", "بلندمدت", "مشترک", "ارزی"]
 
     /// web: bank from the first 6 digits
+    public static func bank(key: String?) -> Bank? {
+        guard let key, !key.isEmpty else { return nil }
+        return banks.first { $0.key == key }
+    }
+
+    /// web cwFindBankByName: free-typed name → bank, ignoring a leading «بانک» and extra spaces, substring both ways
+    public static func bank(named text: String?) -> Bank? {
+        func clean(_ s: String) -> String {
+            var t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            if t.hasPrefix("بانک"), let r = t.range(of: "^بانک\\s+", options: .regularExpression) { t.removeSubrange(r) }
+            return t.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        }
+        guard let text else { return nil }
+        let t = clean(text)
+        guard !t.isEmpty else { return nil }
+        // an exact name wins first («صادرات» is بانک صادرات, not بانک توسعه صادرات)
+        if let exact = banks.first(where: { clean($0.name) == t }) { return exact }
+        for b in banks {
+            let bn = clean(b.name)
+            if bn == t || bn.contains(t) || t.contains(bn) { return b }
+        }
+        return nil
+    }
+
+    /// web cwResolveBank: the saved bank key first, then the card number prefix; here also the typed name
+    public static func resolveBank(key: String?, cardNumber: String?, name: String?) -> Bank? {
+        bank(key: key) ?? bank(forCardNumber: cardNumber ?? "") ?? bank(named: name)
+    }
+
     public static func bank(forCardNumber n: String) -> Bank? {
         let digits = SearchEngine.latinDigits(n).filter(\.isNumber)
         guard digits.count >= 6 else { return nil }

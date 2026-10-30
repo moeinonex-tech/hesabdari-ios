@@ -1,4 +1,5 @@
 import SwiftUI
+import LocalAuthentication
 import HesabCore
 
 // Edit-lock password, learning history, factory reset, bulk quotes — web: passwordSettingsModal,
@@ -51,7 +52,12 @@ struct EditPasswordView: View {
                         if model.removeEditPassword() { message = "قفل غیرفعال شد"; current = "" }
                     }
                 } footer: {
-                    Text("برای تغییر یا حذف، اول رمز فعلی رو وارد کن.")
+                    Text("برای تغییر یا حذف، اول رمز فعلی رو وارد کن. اعداد فارسی و انگلیسی یکی حساب می‌شوند.")
+                }
+                Section {
+                    Button("رمز رو یادم رفته — حذف با Face ID / رمز گوشی", role: .destructive) { forgot() }
+                } footer: {
+                    Text("با تأیید هویت گوشی، رمز ردیف‌های قدیمی پاک می‌شود و بعد می‌توانی رمز تازه بگذاری. هیچ ردیفی تغییر نمی‌کند.")
                 }
             } else {
                 Section {
@@ -64,6 +70,18 @@ struct EditPasswordView: View {
             if let m = message { Section { Text(m).foregroundStyle(.secondary) } }
         }
         .navigationTitle("رمز ردیف‌های قدیمی")
+    }
+
+    private func forgot() {
+        let ctx = LAContext()
+        var err: NSError?
+        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else { message = "تأیید هویت روی این گوشی در دسترس نیست"; return }
+        ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "حذف رمز ردیف‌های قدیمی") { ok, _ in
+            Task { @MainActor in
+                guard ok else { return }
+                if model.removeEditPassword() { message = "رمز پاک شد — حالا می‌توانی رمز تازه بگذاری"; current = "" }
+            }
+        }
     }
 }
 
