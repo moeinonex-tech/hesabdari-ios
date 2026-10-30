@@ -210,7 +210,7 @@ struct ReportsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ScreenHeader(title: "گزارش‌ها", subtitle: "نمودارها و خروجی PDF و Excel")
-                ScrollView(.horizontal, showsIndicators: false) {
+                HScroll {
                     HStack(spacing: 8) {
                         ForEach(Array(["کلی", "دفتر حساب", "شخصی", "درآمد", "یادآوری‌ها"].enumerated()), id: \.offset) { i, name in
                             Button {
@@ -251,6 +251,7 @@ struct ReportsView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.reports)
+        .pageSwipe($scope, [0, 1, 2, 3, 4])
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: scope) { _, _ in account = nil }
         .sheet(item: $share) { f in ActivityView(items: [f.url]) }

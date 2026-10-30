@@ -841,7 +841,7 @@ struct LedgerHomeView: View {
                     .padding(.top, 8)
                 }
 
-                ScrollView(.horizontal, showsIndicators: false) {
+                HScroll {
                     HStack(spacing: 8) {
                         ForEach(model.accounts) { a in
                             let on = a.id == accountId
@@ -960,6 +960,7 @@ struct LedgerHomeView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.ledger)
+        .pageSwipe($showIncome, [false, true], enabled: account != nil)
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(item: Binding(get: { budgetAccount.map { IdBox(id: $0) } }, set: { budgetAccount = $0?.id })) { b in
@@ -1269,6 +1270,7 @@ struct CardsView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.cards)
+        .pageSwipe($showArchived, [false, true])
         .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $editing) { e in
             NavigationStack { CardFormView(model: model, editingId: e.id.isEmpty ? nil : e.id) }

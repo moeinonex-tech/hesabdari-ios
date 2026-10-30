@@ -124,7 +124,7 @@ struct CheckFormView: View {
     var body: some View {
         Form {
             if editingId == nil {
-                Section { CountRow(title: "تعداد چک", count: $checkCount, max: CheckGroup.maxCount) }
+                Section { CountRow(title: "تعداد چک", count: checkCountBinding, max: CheckGroup.maxCount) }
             }
             if !multiCheck {
                 Section {
@@ -173,15 +173,6 @@ struct CheckFormView: View {
             }
         }
         .onAppear(perform: load)
-        .onChange(of: checkCount) { old, new in
-            if new > 1 {
-                MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: due, number: number, sayad: sayad))
-            } else if old > 1, let first = slots.first {
-                amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
-                due = first.due; number = first.number; sayad = first.sayad
-                slots = []
-            }
-        }
     }
 
     private func load() {
@@ -193,6 +184,22 @@ struct CheckFormView: View {
         number = c["checkNumber"]?.idString ?? ""; sayad = c["sayadId"]?.idString ?? ""; series = c["checkSeries"]?.stringValue ?? ""
         desc = c["description"]?.stringValue ?? ""; category = c["category"]?.stringValue ?? ""; subcategory = c["subcategory"]?.stringValue ?? ""
         due = ImportAnalyzer.date(c["dueDate"]); accountId = c["accountId"]?.idString; status = c["status"]?.stringValue ?? "pending"
+    }
+
+    /// the count and its rows change in one step (never a frame where they disagree)
+    private var checkCountBinding: Binding<Int> {
+        Binding(get: { checkCount }, set: { new in
+            let old = checkCount
+            guard new != old else { return }
+        if new > 1 {
+            MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: due, number: number, sayad: sayad))
+        } else if old > 1, let first = slots.first {
+            amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
+            due = first.due; number = first.number; sayad = first.sayad
+            slots = []
+        }
+            checkCount = new
+        })
     }
 
     private func save() {

@@ -302,6 +302,7 @@ struct PersonalView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.personal)
+        .pageSwipe($showIncome, [false, true])
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(isPresented: $showBudget) {
@@ -403,7 +404,7 @@ struct PersonalFormView: View {
             }
             Section {
                 TextField("شرح", text: $desc)
-                if !makesCheck { CountRow(title: "تعداد اقلام", count: $itemCount, max: MultiItem.maxCount) }
+                if !makesCheck { CountRow(title: "تعداد اقلام", count: itemCountBinding, max: MultiItem.maxCount) }
                 if !isMulti {
                     SuggestField(title: "نوع هزینه", text: $category, suggestions: model.personalCategories)
                     LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: false)
@@ -431,7 +432,7 @@ struct PersonalFormView: View {
             }
             if makesCheck {
                 Section("اطلاعات چک") {
-                    CountRow(title: "تعداد چک", count: $checkCount, max: CheckGroup.maxCount)
+                    CountRow(title: "تعداد چک", count: checkCountBinding, max: CheckGroup.maxCount)
                     SuggestField(title: "در وجه", text: $linkParty, suggestions: model.partyNames)
                     BankNameField(title: "بانک", text: $checkBank)
                     if !multiCheck { TextField("شماره چک", text: $checkNumber).keyboardType(.numberPad) }
@@ -464,27 +465,7 @@ struct PersonalFormView: View {
                 cardId = model.activeCards.first?.id
             }
         }
-        .onChange(of: itemCount) { old, new in
-            if new > 1 {
-                if items.count != new {
-                    MultiItemState.resize(&items, to: new, from: old, single: (category, subcategory, Fmt.parseAmount(amount)))
-                }
-            } else if old > 1, let first = items.first {
-                category = first.category; subcategory = first.subcategory
-                amount = first.toman > 0 ? Money.persianDigits(Money.format(first.toman)) : ""
-                items = []
-            }
-        }
-        .onChange(of: checkCount) { old, new in
-            if new > 1 {
-                MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: date, number: checkNumber, sayad: ""))
-            } else if old > 1, let first = slots.first {
-                amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
-                date = first.due; checkNumber = first.number
-                slots = []
-            }
-        }
-        .onChange(of: makesCheck) { _, check in if check && itemCount > 1 { itemCount = 1 } }
+        .onChange(of: makesCheck) { _, check in if check && itemCount > 1 { itemCountBinding.wrappedValue = 1 } }
     }
 
     private var methodChoices: [Choice] {
@@ -494,6 +475,39 @@ struct PersonalFormView: View {
             list.append(Choice(id: m, label: PayMethod(rawValue: m)?.title ?? m))
         }
         return list
+    }
+
+    /// the count and its rows change in one step (never a frame where they disagree)
+    private var itemCountBinding: Binding<Int> {
+        Binding(get: { itemCount }, set: { new in
+            let old = itemCount
+            guard new != old else { return }
+        if new > 1 {
+            if items.count != new {
+                MultiItemState.resize(&items, to: new, from: old, single: (category, subcategory, Fmt.parseAmount(amount)))
+            }
+        } else if old > 1, let first = items.first {
+            category = first.category; subcategory = first.subcategory
+            amount = first.toman > 0 ? Money.persianDigits(Money.format(first.toman)) : ""
+            items = []
+        }
+            itemCount = new
+        })
+    }
+    /// the count and its rows change in one step (never a frame where they disagree)
+    private var checkCountBinding: Binding<Int> {
+        Binding(get: { checkCount }, set: { new in
+            let old = checkCount
+            guard new != old else { return }
+        if new > 1 {
+            MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: date, number: checkNumber, sayad: ""))
+        } else if old > 1, let first = slots.first {
+            amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
+            date = first.due; checkNumber = first.number
+            slots = []
+        }
+            checkCount = new
+        })
     }
 
     private func save() {
@@ -655,6 +669,7 @@ struct RemindersView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.reminders)
+        .pageSwipe($filter, [0, 1, 2])
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(item: $sheet) { s in

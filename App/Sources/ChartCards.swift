@@ -35,7 +35,7 @@ struct TrendChartCard: View {
             if data.isEmpty {
                 Text("هنوز داده‌ای برای نمودار نیست").font(AppFont.regular(13)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(16)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
+                HScroll {
                     Chart(Array(data.enumerated()), id: \.offset) { i, p in
                         BarMark(x: .value("بازه", "\(i)|" + p.label), y: .value("مبلغ", p.value))
                             .foregroundStyle(LinearGradient(colors: [color, color.opacity(0.55)], startPoint: .top, endPoint: .bottom))

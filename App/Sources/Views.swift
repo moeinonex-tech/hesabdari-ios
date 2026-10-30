@@ -317,7 +317,7 @@ struct ExpenseFormView: View {
             } else {
                 Section {
                     TextField("شرح", text: $desc)
-                    if !makesCheck { CountRow(title: "تعداد اقلام", count: $itemCount, max: MultiItem.maxCount) }
+                    if !makesCheck { CountRow(title: "تعداد اقلام", count: itemCountBinding, max: MultiItem.maxCount) }
                     if !isMulti {
                         SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
                         LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
@@ -351,7 +351,7 @@ struct ExpenseFormView: View {
                 }
                 if makesCheck {
                     Section {
-                        CountRow(title: "تعداد چک", count: $checkCount, max: CheckGroup.maxCount)
+                        CountRow(title: "تعداد چک", count: checkCountBinding, max: CheckGroup.maxCount)
                         SuggestField(title: "در وجه (طرف چک)", text: $linkParty, suggestions: model.partyNames)
                         BankNameField(title: "بانک", text: $checkBank)
                         if !multiCheck {
@@ -384,27 +384,7 @@ struct ExpenseFormView: View {
             ToolbarItem(placement: .confirmationAction) { Button("ذخیره") { save() }.bold() }
         }
         .onAppear(perform: load)
-        .onChange(of: itemCount) { old, new in
-            if new > 1 {
-                if items.count != new {
-                    MultiItemState.resize(&items, to: new, from: old, single: (category, subcategory, Fmt.parseAmount(amount)))
-                }
-            } else if old > 1, let first = items.first {
-                category = first.category; subcategory = first.subcategory
-                amount = first.toman > 0 ? Money.persianDigits(Money.format(first.toman)) : ""
-                items = []
-            }
-        }
-        .onChange(of: checkCount) { old, new in
-            if new > 1 {
-                MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: date, number: checkNumber, sayad: sayadId))
-            } else if old > 1, let first = slots.first {
-                amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
-                date = first.due; checkNumber = first.number; sayadId = first.sayad
-                slots = []
-            }
-        }
-        .onChange(of: makesCheck) { _, check in if check && itemCount > 1 { itemCount = 1 } }
+        .onChange(of: makesCheck) { _, check in if check && itemCount > 1 { itemCountBinding.wrappedValue = 1 } }
     }
 
     /// New rows: every method (check / nasiyeh create linked reminders). Edits keep the row's own method selectable.
@@ -431,6 +411,39 @@ struct ExpenseFormView: View {
             payMethod = .hamrahbank
             cardId = model.defaultCard(accountId: accountId)
         }
+    }
+
+    /// the count and its rows change in one step (never a frame where they disagree)
+    private var itemCountBinding: Binding<Int> {
+        Binding(get: { itemCount }, set: { new in
+            let old = itemCount
+            guard new != old else { return }
+        if new > 1 {
+            if items.count != new {
+                MultiItemState.resize(&items, to: new, from: old, single: (category, subcategory, Fmt.parseAmount(amount)))
+            }
+        } else if old > 1, let first = items.first {
+            category = first.category; subcategory = first.subcategory
+            amount = first.toman > 0 ? Money.persianDigits(Money.format(first.toman)) : ""
+            items = []
+        }
+            itemCount = new
+        })
+    }
+    /// the count and its rows change in one step (never a frame where they disagree)
+    private var checkCountBinding: Binding<Int> {
+        Binding(get: { checkCount }, set: { new in
+            let old = checkCount
+            guard new != old else { return }
+        if new > 1 {
+            MultiCheckSections.resize(&slots, to: new, first: CheckSlot(amount: Fmt.parseAmount(amount), due: date, number: checkNumber, sayad: sayadId))
+        } else if old > 1, let first = slots.first {
+            amount = first.amount > 0 ? Money.persianDigits(Money.format(first.amount)) : ""
+            date = first.due; checkNumber = first.number; sayadId = first.sayad
+            slots = []
+        }
+            checkCount = new
+        })
     }
 
     private func save() {
@@ -553,7 +566,7 @@ struct LearnChips: View {
             return Learning.categoryCandidates(model.state, ctx, desc: desc)
         }()
         if !items.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
+            HScroll {
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles").font(.system(size: 13, weight: .semibold)).foregroundStyle(t.accent)
                     ForEach(items, id: \.self) { s in

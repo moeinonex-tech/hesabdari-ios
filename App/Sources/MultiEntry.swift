@@ -15,51 +15,62 @@ struct CountRow: View {
     let max: Int
     var disabled = false
     @Environment(\.theme) private var t
-    @State private var drag: CGFloat = 0          // finger travel not yet turned into steps
+    /// value shown while the finger is on the drum; the form only changes once, when the finger lifts
+    /// (changing the form under a moving finger is what made the page jump)
+    @State private var live: Int?
+    @State private var used: CGFloat = 0          // finger travel already turned into steps
     @State private var phase: CGFloat = 0         // drum line offset (follows the finger, springs back)
-    @State private var lastStep = Date.distantPast
-    private let stepPx: CGFloat = 22
+    private let stepPx: CGFloat = 20
     private let lineGap: CGFloat = 7
+
+    private var shown: Int { live ?? count }
 
     var body: some View {
         HStack(spacing: 10) {
             Text(title).font(AppFont.medium(15))
-            Spacer()
+            Spacer(minLength: 8)
             HStack(spacing: 8) {
                 drum
-                Text(Money.persianDigits(count))
+                Text(Money.persianDigits(shown))
                     .font(AppFont.heavy(19)).monospacedDigit()
-                    .contentTransition(.numericText(value: Double(count)))
+                    .contentTransition(.numericText(value: Double(shown)))
+                    .animation(.snappy(duration: 0.16), value: shown)
                     .frame(width: 40, height: 36)
                     .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(t.ink.opacity(0.06)))
                     .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(t.ink.opacity(0.12), lineWidth: 1))
             }
             .padding(5)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(t.ink.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(t.ink.opacity(0.08), lineWidth: 1))
             .contentShape(Rectangle())
             .highPriorityGesture(
-                DragGesture(minimumDistance: 3)
+                DragGesture(minimumDistance: 2, coordinateSpace: .global)
                     .onChanged { v in
                         guard !disabled else { return }
-                        let dy = -v.translation.height - drag          // up = more
-                        phase = (-v.translation.height).truncatingRemainder(dividingBy: lineGap * 2)
-                        if abs(dy) >= stepPx {
-                            let dir = dy > 0 ? 1 : -1
-                            drag += CGFloat(dir) * stepPx
-                            if Date().timeIntervalSince(lastStep) > 0.045 { step(dir) }
-                        }
+                        if live == nil { live = count; TactileClick.prepare() }
+                        let up = -v.translation.height                   // up = more
+                        phase = up.truncatingRemainder(dividingBy: lineGap * 2)
+                        while up - used >= stepPx { used += stepPx; bump(1) }
+                        while used - up >= stepPx { used -= stepPx; bump(-1) }
                     }
                     .onEnded { _ in
-                        drag = 0
+                        let final = live
+                        live = nil; used = 0
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) { phase = 0 }
+                        if let f = final, f != count { commit(f) }
                     }
             )
-            .onTapGesture { guard !disabled else { return }; step(1); nudge(1) }
+            .onTapGesture {
+                guard !disabled else { return }
+                let next = Swift.min(max, count + 1)
+                if next == count { endStop(); return }
+                TactileClick.play(); nudge(); commit(next)
+            }
             .opacity(disabled ? 0.5 : 1)
             .accessibilityElement()
             .accessibilityLabel(title)
             .accessibilityValue(Money.persianDigits(count))
-            .accessibilityAdjustableAction { d in step(d == .increment ? 1 : -1) }
+            .accessibilityAdjustableAction { d in commit(Swift.min(max, Swift.max(1, count + (d == .increment ? 1 : -1)))) }
         }
     }
 
@@ -82,20 +93,24 @@ struct CountRow: View {
         }
     }
 
-    private func nudge(_ dir: Int) {
-        phase = CGFloat(dir) * -lineGap
+    private func nudge() {
+        phase = -lineGap
         withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) { phase = 0 }
     }
 
-    private func step(_ d: Int) {
-        let next = Swift.min(max, Swift.max(1, count + d))
-        lastStep = Date()
-        guard next != count else {
-            UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.8)   // end stop
-            return
-        }
-        withAnimation(.snappy(duration: 0.18)) { count = next }
+    /// one detent while dragging: click + tick, a firmer bump at the ends
+    private func bump(_ d: Int) {
+        let cur = live ?? count
+        let next = Swift.min(max, Swift.max(1, cur + d))
+        if next == cur { endStop(); return }
+        live = next
         TactileClick.play()
+    }
+
+    private func endStop() { UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.8) }
+
+    private func commit(_ v: Int) {
+        withAnimation(.snappy(duration: 0.25)) { count = v }
     }
 }
 
@@ -108,6 +123,14 @@ enum TactileClick {
         haptic.selectionChanged()
         haptic.prepare()
     }
+    static func prepare() { haptic.prepare() }
+}
+
+/// binding to one field of row i that never reads or writes past the end (rows can disappear while SwiftUI still
+/// holds an old binding — that is what crashed / scrambled the form when the count went down)
+func safeBinding<E, V>(_ list: Binding<[E]>, _ i: Int, _ kp: WritableKeyPath<E, V>, _ fallback: V) -> Binding<V> {
+    Binding(get: { i < list.wrappedValue.count ? list.wrappedValue[i][keyPath: kp] : fallback },
+            set: { v in if i < list.wrappedValue.count { list.wrappedValue[i][keyPath: kp] = v } })
 }
 
 private func amountBinding(_ get: @escaping () -> Int, _ set: @escaping (Int) -> Void) -> Binding<String> {
@@ -128,15 +151,18 @@ struct MultiItemSections: View {
     @Environment(\.theme) private var t
 
     var body: some View {
-        ForEach(items.indices, id: \.self) { i in
+        ForEach(0..<items.count, id: \.self) { i in
+            let desc = safeBinding($items, i, \.desc, "")
+            let cat = safeBinding($items, i, \.category, "")
+            let sub = safeBinding($items, i, \.subcategory, "")
             Section {
-                TextField("شرح این قلم (اختیاری)", text: $items[i].desc)
-                SuggestField(title: "نوع هزینه", text: $items[i].category, suggestions: categories)
-                LearnChips(model: model, ctx: ctx, desc: items[i].desc.isEmpty ? mainDesc : items[i].desc,
-                           category: $items[i].category, subcategory: $items[i].subcategory, sub: false)
-                SuggestField(title: "زیردسته", text: $items[i].subcategory, suggestions: subcategories(items[i].category))
-                LearnChips(model: model, ctx: ctx, desc: items[i].desc.isEmpty ? mainDesc : items[i].desc,
-                           category: $items[i].category, subcategory: $items[i].subcategory, sub: true)
+                TextField("شرح این قلم (اختیاری)", text: desc)
+                SuggestField(title: "نوع هزینه", text: cat, suggestions: categories)
+                LearnChips(model: model, ctx: ctx, desc: desc.wrappedValue.isEmpty ? mainDesc : desc.wrappedValue,
+                           category: cat, subcategory: sub, sub: false)
+                SuggestField(title: "زیردسته", text: sub, suggestions: subcategories(cat.wrappedValue))
+                LearnChips(model: model, ctx: ctx, desc: desc.wrappedValue.isEmpty ? mainDesc : desc.wrappedValue,
+                           category: cat, subcategory: sub, sub: true)
                 AmountField(title: "مبلغ (تومان)", text: amountBinding({ i < items.count ? items[i].toman : 0 },
                                                                       { v in if i < items.count { items[i].toman = v } }))
             } header: {
@@ -192,13 +218,13 @@ struct MultiCheckSections: View {
     @Environment(\.theme) private var t
 
     var body: some View {
-        ForEach(slots.indices, id: \.self) { i in
+        ForEach(0..<slots.count, id: \.self) { i in
             Section {
                 AmountField(title: "مبلغ چک (تومان)", text: amountBinding({ i < slots.count ? slots[i].amount : 0 },
                                                                           { v in if i < slots.count { slots[i].amount = v } }))
-                JalaliDateField(title: "تاریخ سررسید", date: $slots[i].due)
-                TextField("شماره چک (سریال)", text: $slots[i].number).keyboardType(.numberPad)
-                if showSayad { TextField("شناسه صیاد (اختیاری)", text: $slots[i].sayad).keyboardType(.numberPad) }
+                JalaliDateField(title: "تاریخ سررسید", date: safeBinding($slots, i, \.due, jalaliToday()))
+                TextField("شماره چک (سریال)", text: safeBinding($slots, i, \.number, "")).keyboardType(.numberPad)
+                if showSayad { TextField("شناسه صیاد (اختیاری)", text: safeBinding($slots, i, \.sayad, "")).keyboardType(.numberPad) }
             } header: {
                 Text("چک " + Money.persianDigits(i + 1) + " از " + Money.persianDigits(slots.count)).font(AppFont.bold(13))
             }
