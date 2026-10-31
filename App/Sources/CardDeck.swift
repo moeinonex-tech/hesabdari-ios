@@ -213,6 +213,13 @@ struct DeckEditButton: View {
     }
 }
 
+/// pay method name for a row (web labels; personal «card» = پوز)
+func payTitle(_ m: String?) -> String? {
+    guard let m, !m.isEmpty else { return nil }
+    if m == "card" { return "پوز" }
+    return PayMethod(rawValue: m)?.title
+}
+
 // MARK: - rows card (web floating list): 5 rows visible, scroll inside, unfold to all; newest first, month separators
 
 struct RowsCardEntry<Row: Identifiable>: Identifiable {
