@@ -10,6 +10,8 @@
 	<string>automatic</string>
 	<key>manageAppVersionAndBuildNumber</key>
 	<false/>
+	<key>iCloudContainerEnvironment</key>
+	<string>Production</string>
 	<key>uploadSymbols</key>
 	<true/>
 </dict>

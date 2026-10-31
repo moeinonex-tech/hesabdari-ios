@@ -103,6 +103,19 @@ jobs:
           # Unsigned archive: no Apple Development certificate is created on every run (account limit).
           # The export below signs once with the cloud-managed distribution certificate.
 
+      - name: Embed entitlements
+        run: |
+          # An unsigned archive carries no entitlements, and the export re-signs with what the binary carries —
+          # so iCloud was silently dropped. Ad-hoc sign the app with its entitlements; the export keeps them.
+          APP=$(ls -d "$RUNNER_TEMP/Hesabdari.xcarchive/Products/Applications/"*.app | head -1)
+          if [ -f App/Hesabdari.entitlements ]; then
+            codesign --force --sign - --timestamp=none --entitlements App/Hesabdari.entitlements "$APP"
+            KEYS=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null | plutil -convert json -o - - 2>/dev/null | tr -d '\n' | head -c 600)
+            echo "::notice title=entitlements::$KEYS"
+          else
+            echo "::notice title=entitlements::no entitlements file (iCloud off)"
+          fi
+
       - name: Report archive errors
         if: failure()
         run: |

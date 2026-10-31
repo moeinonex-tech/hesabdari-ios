@@ -52,11 +52,20 @@ enum Backups {
         return url
     }
 
+    /// does the signed app carry the iCloud container entitlement? (looks inside its own code signature)
+    static let hasICloudEntitlement: Bool = {
+        guard let exe = Bundle.main.executableURL, let data = try? Data(contentsOf: exe, options: .alwaysMapped) else { return false }
+        return data.range(of: Data("com.apple.developer.ubiquity-container-identifiers".utf8)) != nil
+            || data.range(of: Data("com.apple.developer.icloud-container-identifiers".utf8)) != nil
+    }()
+
     static func copyToICloud(_ data: Data, name: String) {
         DispatchQueue.global(qos: .utility).async {
             let fm = FileManager.default
             guard let base = fm.url(forUbiquityContainerIdentifier: iCloudContainer) else {
-                DispatchQueue.main.async { UserDefaults.standard.set(0, forKey: lastICloudKey) }
+                // why: not signed in to iCloud Drive (no identity token) / this build lacks the iCloud permission / other
+                let code = fm.ubiquityIdentityToken == nil ? 0 : (hasICloudEntitlement ? -3 : -2)
+                DispatchQueue.main.async { UserDefaults.standard.set(code, forKey: lastICloudKey) }
                 return
             }
             let dir = base.appendingPathComponent("Documents", isDirectory: true)

@@ -1485,7 +1485,9 @@ struct SettingsView: View {
     private var iCloudText: String {
         switch lastICloud {
         case 1: return "ذخیره شد ✓"
-        case 0: return "در دسترس نیست (iCloud Drive خاموش است؟)"
+        case 0: return "گوشی به iCloud Drive وصل نیست"
+        case -2: return "این نسخه‌ی اپ مجوز آیکلود ندارد"
+        case -3: return "پوشه‌ی آیکلود اپ هنوز آماده نشده — دوباره امتحان کنید"
         case -1: return "ذخیره نشد"
         default: return "—"
         }
