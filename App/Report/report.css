@@ -115,3 +115,13 @@ body { font-family: 'Vazirmatn', -apple-system, sans-serif; direction: rtl; colo
 .bd-row .pc { font-size: 8px; color: var(--ink-soft); font-weight: 700; white-space: nowrap; }
 .bd-row .bar { grid-column: 1 / -1; height: 5px; margin: 0; border-radius: 3px; background: rgba(20,40,80,0.07); overflow: hidden; }
 .bd-row .bar > div { height: 100%; border-radius: 3px; }
+
+/* ---------- the app's own pages (paginate.js): every page an exact A4 box, 1 CSS px = 1 pt ---------- */
+body.paged { width: 595.28px; margin: 0; padding: 0; background: #E9EEF5; }
+.pg { position: relative; width: 595.28px; height: 841.89px; overflow: hidden;
+      background: linear-gradient(180deg, #ECF1F7 0%, #E7ECF4 100%); }
+.pg-content { position: absolute; display: flow-root; }
+.pg-content > .bd-title:not(:first-child) { margin-top: 14px; }
+.pg-pill { position: absolute; left: 50%; transform: translateX(-50%); width: 116px; display: flex; align-items: center;
+           justify-content: center; border-radius: 11px; background: rgba(255,255,255,0.9);
+           border: 0.8px solid rgba(20,40,80,0.10); font-weight: 700; font-size: 9px; color: #595C68; }

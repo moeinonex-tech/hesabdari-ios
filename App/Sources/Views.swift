@@ -146,13 +146,15 @@ struct UndoBanner: View {
 
 // MARK: - forms
 
-/// Date field with the app's own Jalali calendar (Iran time). The calendar opens as a small popover; «امروز»
-/// sits at its top centre with a «now» mark. Used everywhere a date is picked.
+/// Date field: the phone's own calendar (Persian, Iran time). Tapping the date opens it in a small popover with
+/// «امروز» at its top centre — away from the fields, so editing an old row never jumps to today by accident.
 struct JalaliDateField: View {
     let title: String
     @Binding var date: JalaliDate
     @State private var open = false
     @Environment(\.theme) private var t
+
+    private static let persian: Calendar = { var c = Calendar(identifier: .persian); c.timeZone = Fmt.tehran; return c }()
 
     var body: some View {
         HStack(spacing: 8) {
@@ -168,104 +170,33 @@ struct JalaliDateField: View {
                     .background(t.ink.opacity(0.08), in: Capsule())
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $open, arrowEdge: .top) {
-                JalaliCalendar(date: $date) { open = false }
-                    .presentationCompactAdaptation(.popover)
-            }
-        }
-    }
-}
-
-struct JalaliCalendar: View {
-    @Binding var date: JalaliDate
-    let onPick: () -> Void
-    @Environment(\.theme) private var t
-    @State private var shown: (jy: Int, jm: Int) = (1405, 1)
-    @State private var ready = false
-
-    private static let letters = ["ش", "ی", "د", "س", "چ", "پ", "ج"]
-
-    var body: some View {
-        let today = AppModel.today
-        let len = Jalali.monthLength(shown.jy, shown.jm)
-        let g = Jalali.toGregorian(JalaliDate(jy: shown.jy, jm: shown.jm, jd: 1))
-        let lead = Jalali.weekdaySat0(g.gy, g.gm, g.gd)
-        VStack(spacing: 10) {
-            // «today», top centre
-            Button {
-                Haptics.tap()
-                date = today
-                shown = (today.jy, today.jm)
-                onPick()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "smallcircle.filled.circle").font(.system(size: 12, weight: .semibold))
-                    Text("امروز").font(AppFont.bold(13))
-                }
-                .foregroundStyle(t.accent)
-                .padding(.horizontal, 12).padding(.vertical, 5)
-                .background(t.accent.opacity(0.12), in: Capsule())
-            }
-            .buttonStyle(.plain)
-            // month and year with previous / next (RTL: previous on the right)
-            HStack {
-                Button { step(-1) } label: { Image(systemName: "chevron.right").font(.system(size: 15, weight: .semibold)).frame(width: 34, height: 30) }
-                Spacer()
-                Text(BackupExporter.months[shown.jm - 1] + " " + Money.persianDigits(String(shown.jy)))
-                    .font(AppFont.bold(16)).foregroundStyle(t.ink)
-                    .contentTransition(.numericText())
-                Spacer()
-                Button { step(1) } label: { Image(systemName: "chevron.left").font(.system(size: 15, weight: .semibold)).frame(width: 34, height: 30) }
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(t.accent)
-            let cols = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
-            LazyVGrid(columns: cols, spacing: 4) {
-                ForEach(0..<7, id: \.self) { i in
-                    Text(Self.letters[i]).font(AppFont.medium(11)).foregroundStyle(i == 6 ? t.danger : t.soft).frame(height: 18)
-                }
-                ForEach(0..<(lead + len), id: \.self) { k in
-                    if k < lead {
-                        Color.clear.frame(height: 36)
-                    } else {
-                        let d = k - lead + 1
-                        let jd = JalaliDate(jy: shown.jy, jm: shown.jm, jd: d)
-                        let sel = jd == date, isToday = jd == today
-                        Button {
-                            UISelectionFeedbackGenerator().selectionChanged()
-                            date = jd
-                            onPick()
-                        } label: {
-                            Text(Money.persianDigits(String(d)))
-                                .font(sel ? AppFont.bold(15) : AppFont.medium(15))
-                                .foregroundStyle(sel ? .white : (k % 7 == 6 ? t.danger : t.ink))
-                                .frame(width: 36, height: 36)
-                                .background {
-                                    if sel { Circle().fill(t.accent) }
-                                    else if isToday { Circle().strokeBorder(t.accent, lineWidth: 1.5) }
-                                }
-                        }
-                        .buttonStyle(.plain)
+            .popover(isPresented: $open) {
+                VStack(spacing: 6) {
+                    Button {
+                        Haptics.tap()
+                        date = AppModel.today
+                        open = false
+                    } label: {
+                        Label("امروز", systemImage: "smallcircle.filled.circle")
+                            .font(AppFont.bold(13)).foregroundStyle(t.accent)
+                            .padding(.horizontal, 12).padding(.vertical, 5)
+                            .background(t.accent.opacity(0.12), in: Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .padding(.top, 10)
+                    DatePicker("", selection: Binding(get: { Fmt.date(date) }, set: { date = Fmt.jalali($0); open = false }),
+                               displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .environment(\.calendar, Self.persian)
+                        .environment(\.timeZone, Fmt.tehran)
+                        .environment(\.locale, Locale(identifier: "fa_IR"))
+                        .padding(.horizontal, 8)
                 }
+                .frame(width: 330)
+                .presentationCompactAdaptation(.popover)
             }
         }
-        .padding(14)
-        .frame(width: 320)
-        .environment(\.layoutDirection, .rightToLeft)
-        .onAppear {
-            guard !ready else { return }
-            ready = true
-            shown = (date.jy, date.jm)
-        }
-    }
-
-    private func step(_ d: Int) {
-        Haptics.tap()
-        var y = shown.jy, m = shown.jm + d
-        if m < 1 { m = 12; y -= 1 }
-        if m > 12 { m = 1; y += 1 }
-        withAnimation(.snappy) { shown = (y, m) }
     }
 }
 

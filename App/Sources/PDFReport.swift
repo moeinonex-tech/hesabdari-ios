@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import WebKit
+import PDFKit
 import HesabCore
 
 // PDF reports — the web app's .pdf-report (buildPdfReportEl) rebuilt as HTML with the same structure and the
@@ -72,8 +73,10 @@ enum ReportHTML {
         return h + "</body></html>"
     }
 }
-
 /// WebKit → A4 PDF. Paper colour fills every whole page; a glass pill with «صفحه i از n» sits at the bottom.
+/// The app's own PDF engine: paginate.js pours the report into exact A4 page boxes (1 CSS px = 1 pt), then every box
+/// becomes one PDF page through WebKit's snapshot-to-PDF — no print engine, no scaling, no slicing, the same layout
+/// every time.
 @MainActor
 final class HTMLPDF: NSObject, WKNavigationDelegate {
     static let paper = CGRect(x: 0, y: 0, width: 595.28, height: 841.89)
@@ -86,75 +89,54 @@ final class HTMLPDF: NSObject, WKNavigationDelegate {
     }
 
     private func run(_ html: String) async throws -> Data {
-        let printable = Self.paper.inset(by: UIEdgeInsets(top: 26, left: 24, bottom: 46, right: 24))
-        let w = WKWebView(frame: CGRect(x: 0, y: 0, width: printable.width, height: printable.height))
+        let w = WKWebView(frame: CGRect(x: 0, y: 0, width: Self.paper.width, height: Self.paper.height))
         w.isOpaque = false
         w.backgroundColor = .clear
+        w.scrollView.contentInsetAdjustmentBehavior = .never
         w.navigationDelegate = self
         web = w
+        // WebKit renders reliably only inside a window: park the view off screen while it works
+        let host = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+        let park = UIView(frame: CGRect(x: -20_000, y: 0, width: Self.paper.width, height: Self.paper.height))
+        park.isUserInteractionEnabled = false
+        park.clipsToBounds = false
+        host?.addSubview(park)
+        park.addSubview(w)
+        defer { w.removeFromSuperview(); park.removeFromSuperview(); web = nil }
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             loaded = c
             w.loadHTMLString(html, baseURL: nil)
         }
         _ = try? await w.callAsyncJavaScript("await document.fonts.ready; return 1", contentWorld: .page)
-        // exact page breaks: nothing may straddle a page edge (the print engine slices blindly)
-        if let url = Bundle.main.url(forResource: "paginate", withExtension: "js"), let js = try? String(contentsOf: url, encoding: .utf8) {
-            _ = try? await w.evaluateJavaScript(js)
-            _ = try? await w.callAsyncJavaScript("return window.paginate(h)", arguments: ["h": Double(printable.height)], contentWorld: .page)
+        guard let url = Bundle.main.url(forResource: "paginate", withExtension: "js"),
+              let js = try? String(contentsOf: url, encoding: .utf8) else { throw CocoaError(.fileNoSuchFile) }
+        _ = try? await w.evaluateJavaScript(js)
+        let n = (try? await w.callAsyncJavaScript("return window.paginate()", contentWorld: .page) as? Int) ?? 1
+        let pages = max(1, n)
+        // the whole stack of pages inside the view, so every page box can be captured
+        w.frame = CGRect(x: 0, y: 0, width: Self.paper.width, height: Self.paper.height * CGFloat(pages))
+        park.frame.size.height = w.frame.height
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        _ = try? await w.callAsyncJavaScript("await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); return 1", contentWorld: .page)
+
+        let out = PDFDocument()
+        for k in 0..<pages {
+            let cfg = WKPDFConfiguration()
+            cfg.rect = CGRect(x: 0, y: Self.paper.height * CGFloat(k), width: Self.paper.width, height: Self.paper.height)
+            let data = try await w.pdf(configuration: cfg)
+            guard let doc = PDFDocument(data: data) else { continue }
+            for p in 0..<doc.pageCount {
+                if let page = doc.page(at: p) { out.insert(page, at: out.pageCount) }
+            }
         }
-        let renderer = PagedRenderer()
-        renderer.addPrintFormatter(w.viewPrintFormatter(), startingAtPageAt: 0)
-        renderer.setValue(NSValue(cgRect: Self.paper), forKey: "paperRect")
-        renderer.setValue(NSValue(cgRect: printable), forKey: "printableRect")
-        renderer.prepare(forDrawingPages: NSRange(location: 0, length: 1))
-        let pages = renderer.numberOfPages
-        renderer.total = pages
-        let data = NSMutableData()
-        UIGraphicsBeginPDFContextToData(data, Self.paper, nil)
-        for i in 0..<pages {
-            UIGraphicsBeginPDFPage()
-            renderer.drawPage(at: i, in: UIGraphicsGetPDFContextBounds())
-        }
-        UIGraphicsEndPDFContext()
-        web = nil
-        return data as Data
+        guard let data = out.dataRepresentation() else { throw CocoaError(.fileWriteUnknown) }
+        return data
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { loaded?.resume(); loaded = nil }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { loaded?.resume(throwing: error); loaded = nil }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         loaded?.resume(throwing: error); loaded = nil
-    }
-
-    final class PagedRenderer: UIPrintPageRenderer {
-        var total = 1
-        override var footerHeight: CGFloat { get { 40 } set {} }
-
-        override func drawPage(at pageIndex: Int, in printableRect: CGRect) {
-            // neutral-blue paper over the whole page, with a faint light at the top
-            if let ctx = UIGraphicsGetCurrentContext() {
-                let page = HTMLPDF.paper
-                let cs = CGColorSpaceCreateDeviceRGB()
-                let top = UIColor(red: 0.925, green: 0.945, blue: 0.97, alpha: 1), bottom = UIColor(red: 0.905, green: 0.925, blue: 0.955, alpha: 1)
-                if let g = CGGradient(colorsSpace: cs, colors: [top.cgColor, bottom.cgColor] as CFArray, locations: [0, 1]) {
-                    ctx.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: page.height), options: [])
-                }
-            }
-            super.drawPage(at: pageIndex, in: printableRect)
-        }
-
-        override func drawFooterForPage(at pageIndex: Int, in footerRect: CGRect) {
-            let text = "صفحه " + Money.persianDigits(pageIndex + 1) + " از " + Money.persianDigits(total)
-            let p = NSMutableParagraphStyle(); p.alignment = .center; p.baseWritingDirection = .rightToLeft
-            let a = NSAttributedString(string: text, attributes: [
-                .font: UIFont(name: "Vazirmatn-Bold", size: 9) ?? .systemFont(ofSize: 9, weight: .bold),
-                .foregroundColor: UIColor(red: 0.35, green: 0.36, blue: 0.41, alpha: 1), .paragraphStyle: p])
-            let pill = CGRect(x: HTMLPDF.paper.midX - 58, y: HTMLPDF.paper.height - 34, width: 116, height: 22)
-            let path = UIBezierPath(roundedRect: pill, cornerRadius: 11)
-            UIColor.white.withAlphaComponent(0.9).setFill(); path.fill()
-            UIColor(red: 0.08, green: 0.16, blue: 0.31, alpha: 0.10).setStroke(); path.lineWidth = 0.8; path.stroke()
-            a.draw(in: CGRect(x: pill.minX, y: pill.minY + 4, width: pill.width, height: 14))
-        }
     }
 }
 
