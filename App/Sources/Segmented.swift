@@ -75,12 +75,11 @@ private struct PageSwipe<T: Hashable>: ViewModifier {
     let order: [T]
     let enabled: Bool
     @Environment(\.layoutDirection) private var dir
-    @State private var pull: CGFloat = 0
     @State private var decided: Bool?          // nil = not yet known, true = horizontal swipe, false = something else
 
     func body(content: Content) -> some View {
+        // no offset / rubber band: moving the whole page (with its background) is what stretched it; the page just flips
         content
-            .offset(x: pull)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 20, coordinateSpace: .global)
                     .onChanged { v in
@@ -90,12 +89,9 @@ private struct PageSwipe<T: Hashable>: ViewModifier {
                             if dx > 20 || dy > 20 { decided = dx > dy * 1.8 && !PagingGuard.busy }
                         }
                         guard decided == true else { return }
-                        // the page follows the finger a little (rubber band), the real move happens on release
-                        let canGo = target(v.translation.width) != nil
-                        pull = v.translation.width * (canGo ? 0.22 : 0.08)
                     }
                     .onEnded { v in
-                        defer { decided = nil; withAnimation(.spring(duration: 0.3, bounce: 0.25)) { pull = 0 } }
+                        defer { decided = nil }
                         guard enabled, decided == true, !PagingGuard.busy else { return }
                         let dx = v.translation.width, predicted = v.predictedEndTranslation.width
                         guard abs(dx) > 60 || abs(predicted) > 160, let next = target(abs(dx) > 60 ? dx : predicted) else { return }

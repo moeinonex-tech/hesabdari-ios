@@ -7,7 +7,7 @@ import HesabCore
 // Touch handling is done once, by position, for the whole capsule (no per-button hit areas that can overlap):
 //   • the slot under the finger lights up while pressing, and you can slide across to another one;
 //   • lifting the finger selects that slot; tapping the page you are already on scrolls it to the top;
-//   • holding ~0.4 s opens that slot's mini dock (home → کیف کارت, دفتر حساب → switch ledger) with haptics.
+//   • a double tap on «دفتر حساب» opens the mini dock of ledgers (switch ledger), with haptics.
 // «گزارش‌ها» opens the report that matches the page you came from (home → overall, ledger → that ledger,
 // personal → personal, reminders → reminders).
 // Pages stay alive and cross-fade over the same background (no white flash). The dock sits over the content;
@@ -150,8 +150,7 @@ struct Dock: View {
     private let items: [AppTab] = [.home, .ledger, .personal, .cards, .reminders]
     @State private var pressed: Int?
     @State private var menu: AppTab?
-    @State private var holdTask: Task<Void, Never>?
-    @State private var menuOpenedByHold = false
+    @State private var lastLedgerTap = Date.distantPast
     @State private var reportsPressed = false
     @State private var holdHaptic = UIImpactFeedbackGenerator(style: .medium)
 
@@ -208,7 +207,7 @@ struct Dock: View {
                         Image(systemName: pack.icon(item))
                             .symbolVariant(on ? .fill : .none)
                             // the page «گزارش‌ها» was opened from breathes in step with the reports button
-                            .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(0.8), isActive: on && tab == .reports)
+                            .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(1.2), isActive: on && tab == .reports)
                             .font(.system(size: 20, weight: on ? .semibold : .regular))
                             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
                             .scaleEffect(pressed == i ? 1.18 : 1)
@@ -227,24 +226,39 @@ struct Dock: View {
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .local)
                     .onChanged { v in
-                        if v.location.y < -40 || v.location.y > height + 30 { pressed = nil; holdTask?.cancel(); return }
+                        if v.location.y < -40 || v.location.y > height + 30 { pressed = nil; return }
                         let i = slot(at: v.location.x, slotW: slotW)
                         if pressed == nil {
                             holdHaptic.prepare()
                             UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.6)
-                            startHold(for: i)
                         } else if i != pressed {
                             UISelectionFeedbackGenerator().selectionChanged()
-                            startHold(for: i)
                         }
                         pressed = i
                     }
                     .onEnded { _ in
-                        holdTask?.cancel()
                         defer { pressed = nil }
-                        if menuOpenedByHold { menuOpenedByHold = false; return }
                         guard let i = pressed else { return }
                         if menu != nil { closeMenu() }
+                        // double tap on «دفتر حساب» (with more than one ledger) → ledger switcher
+                        if items[i] == .ledger, model.accounts.count > 1 {
+                            if Date().timeIntervalSince(lastLedgerTap) < 0.32 {
+                                lastLedgerTap = .distantPast
+                                holdHaptic.impactOccurred()
+                                menu = .ledger
+                                return
+                            }
+                            let stamp = Date()
+                            lastLedgerTap = stamp
+                            if tab == .ledger {
+                                // already here: scroll to top only if no second tap follows
+                                Task { @MainActor in
+                                    try? await Task.sleep(nanoseconds: 330_000_000)
+                                    if lastLedgerTap == stamp { onReselect(.ledger) }
+                                }
+                                return
+                            }
+                        }
                         select(items[i])
                     }
             )
@@ -258,18 +272,6 @@ struct Dock: View {
         let fromLeft = Int(((x - 5) / max(1, slotW)).rounded(.down))
         let clamped = min(items.count - 1, max(0, fromLeft))
         return items.count - 1 - clamped          // RTL
-    }
-
-    private func startHold(for i: Int) {
-        holdTask?.cancel()
-        guard items[i] == .ledger, model.accounts.count > 1 else { return }
-        holdTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard !Task.isCancelled, pressed == i else { return }
-            holdHaptic.impactOccurred()
-            menuOpenedByHold = true
-            menu = .ledger
-        }
     }
 
     private func select(_ new: AppTab) {
@@ -297,7 +299,7 @@ struct Dock: View {
         let on = tab == .reports
         return Image(systemName: pack.icon(.reports))
             .symbolVariant(on ? .fill : .none)
-            .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(0.8), isActive: on && reportsFrom != nil)
+            .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(1.2), isActive: on && reportsFrom != nil)
             .font(.system(size: 20, weight: on ? .semibold : .regular))
             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
             .scaleEffect(reportsPressed ? 1.15 : 1)
