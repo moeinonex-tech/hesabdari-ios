@@ -237,7 +237,7 @@ struct PersonalView: View {
         let rows = showIncome ? model.incomeRows : model.personalRows
         let total = rows.reduce(0) { $0 + $1.toman }
         PageScrollView(tab: .personal) {
-            LazyVStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16) {   // not Lazy: a lazy stack kept the old height after a page switch
                 HStack(alignment: .top) {
                     ScreenHeader(title: showIncome ? "درآمد" : "دفتر شخصی", subtitle: showIncome ? "همه‌ی درآمدها" : "هزینه‌های شخصی")
                     DeckEditButton(editing: $editingCards).padding(.top, 8)
@@ -611,7 +611,7 @@ struct RemindersView: View {
         let pending = checks.filter { $0.status == "pending" }
         let done = checks.filter { $0.status != "pending" }
         PageScrollView(tab: .reminders) {
-            LazyVStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "یادآوری‌ها", subtitle: "چک‌ها، بدهکاران و طلبکاران، قرارها")
                     Menu {

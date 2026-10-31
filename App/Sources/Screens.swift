@@ -817,7 +817,7 @@ struct LedgerHomeView: View {
     var body: some View {
         let account = model.accounts.first { $0.id == accountId }
         PageScrollView(tab: .ledger) {
-            LazyVStack(alignment: .leading, spacing: 16, pinnedViews: []) {
+            VStack(alignment: .leading, spacing: 16) {   // not Lazy: a lazy stack kept the old height after a page switch
                 HStack(alignment: .top) {
                     ScreenHeader(title: "دفتر حساب", subtitle: account?.name ?? "")
                     HStack(spacing: 8) {

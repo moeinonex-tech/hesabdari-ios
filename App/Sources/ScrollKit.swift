@@ -60,6 +60,13 @@ enum ScrollRegistry {
     /// after a page switch the content can be much shorter than where the page was scrolled to, which left an empty
     /// screen "below the end"; bring the offset back inside the new content
     static func clamp(_ tab: AppTab) {
+        if let sv = views[tab]?.sv, sv.window != nil {
+            let top = -sv.adjustedContentInset.top
+            if sv.contentOffset.y > top + 1 {
+                sv.setContentOffset(sv.contentOffset, animated: false)       // stop any glide
+                sv.setContentOffset(CGPoint(x: sv.contentOffset.x, y: top), animated: false)
+            }
+        }
         for delay in [0.05, 0.25, 0.6] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard let sv = views[tab]?.sv, sv.window != nil, !sv.isDragging else { return }
