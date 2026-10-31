@@ -1,11 +1,11 @@
 // Exact A4 pagination before printing. The iOS print engine cuts the page into slices of the printable height
 // and ignores break-inside, so this pass moves every block that would straddle a page edge to the next page
-// (with a spacer), repeats the table header on top of a new page, and lays out «.bd-flow» lists in 1–3 columns
+// (with a spacer), keeps the table header on the first page only, and lays out «.bd-flow» lists in 1–3 columns
 // filled top-to-bottom, then the next column (column-major), page by page.
 // H = printable page height in CSS px (1 CSS px = 1 pt in the iOS renderer).
 window.paginate = function (H) {
   const body = document.body;
-  const EPS = 1;
+  const EPS = 0;   // strict page edges (pushed blocks sit 0.5 px below an edge)
   const top = el => el.getBoundingClientRect().top + window.scrollY;
   const bottom = el => el.getBoundingClientRect().bottom + window.scrollY;
   const pageOf = y => Math.floor((y + EPS) / H);
@@ -19,7 +19,8 @@ window.paginate = function (H) {
     s.style.height = '1px';
     s.style.height = Math.max(1, 1.5 + target - top(el)) + 'px';   // +0.5: never a sub-pixel short of the edge
   }
-  const crosses = el => { const t = top(el), b = bottom(el); return pageOf(t) !== pageOf(b - EPS * 2) && b - t <= H; };
+  // strict: even a fraction of a point above the edge counts (it would print as a sliver at the page bottom)
+  const crosses = el => { const t = top(el), b = bottom(el); return Math.floor(t / H) !== Math.floor((b - 0.5) / H) && b - t <= H; };
 
   // ---- breakdown flows → page-aware column sets ----
   function layoutFlow(flow) {
@@ -87,7 +88,6 @@ window.paginate = function (H) {
 
   // ---- generic pass, in document order ----
   const ATOMIC = '.hdr,.head,.row,.empty,.total,.card,.bd-title,.bd-top,.bd-colset,.blk';
-  let lastHead = null;
   const walk = () => Array.from(body.querySelectorAll(ATOMIC + ',.bd-flow,.newpage'));
   let list = walk();
   for (let idx = 0; idx < list.length; idx++) {
@@ -104,17 +104,13 @@ window.paginate = function (H) {
       if (top(el) % H > 2 && !el.dataset.done) { el.dataset.done = '1'; pushToNextPage(el); }
       if (!el.matches(ATOMIC)) continue;
     }
-    if (el.classList.contains('head')) lastHead = el;
     if (el.closest('.bd-colset') && !el.classList.contains('bd-colset')) continue;
-    if (crosses(el)) {
-      if (el.classList.contains('row') && lastHead) {
-        // a row moving to a new page brings the table header with it
-        const h = lastHead.cloneNode(true);
-        el.parentNode.insertBefore(h, el);
-        pushToNextPage(h);
-      } else {
-        pushToNextPage(el);
-      }
+    // the table header appears once, on the first page; rows that would straddle a page edge start the next page
+    if (crosses(el)) pushToNextPage(el);
+    // the header never stays alone at the bottom of a page: it moves down together with its first row
+    if (el.classList.contains('head')) {
+      const next = el.nextElementSibling;
+      if (next && next.classList.contains('row') && pageOf(top(next)) === pageOf(top(el)) && crosses(next)) pushToNextPage(el);
     }
     // a section title must not be left alone at the bottom of a page
     if (el.classList.contains('bd-title')) {

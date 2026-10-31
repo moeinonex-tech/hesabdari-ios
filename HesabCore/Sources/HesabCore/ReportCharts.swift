@@ -84,8 +84,8 @@ public enum ReportCharts {
 
     /// web renderCommissionCompareChart: accrued-to-date per commission-enabled account.
     public static func commissionCompare(_ accounts: [AccountImportSummary]) -> [(name: String, value: Int)] {
-        // everything accrued to date = what was paid + what is still owed (not only the current stage)
-        accounts.filter { $0.commissionEnabled && $0.percent > 0 }.map { ($0.name, $0.settled + $0.remaining) }.filter { $0.1 > 0 }
+        // what has actually been paid to date (the user's rule: no amount still owed in this card)
+        accounts.filter { $0.commissionEnabled && $0.percent > 0 }.map { ($0.name, $0.settled) }.filter { $0.1 > 0 }
             .enumerated().sorted { $0.element.1 != $1.element.1 ? $0.element.1 > $1.element.1 : $0.offset < $1.offset }
             .map { (name: $0.element.0, value: $0.element.1) }
     }

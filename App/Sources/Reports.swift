@@ -303,8 +303,8 @@ struct ReportsView: View {
             cards.append(DeckCard("accounts", "مقایسه‌ی هزینه‌ی دفترها", "chart.bar") { CompareBarCard(title: "مقایسه‌ی هزینه‌ی دفترها", data: ac, color: t.accent) })
         }
         if !cc.isEmpty {
-            cards.append(DeckCard("commissionCompare", "کمیسیون تعلق‌گرفته‌ی هر دفتر", "percent") {
-                CompareBarCard(title: "کمیسیون تعلق‌گرفته‌ی هر دفتر (تا امروز)", data: cc, color: t.accent2)
+            cards.append(DeckCard("commissionCompare", "کمیسیون پرداخت‌شده‌ی هر دفتر", "percent") {
+                CompareBarCard(title: "کمیسیون پرداخت‌شده‌ی هر دفتر (تا امروز)", data: cc, color: t.accent2)
             })
         }
         if !withCommission.isEmpty {

@@ -820,11 +820,8 @@ struct LedgerHomeView: View {
             VStack(alignment: .leading, spacing: 16) {   // not Lazy: a lazy stack kept the old height after a page switch
                 HStack(alignment: .top) {
                     ScreenHeader(title: "دفتر حساب", subtitle: account?.name ?? "")
-                    HStack(spacing: 8) {
-                        if account != nil && !showIncome { DeckEditButton(editing: $editingCards) }
-                        HeaderIconButton(icon: "slider.horizontal.3") { Haptics.tap(); showManage = true }
-                    }
-                    .padding(.top, 8)
+                    // ledger management opens from the «+» next to the ledger names (one button per job)
+                    if account != nil && !showIncome { DeckEditButton(editing: $editingCards).padding(.top, 8) }
                 }
 
                 HScroll {

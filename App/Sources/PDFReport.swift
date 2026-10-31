@@ -42,7 +42,7 @@ enum ReportHTML {
                      empty: String, totalLabel: String, total: Int, cards: [Card]) -> String {
         var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><style>" + css + "</style></head><body>"
         h += "<div class=\"hdr\"><div><div class=\"title\">" + esc(title) + "</div><div class=\"sub\">" + esc(subtitle) + "</div></div>"
-        if !legend.isEmpty {
+        if false && !legend.isEmpty {     // the pay-method legend is no longer printed (icons + names are in the rows)
             h += "<div class=\"legend\"><div class=\"legend-title\">راهنمای آیکون روش پرداخت</div><div class=\"legend-items\">"
             for (icon, label) in legend {
                 h += "<span class=\"legend-item\"><span class=\"ic\">" + (icons[icon] ?? "") + "</span>" + esc(label) + "</span>"
