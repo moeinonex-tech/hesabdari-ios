@@ -161,6 +161,7 @@ struct CardDeck: View {
                     UISelectionFeedbackGenerator().selectionChanged()
                     withAnimation(.spring(duration: 0.28, bounce: 0.2)) { liveOrder = o }
                 }
+            }
             .onEnded { _ in
                 if let o = liveOrder {
                     var l = layout
