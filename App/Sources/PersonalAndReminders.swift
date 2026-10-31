@@ -229,6 +229,7 @@ struct PersonalView: View {
     @ObservedObject var model: AppModel
     @Environment(\.theme) private var t
     @State private var showIncome = false
+    @State private var editingCards = false
     @State private var sheet: PersonalSheet?
     @State private var showBudget = false
 
@@ -237,65 +238,14 @@ struct PersonalView: View {
         let total = rows.reduce(0) { $0 + $1.toman }
         PageScrollView(tab: .personal) {
             LazyVStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: showIncome ? "درآمد" : "دفتر شخصی", subtitle: showIncome ? "همه‌ی درآمدها" : "هزینه‌های شخصی")
+                HStack(alignment: .top) {
+                    ScreenHeader(title: showIncome ? "درآمد" : "دفتر شخصی", subtitle: showIncome ? "همه‌ی درآمدها" : "هزینه‌های شخصی")
+                    DeckEditButton(editing: $editingCards).padding(.top, 8)
+                }
                 Segmented(selection: $showIncome.animation(.snappy), [(false, "هزینه‌های شخصی"), (true, "درآمد")])
 
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text(showIncome ? "جمع درآمدها" : "جمع هزینه‌ها").font(AppFont.regular(13)).foregroundStyle(t.soft)
-                        Spacer()
-                        if !showIncome {
-                            Button { showBudget = true } label: {
-                                Label(model.personalBudget > 0 ? "بودجه" : "تنظیم بودجه", systemImage: "target").font(AppFont.caption)
-                            }
-                            .buttonStyle(.glass)
-                        }
-                    }
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(Money.persianDigits(Money.format(total))).font(AppFont.heavy(30))
-                            .foregroundStyle(showIncome ? t.success : t.accent).contentTransition(.numericText())
-                        Text("تومان").font(AppFont.regular(13)).foregroundStyle(t.soft)
-                    }
-                    if !showIncome && model.personalBudget > 0 {
-                        let pct = min(1, Double(total) / Double(model.personalBudget))
-                        GradientBar(value: pct, from: t.accent, to: pct >= 0.8 ? t.warning : t.accent2)
-                        Text("\(Money.persianDigits(Money.jsRound(pct * 100)))٪ از بودجه‌ی " + Fmt.toman(model.personalBudget))
-                            .font(AppFont.caption).foregroundStyle(t.soft)
-                    }
-                    Button {
-                        sheet = showIncome ? .newIncome : .newExpense
-                    } label: {
-                        Label(showIncome ? "ثبت درآمد" : "ثبت هزینه", systemImage: "plus")
-                            .font(AppFont.bold(15)).frame(maxWidth: .infinity).padding(.vertical, 4)
-                    }
-                    .buttonStyle(.glassProminent)
-                }
-                .glassCard()
-
-                let st = model.statItems(showIncome ? "incomes" : "personalExpenses")
-                let s = model.breakdown(st, kind: showIncome ? .income : .expense)
-                let sub = model.breakdown(st, kind: showIncome ? .income : .expense, sub: true)
-                let colors = model.colorMap(s)
-                let scope = showIncome ? "درآمد" : "دفتر شخصی"
-                if !s.isEmpty { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }
-                if !sub.isEmpty { SubcategoryChartCard(slices: sub, model: model, scope: scope) }
-
-                if rows.isEmpty {
-                    Text("هنوز ردیفی نیست").font(AppFont.regular(14)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(30)
-                } else {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(rows) { r in
-                            SimpleRowLine(row: r, income: showIncome, color: colors[r.category.isEmpty ? "بدون دسته" : r.category])
-                                .onTapGesture { open(r) }
-                                .contextMenu {
-                                    Button { open(r) } label: { Label("ویرایش", systemImage: "pencil") }
-                                    Button(role: .destructive) { remove(r) } label: { Label("حذف", systemImage: "trash") }
-                                }
-                            if r.id != rows.last?.id { Divider().opacity(0.5) }
-                        }
-                    }
-                    .glassCard()
-                }
+                CardDeck(page: showIncome ? "income" : "personal", editing: $editingCards, cards: personalCards(rows: rows, total: total))
+                    .id(showIncome)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
@@ -325,6 +275,62 @@ struct PersonalView: View {
         }
     }
 
+    /// summary, charts and the rows of the personal ledger (or the incomes) as movable / removable cards
+    private func personalCards(rows: [SimpleRowVM], total: Int) -> [DeckCard] {
+        let st = model.statItems(showIncome ? "incomes" : "personalExpenses")
+        let s = model.breakdown(st, kind: showIncome ? .income : .expense)
+        let sub = model.breakdown(st, kind: showIncome ? .income : .expense, sub: true)
+        let colors = model.colorMap(s)
+        let scope = showIncome ? "درآمد" : "دفتر شخصی"
+        var cards: [DeckCard] = [DeckCard("summary", showIncome ? "جمع درآمدها و ثبت" : "جمع هزینه‌ها و ثبت", "sum") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(showIncome ? "جمع درآمدها" : "جمع هزینه‌ها").font(AppFont.regular(13)).foregroundStyle(t.soft)
+                    Spacer()
+                    if !showIncome {
+                        Button { showBudget = true } label: {
+                            Label(model.personalBudget > 0 ? "بودجه" : "تنظیم بودجه", systemImage: "target").font(AppFont.caption)
+                        }
+                        .buttonStyle(.glass)
+                    }
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(Money.persianDigits(Money.format(total))).font(AppFont.heavy(30))
+                        .foregroundStyle(showIncome ? t.success : t.accent).contentTransition(.numericText())
+                    Text("تومان").font(AppFont.regular(13)).foregroundStyle(t.soft)
+                }
+                if !showIncome && model.personalBudget > 0 {
+                    let pct = min(1, Double(total) / Double(model.personalBudget))
+                    GradientBar(value: pct, from: t.accent, to: pct >= 0.8 ? t.warning : t.accent2)
+                    Text("\(Money.persianDigits(Money.jsRound(pct * 100)))٪ از بودجه‌ی " + Fmt.toman(model.personalBudget))
+                        .font(AppFont.caption).foregroundStyle(t.soft)
+                }
+                Button {
+                    sheet = showIncome ? .newIncome : .newExpense
+                } label: {
+                    Label(showIncome ? "ثبت درآمد" : "ثبت هزینه", systemImage: "plus")
+                        .font(AppFont.bold(15)).frame(maxWidth: .infinity).padding(.vertical, 4)
+                }
+                .buttonStyle(.glassProminent)
+            }
+            .glassCard()
+        }]
+        if !s.isEmpty { cards.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }) }
+        if !sub.isEmpty { cards.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: sub, model: model, scope: scope) }) }
+        cards.append(DeckCard("rows", showIncome ? "درآمدها" : "هزینه‌ها", "list.bullet.rectangle") {
+            RowsCard(title: showIncome ? "درآمدها" : "هزینه‌ها", total: Fmt.count(rows.count) + " ردیف", rows: rows, date: \.dateValue,
+                     amount: \.toman, empty: "هنوز ردیفی نیست") { r in
+                SimpleRowLine(row: r, income: showIncome, color: colors[r.category.isEmpty ? "بدون دسته" : r.category])
+                    .onTapGesture { open(r) }
+                    .contextMenu {
+                        Button { open(r) } label: { Label("ویرایش", systemImage: "pencil") }
+                        Button(role: .destructive) { remove(r) } label: { Label("حذف", systemImage: "trash") }
+                    }
+            }
+        })
+        return cards
+    }
+
     private func open(_ r: SimpleRowVM) {
         if showIncome {
             if r.isCommission { model.errorMessage = LedgerError.commissionIncome.message; return }
@@ -351,11 +357,12 @@ struct SimpleRowLine: View {
         HStack(spacing: 10) {
             Circle().fill(color ?? (income ? t.success : t.accent)).frame(width: 10, height: 10)
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(2)
+                Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(1)
                 HStack(spacing: 6) {
                     if row.itemCount > 1 { InvoiceTag(count: row.itemCount) }
                     if !row.category.isEmpty { Text(row.category) }
                     Text(row.date)
+                    if !income, let p = payTitle(row.payMethod) { Text("· " + p) }
                     if income && row.accountLink != "personal" && !row.accountName.isEmpty { Text("· " + row.accountName) }
                     if row.isCommission || row.isLinked { Image(systemName: "link") }
                 }

@@ -772,12 +772,13 @@ struct LedgerRowLine: View {
                 .fill(row.kind == .commission ? Color.purple : (row.kind == .tankhah ? t.success : (color ?? t.accent)))
                 .frame(width: 10, height: 10)
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(2)
+                Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(1)
                 HStack(spacing: 6) {
                     if let s = subtitle, !s.isEmpty { Text(s) }
                     if row.itemCount > 1 { InvoiceTag(count: row.itemCount) }
                     if !row.category.isEmpty { Text(row.category) }
                     Text(row.date)
+                    if let p = payTitle(row.payMethod) { Text("· " + p) }
                     if row.kind == .tankhah { Text("تنخواه").foregroundStyle(t.success) }
                     if row.isLinked { Image(systemName: "link") }
                 }
@@ -819,7 +820,7 @@ struct LedgerHomeView: View {
     @State private var showPartyReport = false
     @State private var showIncome = false
     @State private var incomeSheet: PersonalSheet?
-    @State private var showAllRows = false
+    @State private var editingCards = false
     @State private var showPassword = false
     @State private var password = ""
 
@@ -831,6 +832,7 @@ struct LedgerHomeView: View {
             LazyVStack(alignment: .leading, spacing: 16, pinnedViews: []) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "دفتر حساب", subtitle: account?.name ?? "")
+                    if account != nil && !showIncome { DeckEditButton(editing: $editingCards).padding(.top, 8) }
                     Button {
                         Haptics.tap()
                         showManage = true
@@ -880,79 +882,7 @@ struct LedgerHomeView: View {
                 }
 
                 if let a = account, !showIncome {
-                    LedgerHero(account: a, budget: model.budget(accountId: a.id), onBudget: { budgetAccount = a.id }) { sheet = .new }
-                    if a.commissionEnabled || a.percent != 0 {
-                        CommissionCard(account: a) { sheet = .settle }
-                    }
-                    if model.hasTankhah(a.id) {
-                        Button {
-                            Haptics.tap()
-                            showPartyReport = true
-                        } label: {
-                            Label("تنخواه به تفکیک طرف حساب", systemImage: "person.2.fill")
-                                .font(AppFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 4)
-                        }
-                        .buttonStyle(.glass)
-                    }
-                    let items = model.statItems("expenses", accountId: a.id)
-                    let slices = model.breakdown(items, kind: .expense)
-                    let subs = model.breakdown(items, kind: .expense, sub: true)
-                    let colors = model.colorMap(slices)
-                    if !slices.isEmpty { CategoryChartCard(slices: slices, subs: subs, model: model, scope: a.name) }
-                    if !subs.isEmpty { SubcategoryChartCard(slices: subs, model: model, scope: a.name) }
-
-                    // this month: the latest 5 rows; older months stay folded
-                    let today = AppModel.today
-                    let all = model.rows(accountId: a.id)
-                    let thisMonth = Array(all.filter { $0.dateValue.jy == today.jy && $0.dateValue.jm == today.jm }.reversed())
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("تراکنش‌های " + BackupExporter.months[today.jm - 1]).font(AppFont.bold(15)).foregroundStyle(t.ink)
-                            Spacer()
-                            Text(Fmt.toman(thisMonth.reduce(0) { $0 + ($1.kind == .tankhah ? 0 : $1.toman) }))
-                                .font(AppFont.medium(13)).foregroundStyle(t.soft)
-                        }
-                        .padding(.bottom, 4)
-                        if thisMonth.isEmpty {
-                            Text("این ماه هنوز تراکنشی ثبت نشده").font(AppFont.regular(13)).foregroundStyle(t.soft).padding(.vertical, 8)
-                        }
-                        ForEach(Array(thisMonth.prefix(5))) { r in
-                            ledgerRow(r, colors)
-                            if r.id != thisMonth.prefix(5).last?.id { Divider().opacity(0.5) }
-                        }
-                        if all.count > min(5, thisMonth.count) {
-                            Button {
-                                Haptics.tap()
-                                withAnimation(.spring(duration: 0.45, bounce: 0.15)) { showAllRows.toggle() }
-                            } label: {
-                                Label(showAllRows ? "بستن تراکنش‌های قبلی" : "همه‌ی تراکنش‌ها (" + Fmt.count(all.count) + ")",
-                                      systemImage: showAllRows ? "chevron.up" : "chevron.down")
-                                    .font(AppFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 4)
-                            }
-                            .buttonStyle(.glass)
-                            .padding(.top, 8)
-                        }
-                    }
-                    .glassCard()
-
-                    if showAllRows {
-                        ForEach(model.monthGroups(accountId: a.id)) { g in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(g.title).font(AppFont.bold(15)).foregroundStyle(t.ink)
-                                    Spacer()
-                                    Text(Fmt.toman(g.total)).font(AppFont.medium(13)).foregroundStyle(t.soft)
-                                }
-                                .padding(.bottom, 4)
-                                ForEach(g.rows) { r in
-                                    ledgerRow(r, colors)
-                                    if r.id != g.rows.last?.id { Divider().opacity(0.5) }
-                                }
-                            }
-                            .glassCard()
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        }
-                    }
+                    CardDeck(page: "ledger", editing: $editingCards, cards: ledgerCards(a))
                 }
             }
             .padding(.horizontal, 16)
@@ -1072,6 +1002,48 @@ struct LedgerHomeView: View {
     private func openIncome(_ r: SimpleRowVM) {
         if r.isCommission { model.errorMessage = LedgerError.commissionIncome.message; return }
         incomeSheet = .editIncome(r)
+    }
+
+    /// the expense side of a ledger as movable / removable cards
+    private func ledgerCards(_ a: AccountImportSummary) -> [DeckCard] {
+        var cards: [DeckCard] = []
+        cards.append(DeckCard("hero", "جمع هزینه‌ها و ثبت", "sum") {
+            LedgerHero(account: a, budget: model.budget(accountId: a.id), onBudget: { budgetAccount = a.id }) { sheet = .new }
+        })
+        if a.commissionEnabled || a.percent != 0 {
+            cards.append(DeckCard("commission", "کمیسیون", "percent") { CommissionCard(account: a) { sheet = .settle } })
+        }
+        if model.hasTankhah(a.id) {
+            cards.append(DeckCard("tankhah", "تنخواه به تفکیک طرف حساب", "person.2") {
+                Button {
+                    Haptics.tap()
+                    showPartyReport = true
+                } label: {
+                    Label("تنخواه به تفکیک طرف حساب", systemImage: "person.2.fill")
+                        .font(AppFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 4)
+                }
+                .buttonStyle(.glass)
+            })
+        }
+        let items = model.statItems("expenses", accountId: a.id)
+        let slices = model.breakdown(items, kind: .expense)
+        let subs = model.breakdown(items, kind: .expense, sub: true)
+        let colors = model.colorMap(slices)
+        if !slices.isEmpty {
+            cards.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: slices, subs: subs, model: model, scope: a.name) })
+        }
+        if !subs.isEmpty {
+            cards.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: subs, model: model, scope: a.name) })
+        }
+        // every row, newest first; 5 visible, the rest scroll inside the card or unfold
+        let all = Array(model.rows(accountId: a.id).reversed())
+        cards.append(DeckCard("transactions", "تراکنش‌ها", "list.bullet.rectangle") {
+            RowsCard(title: "تراکنش‌ها", total: Fmt.count(all.count) + " ردیف", rows: all, date: \.dateValue,
+                     amount: { $0.kind == .tankhah ? 0 : $0.toman }, empty: "هنوز تراکنشی ثبت نشده") { r in
+                ledgerRow(r, colors)
+            }
+        })
+        return cards
     }
 
     private func ledgerRow(_ r: LedgerRowVM, _ colors: [String: Color]) -> some View {

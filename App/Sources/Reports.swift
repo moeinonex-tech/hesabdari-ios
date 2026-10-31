@@ -203,13 +203,17 @@ struct ReportsView: View {
     @State private var account: String?
     @State private var share: ExportFile?
     @State private var makingPDF = false
+    @State private var editingCards = false
 
     private var range: DateRange? { useRange ? DateRange(from: from, to: to) : nil }
 
     var body: some View {
         PageScrollView(tab: .reports) {
             VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "گزارش‌ها", subtitle: "نمودارها و خروجی PDF و Excel")
+                HStack(alignment: .top) {
+                    ScreenHeader(title: "گزارش‌ها", subtitle: "نمودارها و خروجی PDF و Excel")
+                    if scope != 4 { DeckEditButton(editing: $editingCards).padding(.top, 8) }
+                }
                 HScroll {
                     HStack(spacing: 8) {
                         ForEach(Array(["کلی", "دفتر حساب", "شخصی", "درآمد", "یادآوری‌ها"].enumerated()), id: \.offset) { i, name in
@@ -253,7 +257,7 @@ struct ReportsView: View {
         .scrollsToTopOnDockTap(.reports)
         .pageSwipe(.reports, $scope, [0, 1, 2, 3, 4])
         .toolbar(.hidden, for: .navigationBar)
-        .onChange(of: scope) { _, _ in account = nil }
+        .onChange(of: scope) { _, _ in account = nil; editingCards = false }
         .sheet(item: $share) { f in ActivityView(items: [f.url]) }
     }
 
@@ -268,39 +272,57 @@ struct ReportsView: View {
             .map { (ImportAnalyzer.date($0["date"]), ImportAnalyzer.toman($0)) }
         for m in model.monthly(ledgerItems) { bars.append(MonthBar(label: m.label, series: "دفتر حساب", total: m.total)) }
         for m in model.monthly(model.personalRows.map { ($0.dateValue, $0.toman) }) { bars.append(MonthBar(label: m.label, series: "شخصی", total: m.total)) }
-        return VStack(alignment: .leading, spacing: 16) {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                SummaryTile(title: "هزینه‌ی دفترها", value: ledgerTotal, color: t.accent)
-                SummaryTile(title: "هزینه‌ی شخصی", value: personal, color: t.accent2)
-                SummaryTile(title: "درآمد", value: income, color: t.success)
-                SummaryTile(title: "بدهی من", value: model.iOwe, color: t.danger)
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                SectionTitle(text: "هزینه‌ها در ۱۲ ماه اخیر")
-                Chart(bars) { b in
-                    BarMark(x: .value("ماه", b.label), y: .value("مبلغ", b.total))
-                        .foregroundStyle(by: .value("بخش", b.series))
-                        .cornerRadius(4)
+        let ac = ReportCharts.accountsCompare(model.accounts)
+        let cc = ReportCharts.commissionCompare(model.accounts)
+        let withCommission = model.accounts.filter { $0.commissionEnabled || $0.percent != 0 }
+        var cards: [DeckCard] = [
+            DeckCard("summary", "خلاصه‌ی کل", "square.grid.2x2") {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    SummaryTile(title: "هزینه‌ی دفترها", value: ledgerTotal, color: t.accent)
+                    SummaryTile(title: "هزینه‌ی شخصی", value: personal, color: t.accent2)
+                    SummaryTile(title: "درآمد", value: income, color: t.success)
+                    SummaryTile(title: "بدهی من", value: model.iOwe, color: t.danger)
                 }
-                .chartForegroundStyleScale(["دفتر حساب": t.accent, "شخصی": t.accent2])
-                .chartYAxis { AxisMarks { _ in AxisGridLine() } }
-                .frame(height: 220)
-            }
-            .glassCard()
-            let ac = ReportCharts.accountsCompare(model.accounts)
-            if ac.count >= 2 { CompareBarCard(title: "مقایسه‌ی هزینه‌ی دفترها", data: ac, color: t.accent) }
-            let cc = ReportCharts.commissionCompare(model.accounts)
-            if !cc.isEmpty { CompareBarCard(title: "کمیسیون تعلق‌گرفته‌ی هر دفتر (تا امروز)", data: cc, color: t.accent2) }
-            ForEach(model.accounts.filter { $0.commissionEnabled || $0.percent != 0 }) { a in
-                VStack(alignment: .leading, spacing: 6) {
-                    SectionTitle(text: "کمیسیون — " + a.name)
-                    LabeledContent("پرداخت‌شده", value: Fmt.toman(a.settled))
-                    LabeledContent("مانده", value: Fmt.balance(a.remaining))
+            },
+            DeckCard("months", "هزینه‌ها در ۱۲ ماه اخیر", "chart.bar.xaxis") {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionTitle(text: "هزینه‌ها در ۱۲ ماه اخیر")
+                    Chart(bars) { b in
+                        BarMark(x: .value("ماه", b.label), y: .value("مبلغ", b.total))
+                            .foregroundStyle(by: .value("بخش", b.series))
+                            .cornerRadius(4)
+                    }
+                    .chartForegroundStyleScale(["دفتر حساب": t.accent, "شخصی": t.accent2])
+                    .chartYAxis { AxisMarks { _ in AxisGridLine() } }
+                    .frame(height: 220)
                 }
-                .font(AppFont.regular(14))
                 .glassCard()
             }
+        ]
+        if ac.count >= 2 {
+            cards.append(DeckCard("accounts", "مقایسه‌ی هزینه‌ی دفترها", "chart.bar") { CompareBarCard(title: "مقایسه‌ی هزینه‌ی دفترها", data: ac, color: t.accent) })
         }
+        if !cc.isEmpty {
+            cards.append(DeckCard("commissionCompare", "کمیسیون تعلق‌گرفته‌ی هر دفتر", "percent") {
+                CompareBarCard(title: "کمیسیون تعلق‌گرفته‌ی هر دفتر (تا امروز)", data: cc, color: t.accent2)
+            })
+        }
+        if !withCommission.isEmpty {
+            cards.append(DeckCard("commissions", "مانده‌ی کمیسیون دفترها", "banknote") {
+                VStack(spacing: 16) {
+                    ForEach(withCommission) { a in
+                        VStack(alignment: .leading, spacing: 6) {
+                            SectionTitle(text: "کمیسیون — " + a.name)
+                            LabeledContent("پرداخت‌شده", value: Fmt.toman(a.settled))
+                            LabeledContent("مانده", value: Fmt.balance(a.remaining))
+                        }
+                        .font(AppFont.regular(14))
+                        .glassCard()
+                    }
+                }
+            })
+        }
+        return CardDeck(page: "reports.overview", editing: $editingCards, cards: cards).id("reports.overview")
     }
 
     // ledger
@@ -313,17 +335,22 @@ struct ReportsView: View {
             if model.accounts.count > 1 {
                 Segmented(selection: Binding(get: { id }, set: { account = $0 }), model.accounts.map { ($0.id, $0.name) })
             }
-            monthChart(items, color: t.accent)
-            TrendChartCard(title: "نمودار نوسانات هزینه‌ی دفتر", items: ReportCharts.ledgerExpenses(model.state, accountId: id), color: t.accent)
-            CashFlowCard(income: ReportCharts.ledgerIncomes(model.state, accountId: id), expense: ReportCharts.ledgerExpenses(model.state, accountId: id))
-            ComparisonCard(title: "درآمد در برابر هزینه — " + (model.accounts.first { $0.id == id }?.name ?? ""),
-                           c: ReportCharts.comparisonLedger(model.state, accountId: id))
             let st = model.statItems("expenses", accountId: id, range: range)
             let s = model.breakdown(st, kind: .expense)
             let sub = model.breakdown(st, kind: .expense, sub: true)
             let scope = model.accounts.first { $0.id == id }?.name ?? "دفتر حساب"
-            if !s.isEmpty { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }
-            if !sub.isEmpty { SubcategoryChartCard(slices: sub, model: model, scope: scope) }
+            CardDeck(page: "reports.ledger", editing: $editingCards, cards: [
+                DeckCard("months", "هزینه‌ی ماه به ماه", "chart.bar.xaxis") { monthChart(items, color: t.accent) },
+                DeckCard("trend", "نمودار نوسانات", "waveform.path.ecg") {
+                    TrendChartCard(title: "نمودار نوسانات هزینه‌ی دفتر", items: ReportCharts.ledgerExpenses(model.state, accountId: id), color: t.accent)
+                },
+                DeckCard("cashflow", "ورودی و خروجی", "arrow.left.arrow.right") {
+                    CashFlowCard(income: ReportCharts.ledgerIncomes(model.state, accountId: id), expense: ReportCharts.ledgerExpenses(model.state, accountId: id))
+                },
+                DeckCard("comparison", "درآمد در برابر هزینه", "scalemass") {
+                    ComparisonCard(title: "درآمد در برابر هزینه — " + scope, c: ReportCharts.comparisonLedger(model.state, accountId: id))
+                }
+            ] + breakdownCards(s, sub, scope: scope)).id("reports.ledger")
             exportButtons(pdf: { await model.ledgerPDF(accountId: id, range: range) },
                           excel: { model.ledgerExcel(accountIds: [id], range: range) },
                           extra: model.accounts.count > 1 ? ("Excel همه‌ی دفترها", { model.ledgerExcel(accountIds: model.accounts.map(\.id), range: range) }) : nil)
@@ -333,20 +360,32 @@ struct ReportsView: View {
     private func listReport(personal: Bool) -> some View {
         let rows = (personal ? model.personalRows : model.incomeRows).filter { r in range.map { $0.contains(r.dateValue) } ?? true }
         return VStack(alignment: .leading, spacing: 16) {
-            monthChart(rows.map { ($0.dateValue, $0.toman) }, color: personal ? t.accent2 : t.success)
-            TrendChartCard(title: personal ? "نمودار نوسانات هزینه‌ی شخصی" : "نمودار نوسانات درآمد",
-                           items: personal ? ReportCharts.personalExpenses(model.state) : ReportCharts.allIncomes(model.state),
-                           color: personal ? t.accent2 : t.success)
-            ComparisonCard(title: "درآمد شخصی در برابر هزینه شخصی", c: ReportCharts.comparisonPersonal(model.state))
             let st = model.statItems(personal ? "personalExpenses" : "incomes", range: range)
             let s = model.breakdown(st, kind: personal ? .expense : .income)
             let sub = model.breakdown(st, kind: personal ? .expense : .income, sub: true)
             let scope = personal ? "دفتر شخصی" : "درآمد"
-            if !s.isEmpty { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }
-            if !sub.isEmpty { SubcategoryChartCard(slices: sub, model: model, scope: scope) }
+            let page = personal ? "reports.personal" : "reports.income"
+            CardDeck(page: page, editing: $editingCards, cards: [
+                DeckCard("months", "ماه به ماه", "chart.bar.xaxis") { monthChart(rows.map { ($0.dateValue, $0.toman) }, color: personal ? t.accent2 : t.success) },
+                DeckCard("trend", "نمودار نوسانات", "waveform.path.ecg") {
+                    TrendChartCard(title: personal ? "نمودار نوسانات هزینه‌ی شخصی" : "نمودار نوسانات درآمد",
+                                   items: personal ? ReportCharts.personalExpenses(model.state) : ReportCharts.allIncomes(model.state),
+                                   color: personal ? t.accent2 : t.success)
+                },
+                DeckCard("comparison", "درآمد در برابر هزینه", "scalemass") {
+                    ComparisonCard(title: "درآمد شخصی در برابر هزینه شخصی", c: ReportCharts.comparisonPersonal(model.state))
+                }
+            ] + breakdownCards(s, sub, scope: scope)).id(page)
             exportButtons(pdf: { personal ? await model.personalPDF(range: range) : await model.incomePDF(range: range) },
                           excel: { personal ? model.personalExcel(range: range) : model.incomeExcel(range: range) }, extra: nil)
         }
+    }
+
+    private func breakdownCards(_ s: [CategorySlice], _ sub: [CategorySlice], scope: String) -> [DeckCard] {
+        var out: [DeckCard] = []
+        if !s.isEmpty { out.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }) }
+        if !sub.isEmpty { out.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: sub, model: model, scope: scope) }) }
+        return out
     }
 
     private var remindersReport: some View {

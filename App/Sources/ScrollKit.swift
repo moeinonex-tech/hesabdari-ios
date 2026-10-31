@@ -82,7 +82,7 @@ final class PagingPan: NSObject, UIGestureRecognizerDelegate {
         if let old = scroll { old.removeGestureRecognizer(pan) }
         scroll = sv
         pan.delegate = self
-        pan.cancelsTouchesInView = false
+        pan.cancelsTouchesInView = true          // the row / button under the finger gets a cancel, never a tap
         pan.addTarget(self, action: #selector(handle(_:)))
         sv.addGestureRecognizer(pan)
     }
@@ -91,9 +91,20 @@ final class PagingPan: NSObject, UIGestureRecognizerDelegate {
         guard let sv = scroll else { return }
         switch g.state {
         case .began:
-            // a horizontal drag: freeze the vertical scroll for this touch (direction lock)
+            // a horizontal drag: freeze the vertical scroll for this touch (direction lock) …
             sv.panGestureRecognizer.isEnabled = false
             sv.panGestureRecognizer.isEnabled = true
+            // … and cancel every other gesture waiting under the finger (row taps, long-press menus, buttons),
+            // so swiping across a row never opens or edits it
+            var node = sv.hitTest(g.location(in: sv), with: nil)
+            while let n = node, n !== sv {
+                for r in n.gestureRecognizers ?? [] where r !== pan && r.isEnabled {
+                    r.isEnabled = false
+                    r.isEnabled = true
+                }
+                node = n.superview
+            }
+            UISelectionFeedbackGenerator().prepare()
         case .ended:
             onSwipe?(g.translation(in: sv).x, g.velocity(in: sv).x)
         default: break
@@ -118,5 +129,9 @@ final class PagingPan: NSObject, UIGestureRecognizerDelegate {
         return true
     }
 
-    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    /// only the page's own scroll runs alongside (it has to, so the direction can be decided); nothing else does
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        // scroll views (the page, and a vertical list inside a card) may start alongside; they are stopped on .began
+        other === scroll?.panGestureRecognizer || (other is UIPanGestureRecognizer && other.view is UIScrollView)
+    }
 }
