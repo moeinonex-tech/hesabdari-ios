@@ -1,0 +1,122 @@
+import SwiftUI
+import UIKit
+
+// UIKit-level help for the page scroll views (SwiftUI's ScrollView is a UIScrollView underneath):
+//  • page swipe with a direction lock like Telegram: once a drag is horizontal it flips the page and the vertical
+//    scroll is cancelled for that touch; a vertical drag never flips the page; horizontal strips keep their own scroll.
+//  • dock tap → top immediately, even while the page is still gliding (the glide is stopped first).
+
+/// sits inside a page's scroll content and reports the UIScrollView it lives in (its nearest scrolling ancestor)
+struct ScrollAnchor: UIViewRepresentable {
+    let found: (UIScrollView) -> Void
+
+    func makeUIView(context: Context) -> AnchorView {
+        let v = AnchorView()
+        v.found = found
+        v.isUserInteractionEnabled = false
+        return v
+    }
+    func updateUIView(_ v: AnchorView, context: Context) { v.found = found; v.report() }
+
+    final class AnchorView: UIView {
+        var found: ((UIScrollView) -> Void)?
+        override func didMoveToWindow() { super.didMoveToWindow(); report() }
+        func report() {
+            guard window != nil else { return }
+            var node = superview
+            while let n = node {
+                if let sv = n as? UIScrollView { found?(sv); return }
+                node = n.superview
+            }
+        }
+    }
+}
+
+/// a page's main vertical scroll view, known to the dock (top) and to the page swipe
+struct PageScrollView<Content: View>: View {
+    let tab: AppTab
+    @ViewBuilder let content: Content
+    var body: some View {
+        ScrollView {
+            content.background(ScrollAnchor { sv in ScrollRegistry.register(tab, sv) })
+        }
+    }
+}
+
+// MARK: - dock tap → top
+
+@MainActor
+enum ScrollRegistry {
+    private static var views: [AppTab: WeakScroll] = [:]
+    static var pagers: [AppTab: PagingPan] = [:]
+    final class WeakScroll { weak var sv: UIScrollView?; init(_ s: UIScrollView) { sv = s } }
+
+    static func register(_ tab: AppTab, _ sv: UIScrollView) {
+        if views[tab]?.sv !== sv { views[tab] = WeakScroll(sv) }
+        pagers[tab]?.attach(to: sv)
+    }
+    static func scrollView(_ tab: AppTab) -> UIScrollView? { views[tab]?.sv }
+
+    /// stops any glide at once, then animates to the very top; false when the scroll view is unknown
+    static func toTop(_ tab: AppTab) -> Bool {
+        guard let sv = views[tab]?.sv, sv.window != nil else { return false }
+        sv.setContentOffset(sv.contentOffset, animated: false)        // kills the deceleration immediately
+        let top = CGPoint(x: sv.contentOffset.x, y: -sv.adjustedContentInset.top)
+        if abs(sv.contentOffset.y - top.y) < 1 { return true }
+        sv.setContentOffset(top, animated: true)
+        return true
+    }
+}
+
+// MARK: - page swipe with direction lock
+
+final class PagingPan: NSObject, UIGestureRecognizerDelegate {
+    weak var scroll: UIScrollView?
+    let pan = UIPanGestureRecognizer()
+    var enabled = true
+    /// (horizontal travel, horizontal velocity) when a horizontal drag ends
+    var onSwipe: ((CGFloat, CGFloat) -> Void)?
+
+    func attach(to sv: UIScrollView) {
+        guard scroll !== sv else { return }
+        if let old = scroll { old.removeGestureRecognizer(pan) }
+        scroll = sv
+        pan.delegate = self
+        pan.cancelsTouchesInView = false
+        pan.addTarget(self, action: #selector(handle(_:)))
+        sv.addGestureRecognizer(pan)
+    }
+
+    @objc private func handle(_ g: UIPanGestureRecognizer) {
+        guard let sv = scroll else { return }
+        switch g.state {
+        case .began:
+            // a horizontal drag: freeze the vertical scroll for this touch (direction lock)
+            sv.panGestureRecognizer.isEnabled = false
+            sv.panGestureRecognizer.isEnabled = true
+        case .ended:
+            onSwipe?(g.translation(in: sv).x, g.velocity(in: sv).x)
+        default: break
+        }
+    }
+
+    func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard enabled, g === pan, let sv = scroll else { return false }
+        if sv.isDecelerating || (sv.isDragging && sv.panGestureRecognizer.state == .changed && abs(sv.panGestureRecognizer.translation(in: sv).y) > 6) {
+            return false                        // the page is already moving vertically
+        }
+        let t = pan.translation(in: sv), v = pan.velocity(in: sv)
+        let dx = abs(t.x) > 1 ? abs(t.x) : abs(v.x), dy = abs(t.x) > 1 ? abs(t.y) : abs(v.y)
+        guard dx > dy * 1.6 else { return false }
+        // a touch that starts on a horizontally scrolling strip belongs to that strip
+        let p = pan.location(in: sv)
+        var node = sv.hitTest(p, with: nil)
+        while let n = node, n !== sv {
+            if let inner = n as? UIScrollView, inner.contentSize.width > inner.bounds.width + 1 { return false }
+            node = n.superview
+        }
+        return true
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+}

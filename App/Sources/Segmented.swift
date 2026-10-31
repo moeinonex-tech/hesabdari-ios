@@ -65,40 +65,41 @@ extension View {
     }
 
     /// RTL book order: the first part is on the right; a swipe toward the right brings the next part (like turning a page)
-    func pageSwipe<T: Hashable>(_ selection: Binding<T>, _ order: [T], enabled: Bool = true) -> some View {
-        modifier(PageSwipe(selection: selection, order: order, enabled: enabled))
+    func pageSwipe<T: Hashable>(_ tab: AppTab, _ selection: Binding<T>, _ order: [T], enabled: Bool = true) -> some View {
+        modifier(PageSwipe(tab: tab, selection: selection, order: order, enabled: enabled))
     }
 }
 
 private struct PageSwipe<T: Hashable>: ViewModifier {
+    let tab: AppTab
     @Binding var selection: T
     let order: [T]
     let enabled: Bool
     @Environment(\.layoutDirection) private var dir
-    @State private var decided: Bool?          // nil = not yet known, true = horizontal swipe, false = something else
+    @State private var pager = PagingPan()
 
+    // UIKit pan on the page's own scroll view: horizontal drags flip the page and lock out the vertical scroll,
+    // vertical drags never flip it (see ScrollKit). The page itself never moves sideways.
     func body(content: Content) -> some View {
-        // no offset / rubber band: moving the whole page (with its background) is what stretched it; the page just flips
         content
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 20, coordinateSpace: .global)
-                    .onChanged { v in
-                        guard enabled, order.count > 1 else { return }
-                        if decided == nil {
-                            let dx = abs(v.translation.width), dy = abs(v.translation.height)
-                            if dx > 20 || dy > 20 { decided = dx > dy * 1.8 && !PagingGuard.busy }
-                        }
-                        guard decided == true else { return }
-                    }
-                    .onEnded { v in
-                        defer { decided = nil }
-                        guard enabled, decided == true, !PagingGuard.busy else { return }
-                        let dx = v.translation.width, predicted = v.predictedEndTranslation.width
-                        guard abs(dx) > 60 || abs(predicted) > 160, let next = target(abs(dx) > 60 ? dx : predicted) else { return }
-                        UISelectionFeedbackGenerator().selectionChanged()
-                        withAnimation(.spring(duration: 0.38, bounce: 0.18)) { selection = next }
-                    }
-            )
+            .onAppear { hook() }
+            .onChange(of: enabled) { _, _ in hook() }
+            .onChange(of: selection) { _, _ in hook() }
+    }
+
+    /// the pan lives on the page's UIScrollView (PageScrollView reports it); callbacks always see the current state
+    private func hook() {
+        pager.enabled = enabled && order.count > 1
+        pager.onSwipe = { dx, vx in finish(dx, vx) }
+        ScrollRegistry.pagers[tab] = pager
+        if let sv = ScrollRegistry.scrollView(tab) { pager.attach(to: sv) }
+    }
+
+    private func finish(_ dx: CGFloat, _ vx: CGFloat) {
+        guard abs(dx) > 50 || (abs(vx) > 450 && abs(dx) > 16) else { return }
+        guard let next = target(abs(dx) > 50 ? dx : vx) else { return }
+        UISelectionFeedbackGenerator().selectionChanged()
+        withAnimation(.spring(duration: 0.38, bounce: 0.18)) { selection = next }
     }
 
     private func target(_ dx: CGFloat) -> T? {

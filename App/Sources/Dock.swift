@@ -29,7 +29,10 @@ struct ScrollTopOnDockTap: ViewModifier {
         content
             .scrollPosition($position)
             .onChange(of: center.ticks[tab] ?? 0) { _, _ in
-                withAnimation(.smooth(duration: 0.45)) { position.scrollTo(edge: .top) }
+                // UIKit stops a glide at once; SwiftUI's own scroll waits for it to end (kept only as a fallback)
+                if !ScrollRegistry.toTop(tab) {
+                    withAnimation(.smooth(duration: 0.45)) { position.scrollTo(edge: .top) }
+                }
             }
     }
 }
@@ -106,11 +109,14 @@ struct AppShell: View {
 
 /// Dock icon packs — chosen in Settings › ظاهر (with a live preview).
 enum DockIcons: String, CaseIterable, Identifiable {
-    case project, ledgerBook, finance, minimal
+    case outline, project, ledgerBook, finance, minimal
     var id: String { rawValue }
+    /// drawn line icons from the asset catalog (not SF Symbols)
+    var isCustom: Bool { self == .outline }
     static let key = "look.dockIcons"
     var title: String {
         switch self {
+        case .outline: return "خطی ظریف"
         case .project: return "پروژه و ساختمان"
         case .ledgerBook: return "دفتر و سند"
         case .finance: return "مالی"
@@ -120,6 +126,9 @@ enum DockIcons: String, CaseIterable, Identifiable {
     /// home, ledger, personal, cards, reminders, reports
     func icon(_ t: AppTab) -> String {
         switch self {
+        case .outline:
+            return "dock-" + ([.home: "home", .ledger: "ledger", .personal: "personal", .cards: "cards",
+                               .reminders: "reminders", .reports: "reports"][t] ?? "home")
         case .project:
             return [.home: "house", .ledger: "building.2", .personal: "person", .cards: "creditcard",
                     .reminders: "bell", .reports: "chart.pie"][t] ?? "circle"
@@ -132,6 +141,43 @@ enum DockIcons: String, CaseIterable, Identifiable {
         case .minimal:
             return [.home: "circle.grid.2x2", .ledger: "doc.text", .personal: "person", .cards: "rectangle.stack",
                     .reminders: "bell", .reports: "chart.bar"][t] ?? "circle"
+        }
+    }
+}
+
+/// one dock icon of any pack: SF Symbol (filled when on, breathing via the symbol effect) or a drawn line icon
+/// (same size, breathing with a gentle scale)
+struct DockGlyph: View {
+    let pack: DockIcons
+    let tab: AppTab
+    let on: Bool
+    let breathing: Bool
+    var size: CGFloat = 20
+
+    var body: some View {
+        if pack.isCustom {
+            Image(pack.icon(tab))
+                .renderingMode(.template)
+                .resizable().scaledToFit()
+                .frame(width: size + 4, height: size + 4)
+                .fontWeight(on ? .semibold : .regular)
+                .modifier(CustomBreathe(active: breathing))
+        } else {
+            Image(systemName: pack.icon(tab))
+                .symbolVariant(on ? .fill : .none)
+                .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(1.2), isActive: breathing)
+                .font(.system(size: size, weight: on ? .semibold : .regular))
+        }
+    }
+}
+
+private struct CustomBreathe: ViewModifier {
+    let active: Bool
+    func body(content: Content) -> some View {
+        if active {
+            content.phaseAnimator([false, true]) { v, up in v.scaleEffect(up ? 1.13 : 1) } animation: { _ in .easeInOut(duration: 0.55) }
+        } else {
+            content
         }
     }
 }
@@ -204,11 +250,8 @@ struct Dock: View {
                 HStack(spacing: 0) {
                     ForEach(Array(items.enumerated().reversed()), id: \.offset) { i, item in
                         let on = i == selectedIndex
-                        Image(systemName: pack.icon(item))
-                            .symbolVariant(on ? .fill : .none)
-                            // the page «گزارش‌ها» was opened from breathes in step with the reports button
-                            .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(1.2), isActive: on && tab == .reports)
-                            .font(.system(size: 20, weight: on ? .semibold : .regular))
+                        // the page «گزارش‌ها» was opened from breathes in step with the reports button
+                        DockGlyph(pack: pack, tab: item, on: on, breathing: on && tab == .reports)
                             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
                             .scaleEffect(pressed == i ? 1.18 : 1)
                             .animation(.spring(duration: 0.25, bounce: 0.4), value: pressed)
@@ -297,10 +340,7 @@ struct Dock: View {
 
     private var reportsButton: some View {
         let on = tab == .reports
-        return Image(systemName: pack.icon(.reports))
-            .symbolVariant(on ? .fill : .none)
-            .symbolEffect(.breathe.plain.wholeSymbol, options: .repeating.speed(1.2), isActive: on && reportsFrom != nil)
-            .font(.system(size: 20, weight: on ? .semibold : .regular))
+        return DockGlyph(pack: pack, tab: .reports, on: on, breathing: on && reportsFrom != nil)
             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
             .scaleEffect(reportsPressed ? 1.15 : 1)
             .frame(width: reportsSide, height: reportsSide)

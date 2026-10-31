@@ -160,7 +160,7 @@ struct HomeView: View {
     var body: some View {
         let greet = AppModel.greeting(hour: Calendar.current.component(.hour, from: Date()))
         let order = SettingsOps.widgetOrder(model.state).filter { SettingsOps.widgetVisible(model.state, $0) }
-        ScrollView {
+        PageScrollView(tab: .home) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "خانه", subtitle: "نمای کلی و امروز")
@@ -827,7 +827,7 @@ struct LedgerHomeView: View {
 
     var body: some View {
         let account = model.accounts.first { $0.id == accountId }
-        ScrollView {
+        PageScrollView(tab: .ledger) {
             LazyVStack(alignment: .leading, spacing: 16, pinnedViews: []) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "دفتر حساب", subtitle: account?.name ?? "")
@@ -960,7 +960,7 @@ struct LedgerHomeView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.ledger)
-        .pageSwipe($showIncome, [false, true], enabled: account != nil)
+        .pageSwipe(.ledger, $showIncome, [false, true], enabled: account != nil)
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(item: Binding(get: { budgetAccount.map { IdBox(id: $0) } }, set: { budgetAccount = $0?.id })) { b in
@@ -1227,7 +1227,7 @@ struct CardsView: View {
 
     var body: some View {
         let cards = model.walletCards.filter { $0.archived == showArchived }
-        ScrollView {
+        PageScrollView(tab: .cards) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "کیف کارت", subtitle: "برای کپی شماره، روی آن بزنید؛ برای ویرایش، نگه دارید")
@@ -1270,7 +1270,7 @@ struct CardsView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.cards)
-        .pageSwipe($showArchived, [false, true])
+        .pageSwipe(.cards, $showArchived, [false, true])
         .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $editing) { e in
             NavigationStack { CardFormView(model: model, editingId: e.id.isEmpty ? nil : e.id) }

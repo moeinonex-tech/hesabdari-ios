@@ -207,7 +207,7 @@ struct ReportsView: View {
     private var range: DateRange? { useRange ? DateRange(from: from, to: to) : nil }
 
     var body: some View {
-        ScrollView {
+        PageScrollView(tab: .reports) {
             VStack(alignment: .leading, spacing: 16) {
                 ScreenHeader(title: "گزارش‌ها", subtitle: "نمودارها و خروجی PDF و Excel")
                 HScroll {
@@ -251,7 +251,7 @@ struct ReportsView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.reports)
-        .pageSwipe($scope, [0, 1, 2, 3, 4])
+        .pageSwipe(.reports, $scope, [0, 1, 2, 3, 4])
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: scope) { _, _ in account = nil }
         .sheet(item: $share) { f in ActivityView(items: [f.url]) }

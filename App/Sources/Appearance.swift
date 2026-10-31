@@ -98,7 +98,7 @@ struct AppearanceSection: View {
                             Text(p.title).font(AppFont.medium(13)).foregroundStyle(t.ink).frame(width: 96, alignment: .leading)
                             HStack(spacing: 12) {
                                 ForEach([AppTab.home, .ledger, .personal, .cards, .reminders, .reports], id: \.self) { tab in
-                                    Image(systemName: p.icon(tab)).font(.system(size: 16)).foregroundStyle(t.ink.opacity(0.8))
+                                    DockGlyph(pack: p, tab: tab, on: false, breathing: false, size: 16).foregroundStyle(t.ink.opacity(0.8))
                                 }
                             }
                         }

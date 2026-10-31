@@ -235,7 +235,7 @@ struct PersonalView: View {
     var body: some View {
         let rows = showIncome ? model.incomeRows : model.personalRows
         let total = rows.reduce(0) { $0 + $1.toman }
-        ScrollView {
+        PageScrollView(tab: .personal) {
             LazyVStack(alignment: .leading, spacing: 16) {
                 ScreenHeader(title: showIncome ? "درآمد" : "دفتر شخصی", subtitle: showIncome ? "همه‌ی درآمدها" : "هزینه‌های شخصی")
                 Segmented(selection: $showIncome.animation(.snappy), [(false, "هزینه‌های شخصی"), (true, "درآمد")])
@@ -302,7 +302,7 @@ struct PersonalView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.personal)
-        .pageSwipe($showIncome, [false, true])
+        .pageSwipe(.personal, $showIncome, [false, true])
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(isPresented: $showBudget) {
@@ -602,7 +602,7 @@ struct RemindersView: View {
         let checks = model.checks
         let pending = checks.filter { $0.status == "pending" }
         let done = checks.filter { $0.status != "pending" }
-        ScrollView {
+        PageScrollView(tab: .reminders) {
             LazyVStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "یادآوری‌ها", subtitle: "چک‌ها، بدهکاران و طلبکاران، قرارها")
@@ -669,7 +669,7 @@ struct RemindersView: View {
         }
         .background(AppBackground())
         .scrollsToTopOnDockTap(.reminders)
-        .pageSwipe($filter, [0, 1, 2])
+        .pageSwipe(.reminders, $filter, [0, 1, 2])
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) { UndoBanner(model: model).padding(.bottom, AppShell.dockClearance) }
         .sheet(item: $sheet) { s in
