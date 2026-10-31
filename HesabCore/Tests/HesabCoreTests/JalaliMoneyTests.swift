@@ -49,4 +49,11 @@ final class JalaliMoneyTests: XCTestCase {
         XCTAssertEqual(Money.jsNumberString(10), "10")
         XCTAssertEqual(Money.jsNumberString(2.5), "2.5")
     }
+
+    func testPersianWords() {
+        XCTAssertEqual(PersianWords.of(0), "صفر")
+        XCTAssertEqual(PersianWords.of(15), "پانزده")
+        XCTAssertEqual(PersianWords.of(1_250_000), "یک میلیون و دویست و پنجاه هزار")
+        XCTAssertEqual(PersianWords.of(2_542_927_869), "دو میلیارد و پانصد و چهل و دو میلیون و نهصد و بیست و هفت هزار و هشتصد و شصت و نه")
+    }
 }

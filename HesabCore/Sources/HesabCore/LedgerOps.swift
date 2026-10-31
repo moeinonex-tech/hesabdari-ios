@@ -125,6 +125,8 @@ public struct ExpenseInput: Sendable {
     public var partyId: String?
     /// more than one = a multi-item invoice (expense only, never tankhah)
     public var items: [ExpenseItem] = []
+    /// a commission payment edited without touching its pay method (it had none): leave it without one
+    public var keepPayMethod = false
     public var isMulti: Bool { !isTankhah && items.count > 1 }
 
     public init(accountId: String, isTankhah: Bool, desc: String, category: String, subcategory: String,
@@ -245,10 +247,12 @@ public enum LedgerOps {
         // a commission payment row: only amount and date are editable (its text is generated)
         var input = input
         if isCommission {
-            input.desc = row["desc"]?.stringValue ?? ""
-            input.category = row["category"]?.stringValue ?? "کمیسیون"
-            if input.subcategory.isEmpty { input.subcategory = row["subcategory"]?.stringValue ?? "تسویه" }
+            // every field can be edited; empty ones keep what the row had
+            if input.desc.trimmingCharacters(in: .whitespaces).isEmpty { input.desc = row["desc"]?.stringValue ?? "" }
+            if input.category.trimmingCharacters(in: .whitespaces).isEmpty { input.category = row["category"]?.stringValue ?? "کمیسیون" }
+            if input.subcategory.trimmingCharacters(in: .whitespaces).isEmpty { input.subcategory = row["subcategory"]?.stringValue ?? "تسویه" }
             input.isTankhah = false
+            input.items = []
         }
         let missing = input.missingFields
         guard missing.isEmpty else { throw LedgerError.invalid(missing) }
@@ -265,7 +269,7 @@ public enum LedgerOps {
         if input.isTankhah, let p = input.partyId, !p.isEmpty { row["partyId"] = .string(p) } else { row.removeValue(forKey: "partyId") }
         // web: an invoice edited through the single fields becomes a single row; edited as multi it keeps its items
         if input.isMulti { row.removeValue(forKey: "partyId"); MultiItem.apply(&row, input.items) } else { row.removeValue(forKey: "items") }
-        if !isCommission { applyPayMethod(&row, &st, input) }
+        if !(isCommission && input.keepPayMethod) { applyPayMethod(&row, &st, input) }
         rows[i] = .object(row)
         st["expenses"] = .array(rows)
 
@@ -400,17 +404,42 @@ public enum LedgerOps {
 
         // income (web addIncomeFromCommissionSettlement)
         let name = acc["name"]?.stringValue ?? ""
-        addCategoryIfNew(&st, list: "incomeCategories", "کمیسیون")
-        addSubcategoryIfNew(&st, map: "incomeSubcategories", category: "کمیسیون", name)
+        // in the personal incomes a commission is «مدیریت پیمان ساختمان» (the ledger row keeps «کمیسیون»)
+        addCategoryIfNew(&st, list: "incomeCategories", commissionIncomeCategory)
+        addSubcategoryIfNew(&st, map: "incomeSubcategories", category: commissionIncomeCategory, name)
         var incomes = array(st, "incomes")
         incomes.append(.object([
             "id": .string(ids.make("i", now)), "desc": .string("دریافت کمیسیون از " + name), "toman": .int(Int64(amount)),
-            "date": self.date(date), "ts": .int(Int64(now)), "category": .string("کمیسیون"), "subcategory": .string(name),
+            "date": self.date(date), "ts": .int(Int64(now)), "category": .string(commissionIncomeCategory), "subcategory": .string(name),
             "accountId": .string("personal"), "accountName": .string(name), "source": .string("commission"),
             "commissionSettlementId": .string(settleId)
         ]))
         st["incomes"] = .array(incomes)
         return (st, settleId)
+    }
+
+    /// category of the personal income a commission payment creates (the user's choice for a construction contractor)
+    public static let commissionIncomeCategory = "مدیریت پیمان ساختمان"
+
+    /// earlier commission incomes (category «کمیسیون») move to «مدیریت پیمان ساختمان»; only incomes linked to a
+    /// commission payment, nothing in the ledgers. Returns nil when nothing needs changing.
+    public static func migrateCommissionIncomes(_ state: [String: JSONValue]) -> [String: JSONValue]? {
+        var st = state
+        var changed = false
+        var incomes = array(st, "incomes")
+        for i in incomes.indices {
+            guard var o = incomes[i].objectValue, o["commissionSettlementId"]?.idString != nil,
+                  o["category"]?.stringValue == "کمیسیون" else { continue }
+            o["category"] = .string(commissionIncomeCategory)
+            incomes[i] = .object(o)
+            changed = true
+            let sub = o["subcategory"]?.stringValue ?? ""
+            addCategoryIfNew(&st, list: "incomeCategories", commissionIncomeCategory)
+            if !sub.isEmpty { addSubcategoryIfNew(&st, map: "incomeSubcategories", category: commissionIncomeCategory, sub) }
+        }
+        guard changed else { return nil }
+        st["incomes"] = .array(incomes)
+        return st
     }
 
     // MARK: edit lock (web withEditUnlock)

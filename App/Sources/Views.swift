@@ -149,12 +149,32 @@ struct UndoBanner: View {
 struct JalaliDateField: View {
     let title: String
     @Binding var date: JalaliDate
+    @Environment(\.theme) private var t
+
+    private static let persian: Calendar = { var c = Calendar(identifier: .persian); c.timeZone = Fmt.tehran; return c }()
 
     var body: some View {
-        DatePicker(title, selection: Binding(get: { Fmt.date(date) }, set: { date = Fmt.jalali($0) }),
-                   displayedComponents: .date)
-            .environment(\.calendar, Calendar(identifier: .persian))
-            .environment(\.locale, Locale(identifier: "fa_IR"))
+        let today = AppModel.today
+        HStack(spacing: 8) {
+            DatePicker(title, selection: Binding(get: { Fmt.date(date) }, set: { date = Fmt.jalali($0) }),
+                       displayedComponents: .date)
+                .environment(\.calendar, Self.persian)
+                .environment(\.timeZone, Fmt.tehran)
+                .environment(\.locale, Locale(identifier: "fa_IR"))
+            // one tap back to today (Iran date)
+            if date != today {
+                Button {
+                    Haptics.tap()
+                    withAnimation(.snappy) { date = today }
+                } label: {
+                    Text("امروز").font(AppFont.bold(12)).foregroundStyle(t.accent)
+                        .padding(.horizontal, 9).padding(.vertical, 5)
+                        .background(t.accent.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
     }
 }
 
@@ -172,8 +192,12 @@ struct AmountField: View {
             MoneyTextField(text: $text, placeholder: "۰")
                 .frame(height: 34)
             if n > 0 {
+                // live helpers: the amount in rials and in words (toman)
                 Text(Money.persianDigits(Money.format(n * 10)) + " ریال")
-                    .font(AppFont.regular(12)).foregroundStyle(t.soft)
+                    .font(AppFont.medium(12)).foregroundStyle(t.soft)
+                Text(PersianWords.of(n) + " تومان")
+                    .font(AppFont.regular(12)).foregroundStyle(t.accent.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 2)
@@ -280,6 +304,7 @@ struct ExpenseFormView: View {
     @State private var checkCount = 1
     @State private var slots: [CheckSlot] = []
     @State private var checkTotal = ""
+    @State private var loadedPay: PayMethod?
 
     private var isCommission: Bool { editing?.kind == .commission }
     private var isMulti: Bool { itemCount > 1 && !isTankhah && !isCommission && !makesCheck }
@@ -300,10 +325,13 @@ struct ExpenseFormView: View {
             }
 
             if isCommission {
+                // a commission payment: every field is editable
                 Section {
-                    Text(desc).font(.footnote).foregroundStyle(.secondary)
+                    TextField("شرح", text: $desc, axis: .vertical).lineLimit(1...4)
+                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
+                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
                 } footer: {
-                    Text("این ردیف پرداخت کمیسیون است. با تغییر مبلغ، مانده‌ی این پرداخت و پرداخت‌های بعدی دوباره حساب می‌شود.")
+                    Text("این ردیف پرداخت کمیسیون است. با تغییر مبلغ، مانده‌ی این پرداخت و پرداخت‌های بعدی دوباره حساب می‌شود و متن مانده‌ها به‌روز می‌شود.")
                 }
             } else if isTankhah {
                 Section("طرف حساب") {
@@ -338,7 +366,7 @@ struct ExpenseFormView: View {
                 }
             }
 
-            if !isCommission {
+            Group {
                 Section(isTankhah ? "روش دریافت" : "روش پرداخت") {
                     Picker("روش", selection: $payMethod) {
                         ForEach(methods, id: \.self) { m in
@@ -405,6 +433,7 @@ struct ExpenseFormView: View {
             date = r.dateValue
             payMethod = r.payMethod.flatMap(PayMethod.init(rawValue:)) ?? PayMethod.defaultFor(tankhah: isTankhah)
             cardId = r.cardId; partyId = r.partyId
+            loadedPay = payMethod
             let its = model.items(ofRow: "expenses", r.rowId)
             if its.count > 1 && r.kind != .tankhah { items = its; itemCount = its.count }
         } else {
@@ -452,6 +481,8 @@ struct ExpenseFormView: View {
                                  payMethod: payMethod, cardId: payMethod.usesCard ? cardId : nil,
                                  partyId: isTankhah ? partyId : nil)
         if isMulti { input.items = items; input.toman = items.reduce(0) { $0 + $1.toman } }
+        // a commission payment that never had a pay method keeps none unless one is chosen now
+        if isCommission && editing?.payMethod == nil && payMethod == loadedPay { input.keepPayMethod = true }
         let ok: Bool
         if multiCheck {
             ok = model.addChecks(CheckInput(amount: 0, party: linkParty, bankName: checkBank, checkNumber: "", sayadId: "", checkSeries: "",

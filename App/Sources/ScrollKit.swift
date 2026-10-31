@@ -57,6 +57,23 @@ enum ScrollRegistry {
     }
     static func scrollView(_ tab: AppTab) -> UIScrollView? { views[tab]?.sv }
 
+    /// after a page switch the content can be much shorter than where the page was scrolled to, which left an empty
+    /// screen "below the end"; bring the offset back inside the new content
+    static func clamp(_ tab: AppTab) {
+        for delay in [0.05, 0.25, 0.6] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard let sv = views[tab]?.sv, sv.window != nil, !sv.isDragging else { return }
+                sv.layoutIfNeeded()
+                let top = -sv.adjustedContentInset.top
+                let maxY = max(top, sv.contentSize.height - sv.bounds.height + sv.adjustedContentInset.bottom)
+                if sv.contentOffset.y > maxY + 1 {
+                    sv.setContentOffset(sv.contentOffset, animated: false)
+                    sv.setContentOffset(CGPoint(x: sv.contentOffset.x, y: maxY), animated: delay > 0.05)
+                }
+            }
+        }
+    }
+
     /// stops any glide at once, then animates to the very top; false when the scroll view is unknown
     static func toTop(_ tab: AppTab) -> Bool {
         guard let sv = views[tab]?.sv, sv.window != nil else { return false }

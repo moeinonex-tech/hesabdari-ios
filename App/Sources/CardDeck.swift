@@ -4,7 +4,7 @@ import HesabCore
 // Page cards that can be reordered, removed and added back (like the home widgets, without sizes).
 // The layout lives on this phone (UserDefaults «deck.<page>»), not in the backup.
 // Edit mode: every card becomes a compact tile that jiggles; drag a tile to move it, «−» removes it,
-// «افزودن کارت» brings a removed one back, «تمام» saves.
+// «افزودن کارت» brings a removed one back, the header ✓ saves.
 
 struct DeckCard: Identifiable {
     let id: String
@@ -88,15 +88,8 @@ struct CardDeck: View {
                 }
                 .buttonStyle(.glass)
                 Spacer()
-                Button {
-                    Haptics.success()
-                    withAnimation(.spring(duration: 0.4, bounce: 0.2)) { editing = false }
-                } label: {
-                    Text("تمام").font(AppFont.bold(15)).padding(.horizontal, 10).padding(.vertical, 2)
-                }
-                .buttonStyle(.glassProminent)
             }
-            Text("کارت‌ها را بکشید تا جابه‌جا شوند؛ با «−» از صفحه برمی‌دارید و با «افزودن کارت» برمی‌گردانید.")
+            Text("کارت‌ها را بکشید تا جابه‌جا شوند؛ با «−» از صفحه برمی‌دارید و با «افزودن کارت» برمی‌گردانید. برای ثبت، دکمه‌ی ✓ بالا را بزنید.")
                 .font(AppFont.caption).foregroundStyle(t.soft).frame(maxWidth: .infinity, alignment: .leading)
             if order.isEmpty {
                 Text("کارتی روی صفحه نیست").font(AppFont.regular(13)).foregroundStyle(t.soft).padding(20)
@@ -191,25 +184,33 @@ struct CardDeck: View {
     }
 }
 
-/// small header button that switches a page into card-arranging mode
-struct DeckEditButton: View {
-    @Binding var editing: Bool
+/// the round glass button used in every page header — one size everywhere, whatever the symbol's own shape
+struct HeaderIconButton: View {
+    let icon: String
+    var prominent = false
+    let action: () -> Void
     var body: some View {
-        Button {
-            Haptics.tap()
-            withAnimation(.spring(duration: 0.4, bounce: 0.2)) { editing.toggle() }
-        } label: {
-            Image(systemName: editing ? "checkmark" : "square.stack.3d.up").font(.title3).padding(10)
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 19, weight: .semibold))
+                .frame(width: 26, height: 26)
+                .padding(10)
+                .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.glass)
     }
 }
 
-/// pay method name for a row (web labels; personal «card» = پوز)
-func payTitle(_ m: String?) -> String? {
-    guard let m, !m.isEmpty else { return nil }
-    if m == "card" { return "پوز" }
-    return PayMethod(rawValue: m)?.title
+/// header button that switches a page into card-arranging mode; the same button (✓) confirms and leaves it
+struct DeckEditButton: View {
+    @Binding var editing: Bool
+    var body: some View {
+        HeaderIconButton(icon: editing ? "checkmark" : "square.stack.3d.up") {
+            if editing { Haptics.success() } else { Haptics.tap() }
+            withAnimation(.spring(duration: 0.4, bounce: 0.2)) { editing.toggle() }
+        }
+        .tint(editing ? .accentColor : nil)
+    }
 }
 
 // MARK: - rows card (web floating list): 5 rows visible, scroll inside, unfold to all; newest first, month separators
@@ -227,13 +228,24 @@ struct RowsCard<Row: Identifiable, RowView: View>: View {
     let date: (Row) -> JalaliDate
     let amount: (Row) -> Int
     let empty: String
+    /// PDF of these rows (no budget card — that is only in the reports tab)
+    var export: (() async -> ExportFile?)? = nil
     @ViewBuilder let rowView: (Row) -> RowView
     @State private var open = false
+    @State private var position = ScrollPosition(edge: .top)
+    @State private var share: ExportFile?
+    @State private var building = false
     @Environment(\.theme) private var t
 
     static var rowH: CGFloat { 62 }
     static var headH: CGFloat { 30 }
     private let visibleRows = 5
+
+    init(title: String, total: String, rows: [Row], date: @escaping (Row) -> JalaliDate, amount: @escaping (Row) -> Int,
+         empty: String, export: (() async -> ExportFile?)? = nil, @ViewBuilder rowView: @escaping (Row) -> RowView) {
+        self.title = title; self.total = total; self.rows = rows; self.date = date; self.amount = amount
+        self.empty = empty; self.export = export; self.rowView = rowView
+    }
 
     private var entries: [RowsCardEntry<Row>] {
         var out: [RowsCardEntry<Row>] = []
@@ -252,56 +264,87 @@ struct RowsCard<Row: Identifiable, RowView: View>: View {
         return out
     }
 
-    /// exactly 5 rows (plus the month labels among them) tall
-    private func collapsedHeight(_ e: [RowsCardEntry<Row>]) -> CGFloat {
+    /// height of the first `limit` rows (with the month labels among them); nil limit = everything
+    private func height(_ e: [RowsCardEntry<Row>], rows limit: Int?) -> CGFloat {
         var h: CGFloat = 0, n = 0
         for x in e {
             switch x.kind {
             case .month: h += Self.headH
             case .row: h += Self.rowH; n += 1
             }
-            if n == visibleRows { break }
+            if let l = limit, n == l { break }
         }
         return h
     }
 
     var body: some View {
         let e = entries
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                SectionTitle(text: title)
+        let more = rows.count > visibleRows
+        VStack(alignment: .leading, spacing: 10) {
+            // header like the category card: title, then the PDF button and the «همه / بستن» toggle at the top
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    SectionTitle(text: title)
+                    Text(total).font(AppFont.caption).foregroundStyle(t.soft)
+                }
                 Spacer()
-                Text(total).font(AppFont.medium(13)).foregroundStyle(t.soft)
+                if export != nil {
+                    if building {
+                        ProgressView().controlSize(.small).frame(width: 32, height: 28)
+                    } else {
+                        Button { makePDF() } label: {
+                            Image(systemName: "square.and.arrow.up").font(.system(size: 14, weight: .semibold)).foregroundStyle(t.accent)
+                                .frame(width: 32, height: 28).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                if more {
+                    Button { toggle() } label: {
+                        HStack(spacing: 4) {
+                            Text(open ? "بستن" : "همه (" + Fmt.count(rows.count) + ")").font(AppFont.medium(12))
+                            Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold))
+                                .rotationEffect(.degrees(open ? 180 : 0))
+                        }
+                        .foregroundStyle(t.soft)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             if rows.isEmpty {
                 Text(empty).font(AppFont.regular(13)).foregroundStyle(t.soft).padding(.vertical, 8)
-            } else if open || rows.count <= visibleRows {
-                list(e)
             } else {
+                // one scroll view whose height springs between «5 rows» and «everything»: the card unfolds downward
+                // from its top edge, like the category card; folded, the rest scrolls inside
                 ScrollView(.vertical) { list(e) }
-                    .scrollIndicators(.visible)
-                    .frame(height: collapsedHeight(e))
-                    .scrollClipDisabled(false)
-                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.9),
-                                                 .init(color: .black.opacity(0.35), location: 1)], startPoint: .top, endPoint: .bottom))
-            }
-            if rows.count > visibleRows {
-                Button {
-                    Haptics.tap()
-                    withAnimation(.spring(duration: 0.45, bounce: 0.2)) { open.toggle() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(open ? "بستن" : "همه (" + Fmt.count(rows.count) + ")").font(AppFont.bold(13))
-                        Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).rotationEffect(.degrees(open ? 180 : 0))
-                    }
-                    .foregroundStyle(t.accent)
-                    .frame(maxWidth: .infinity).frame(height: 32)
-                    .background(t.accent.opacity(0.08), in: Capsule())
-                }
-                .buttonStyle(.plain)
+                    .scrollPosition($position)
+                    .scrollDisabled(open || !more)
+                    .scrollIndicators(open ? .hidden : .visible)
+                    .frame(height: more && !open ? height(e, rows: visibleRows) : height(e, rows: nil))
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: more && !open ? 0.9 : 1),
+                                                 .init(color: .black.opacity(more && !open ? 0.35 : 1), location: 1)],
+                                         startPoint: .top, endPoint: .bottom))
             }
         }
         .glassCard()
+        .sheet(item: $share) { f in ActivityView(items: [f.url]) }
+    }
+
+    private func toggle() {
+        Haptics.tap()
+        if open { position.scrollTo(edge: .top) }
+        withAnimation(.spring(duration: 0.5, bounce: 0.18)) { open.toggle() }
+    }
+
+    private func makePDF() {
+        guard let export, !building else { return }
+        Haptics.tap()
+        building = true
+        Task { @MainActor in
+            share = await export()
+            building = false
+        }
     }
 
     private func list(_ e: [RowsCardEntry<Row>]) -> some View {

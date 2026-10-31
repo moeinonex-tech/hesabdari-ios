@@ -319,7 +319,8 @@ struct PersonalView: View {
         if !sub.isEmpty { cards.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: sub, model: model, scope: scope) }) }
         cards.append(DeckCard("rows", showIncome ? "درآمدها" : "هزینه‌ها", "list.bullet.rectangle") {
             RowsCard(title: showIncome ? "درآمدها" : "هزینه‌ها", total: Fmt.count(rows.count) + " ردیف", rows: rows, date: \.dateValue,
-                     amount: \.toman, empty: "هنوز ردیفی نیست") { r in
+                     amount: \.toman, empty: "هنوز ردیفی نیست",
+                     export: { [showIncome] in showIncome ? await model.incomePDF(range: nil) : await model.personalPDF(range: nil, withBudget: false) }) { r in
                 SimpleRowLine(row: r, income: showIncome, color: colors[r.category.isEmpty ? "بدون دسته" : r.category])
                     .onTapGesture { open(r) }
                     .contextMenu {
@@ -618,9 +619,9 @@ struct RemindersView: View {
                         Button { sheet = .newPerson } label: { Label("شخص جدید (بدهکار/طلبکار)", systemImage: "person.badge.plus") }
                         Button { sheet = .newAppointment } label: { Label("قرار جدید", systemImage: "calendar.badge.plus") }
                     } label: {
-                        Image(systemName: "plus").font(.title3.bold()).padding(10)
+                        Image(systemName: "plus").font(.system(size: 19, weight: .semibold)).frame(width: 26, height: 26).padding(10)
                     }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.glass)
                     .padding(.top, 8)
                 }
 

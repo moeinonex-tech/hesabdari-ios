@@ -353,7 +353,7 @@ struct ReportsView: View {
             ] + breakdownCards(s, sub, scope: scope)).id("reports.ledger")
             exportButtons(pdf: { await model.ledgerPDF(accountId: id, range: range) },
                           excel: { model.ledgerExcel(accountIds: [id], range: range) },
-                          extra: model.accounts.count > 1 ? ("Excel همه‌ی دفترها", { model.ledgerExcel(accountIds: model.accounts.map(\.id), range: range) }) : nil)
+                          extra: nil)     // each ledger exports only itself
         }
     }
 

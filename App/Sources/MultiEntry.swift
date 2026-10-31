@@ -199,7 +199,7 @@ struct MultiItemState {
 
 /// today in the Jalali calendar, usable outside the main actor
 func jalaliToday() -> JalaliDate {
-    let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
+    let c = Fmt.gregorian.dateComponents([.year, .month, .day], from: Date())
     return Jalali.toJalali(c.year ?? 2000, c.month ?? 1, c.day ?? 1)
 }
 

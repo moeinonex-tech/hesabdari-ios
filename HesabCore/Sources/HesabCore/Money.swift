@@ -38,3 +38,39 @@ public enum Money {
         return String(x)
     }
 }
+
+
+// web numberToPersianWords (amounts in words under the amount fields)
+public enum PersianWords {
+    static let yekan = ["", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نه"]
+    static let dahgan = ["", "ده", "بیست", "سی", "چهل", "پنجاه", "شصت", "هفتاد", "هشتاد", "نود"]
+    static let dahyek = ["ده", "یازده", "دوازده", "سیزده", "چهارده", "پانزده", "شانزده", "هفده", "هجده", "نوزده"]
+    static let sadgan = ["", "صد", "دویست", "سیصد", "چهارصد", "پانصد", "ششصد", "هفتصد", "هشتصد", "نهصد"]
+    static let scales = ["", "هزار", "میلیون", "میلیارد", "بیلیون", "بیلیارد", "تریلیون"]
+
+    static func three(_ n: Int) -> String {
+        var parts: [String] = []
+        let sad = n / 100, rem = n % 100
+        if sad > 0 { parts.append(sadgan[sad]) }
+        if rem >= 10 && rem <= 19 { parts.append(dahyek[rem - 10]) } else {
+            if rem / 10 > 0 { parts.append(dahgan[rem / 10]) }
+            if rem % 10 > 0 { parts.append(yekan[rem % 10]) }
+        }
+        return parts.joined(separator: " و ")
+    }
+
+    public static func of(_ num: Int) -> String {
+        if num == 0 { return "صفر" }
+        if num < 0 { return "منفی " + of(-num) }
+        var groups: [Int] = []
+        var n = num
+        while n > 0 { groups.append(n % 1000); n /= 1000 }
+        var parts: [String] = []
+        for i in stride(from: groups.count - 1, through: 0, by: -1) where groups[i] != 0 {
+            var w = three(groups[i])
+            if i > 0 { w += " " + (i < scales.count ? scales[i] : "") }
+            parts.append(w)
+        }
+        return parts.joined(separator: " و ")
+    }
+}

@@ -84,7 +84,7 @@ private struct PageSwipe<T: Hashable>: ViewModifier {
         content
             .onAppear { hook() }
             .onChange(of: enabled) { _, _ in hook() }
-            .onChange(of: selection) { _, _ in hook() }
+            .onChange(of: selection) { _, _ in hook(); ScrollRegistry.clamp(tab) }
     }
 
     /// the pan lives on the page's UIScrollView (PageScrollView reports it); callbacks always see the current state

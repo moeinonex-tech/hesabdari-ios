@@ -86,8 +86,9 @@ final class AppModel: ObservableObject {
         return dir.appendingPathComponent("hesabdari.sqlite")
     }
 
+    /// today's date in Iran (Asia/Tehran), whatever time zone the phone is set to
     static var today: JalaliDate {
-        let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
+        let c = Fmt.gregorian.dateComponents([.year, .month, .day], from: Date())
         return Jalali.toJalali(c.year ?? 2000, c.month ?? 1, c.day ?? 1)
     }
 
@@ -95,6 +96,8 @@ final class AppModel: ObservableObject {
         guard let store else { return }
         state = (try? store.loadState()) ?? [:]
         hasData = !store.isEmpty
+        // commission incomes belong to «مدیریت پیمان ساختمان» (the user's rule) — one-time move of older ones
+        if hasData, let migrated = LedgerOps.migrateCommissionIncomes(state) { _ = apply(migrated, undoMessage: nil) }
         if hasData { Notifier.sync(state) }
         if let last = try? store.lastImport() {
             lastImportText = last.sourceExportedAtJalali.map { "داده از پشتیبان \($0)" }
@@ -341,7 +344,9 @@ enum Fmt {
         return Int(digits.prefix(15)) ?? 0
     }
 
-    static let gregorian = Calendar(identifier: .gregorian)
+    /// Gregorian calendar on Tehran time: every Jalali date / «today» in the app is the Iranian one
+    static let tehran = TimeZone(identifier: "Asia/Tehran") ?? .current
+    static let gregorian: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = tehran; return c }()
 
     static func jalali(_ date: Date) -> JalaliDate {
         let c = gregorian.dateComponents([.year, .month, .day], from: date)

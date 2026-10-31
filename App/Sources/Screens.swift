@@ -165,20 +165,8 @@ struct HomeView: View {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "خانه", subtitle: "نمای کلی و امروز")
                     HStack(spacing: 8) {
-                        Button {
-                            Haptics.tap()
-                            showSearch = true
-                        } label: {
-                            Image(systemName: "magnifyingglass").font(.title3).padding(10)
-                        }
-                        .buttonStyle(.glass)
-                        Button {
-                            Haptics.tap()
-                            showSettings = true
-                        } label: {
-                            Image(systemName: "gearshape.fill").font(.title3).padding(10)
-                        }
-                        .buttonStyle(.glass)
+                        HeaderIconButton(icon: "magnifyingglass") { Haptics.tap(); showSearch = true }
+                        HeaderIconButton(icon: "gearshape.fill") { Haptics.tap(); showSettings = true }
                     }
                     .padding(.top, 8)
                 }
@@ -832,14 +820,10 @@ struct LedgerHomeView: View {
             LazyVStack(alignment: .leading, spacing: 16, pinnedViews: []) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "دفتر حساب", subtitle: account?.name ?? "")
-                    if account != nil && !showIncome { DeckEditButton(editing: $editingCards).padding(.top, 8) }
-                    Button {
-                        Haptics.tap()
-                        showManage = true
-                    } label: {
-                        Image(systemName: "slider.horizontal.3").font(.title3).padding(10)
+                    HStack(spacing: 8) {
+                        if account != nil && !showIncome { DeckEditButton(editing: $editingCards) }
+                        HeaderIconButton(icon: "slider.horizontal.3") { Haptics.tap(); showManage = true }
                     }
-                    .buttonStyle(.glass)
                     .padding(.top, 8)
                 }
 
@@ -1039,7 +1023,8 @@ struct LedgerHomeView: View {
         let all = Array(model.rows(accountId: a.id).reversed())
         cards.append(DeckCard("transactions", "تراکنش‌ها", "list.bullet.rectangle") {
             RowsCard(title: "تراکنش‌ها", total: Fmt.count(all.count) + " ردیف", rows: all, date: \.dateValue,
-                     amount: { $0.kind == .tankhah ? 0 : $0.toman }, empty: "هنوز تراکنشی ثبت نشده") { r in
+                     amount: { $0.kind == .tankhah ? 0 : $0.toman }, empty: "هنوز تراکنشی ثبت نشده",
+                     export: { await model.ledgerPDF(accountId: a.id, range: nil, withBudget: false) }) { r in
                 ledgerRow(r, colors)
             }
         })
@@ -1203,14 +1188,8 @@ struct CardsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "کیف کارت", subtitle: "برای کپی شماره، روی آن بزنید؛ برای ویرایش، نگه دارید")
-                    Button {
-                        Haptics.tap()
-                        editing = IdBox(id: "")
-                    } label: {
-                        Image(systemName: "plus").font(.title3).padding(10)
-                    }
-                    .buttonStyle(.glass)
-                    .padding(.top, 8)
+                    HeaderIconButton(icon: "plus") { Haptics.tap(); editing = IdBox(id: "") }
+                        .padding(.top, 8)
                 }
                 Segmented(selection: $showArchived, [(false, "کارت‌های فعال"), (true, "بایگانی‌شده")])
                 if cards.isEmpty {

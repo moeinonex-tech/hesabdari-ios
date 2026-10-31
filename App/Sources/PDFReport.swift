@@ -332,7 +332,8 @@ extension AppModel {
         kind + " — تا تاریخ " + BackupExporter.formatJalali(Self.today) + (range != nil ? " · " + rangeText(range) : "")
     }
 
-    func ledgerPDF(accountId: String, range: DateRange?) async -> ExportFile? {
+    /// `withBudget`: only the reports tab puts the budget in; the transactions card exports without it
+    func ledgerPDF(accountId: String, range: DateRange?, withBudget: Bool = true) async -> ExportFile? {
         guard let a = accounts.first(where: { $0.id == accountId }) else { return nil }
         let all = (state["expenses"]?.arrayValue ?? []).filter { $0["accountId"]?.idString == accountId }
         let list = sortedRecords(range.map { r in all.filter { r.contains(ImportAnalyzer.date($0["date"])) } } ?? all)
@@ -357,19 +358,19 @@ extension AppModel {
                                         ("باقی‌مانده", money(a.remaining), a.remaining < 0)]))
         }
         let b = budget(accountId: accountId)
-        if b > 0 { cards.append(budgetCard(budget: b, spent: a.expenseTotal)) }
+        if withBudget && b > 0 { cards.append(budgetCard(budget: b, spent: a.expenseTotal)) }
         let html = ReportHTML.page(title: "گزارش هزینه‌های «" + a.name + "»", subtitle: subtitle("گزارش هزینه‌ها", range), legend: t.legend,
                                    columns: t.cols, rows: t.rows, empty: "هیچ هزینه‌ای ثبت نشده",
                                    totalLabel: "جمع کل هزینه‌ها تا امروز (تومان)", total: total, cards: cards)
         return await renderPDF(html, name: "دفتر حساب - " + a.name + " - " + Self.todayTag() + ".pdf")
     }
 
-    func personalPDF(range: DateRange?) async -> ExportFile? {
+    func personalPDF(range: DateRange?, withBudget: Bool = true) async -> ExportFile? {
         let all = state["personalExpenses"]?.arrayValue ?? []
         let list = sortedRecords(range.map { r in all.filter { r.contains(ImportAnalyzer.date($0["date"])) } } ?? all)
         let t = expenseTable(list, showPay: true)
         var cards: [ReportHTML.Card] = []
-        if personalBudget > 0 { cards.append(budgetCard(budget: personalBudget, spent: all.reduce(0) { $0 + ImportAnalyzer.toman($1) })) }
+        if withBudget && personalBudget > 0 { cards.append(budgetCard(budget: personalBudget, spent: all.reduce(0) { $0 + ImportAnalyzer.toman($1) })) }
         let html = ReportHTML.page(title: "گزارش هزینه‌های شخصی", subtitle: subtitle("گزارش هزینه‌ها", range), legend: t.legend,
                                    columns: t.cols, rows: t.rows, empty: "هیچ هزینه‌ای ثبت نشده",
                                    totalLabel: "جمع کل هزینه‌ها تا امروز (تومان)", total: list.reduce(0) { $0 + ImportAnalyzer.toman($1) }, cards: cards)

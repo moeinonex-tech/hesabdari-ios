@@ -53,7 +53,8 @@ final class LedgerOpsTests: XCTestCase {
         XCTAssertEqual(inc["toman"]?.intValue, 150_000)
         XCTAssertEqual(inc["accountId"]?.stringValue, "personal")
         XCTAssertEqual(inc["commissionSettlementId"]?.idString, r1.settlementId)
-        XCTAssertTrue(st["incomeSubcategories"]?["کمیسیون"]?.arrayValue?.contains(.string("پروژه آزمون")) ?? false)
+        XCTAssertEqual(inc["category"]?.stringValue, "مدیریت پیمان ساختمان")
+        XCTAssertTrue(st["incomeSubcategories"]?["مدیریت پیمان ساختمان"]?.arrayValue?.contains(.string("پروژه آزمون")) ?? false)
         XCTAssertEqual(summary(st).remaining, 57_000)
 
         // 2) new expense 500,000 → +50,000 due; pay 300,000 of 107,000 → credit 193,000
