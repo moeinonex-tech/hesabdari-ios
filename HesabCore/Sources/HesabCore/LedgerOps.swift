@@ -152,7 +152,7 @@ public struct ExpenseInput: Sendable {
     }
 }
 
-public enum LedgerError: Error, Equatable, Sendable {
+public enum LedgerError: Error, Equatable, Sendable, LocalizedError {
     case notFound
     case linkedRow(String)
     case invalid([String])
@@ -170,6 +170,9 @@ public enum LedgerError: Error, Equatable, Sendable {
         case .message(let m): return m
         }
     }
+
+    /// so `error.localizedDescription` shows the Persian text instead of «LedgerError error 2»
+    public var errorDescription: String? { message }
 }
 
 public enum LedgerOps {

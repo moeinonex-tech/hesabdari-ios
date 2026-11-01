@@ -12,7 +12,31 @@ enum PhoneReminders {
     static let store = EKEventStore()
 
     static func access() async -> Bool {
-        do { return try await store.requestFullAccessToReminders() } catch { return false }
+        do {
+            let ok = try await store.requestFullAccessToReminders()
+            // a store made before the permission was given does not see the lists yet: refresh it
+            if ok { store.reset() }
+            return ok
+        } catch { return false }
+    }
+
+    /// the list new items go to: the phone's default Reminders list, else any list that can be written to,
+    /// else a new «دفتر حساب» list (iCloud if there is one, otherwise on the phone)
+    static func targetList() throws -> EKCalendar {
+        if let cal = store.defaultCalendarForNewReminders(), cal.allowsContentModifications { return cal }
+        if let cal = store.calendars(for: .reminder).first(where: { $0.allowsContentModifications }) { return cal }
+        let cal = EKCalendar(for: .reminder, eventStore: store)
+        cal.title = "دفتر حساب"
+        let sources = store.sources
+        guard let source = store.defaultCalendarForNewReminders()?.source
+                ?? sources.first(where: { $0.sourceType == .calDAV && $0.title.lowercased().contains("icloud") })
+                ?? sources.first(where: { $0.sourceType == .local })
+                ?? sources.first else {
+            throw LedgerError.message("هیچ حسابی برای Reminders روی گوشی پیدا نشد (Settings › Reminders).")
+        }
+        cal.source = source
+        try store.saveCalendar(cal, commit: true)
+        return cal
     }
 
     static func midnight(_ j: JalaliDate) -> Date { Calendar.current.startOfDay(for: Fmt.date(j)) }  // Fmt.date is noon
@@ -28,8 +52,7 @@ enum PhoneReminders {
             r = found
         } else {
             r = EKReminder(eventStore: store)
-            guard let cal = store.defaultCalendarForNewReminders() else { throw LedgerError.message("لیست پیش‌فرض Reminders پیدا نشد.") }
-            r.calendar = cal
+            r.calendar = try targetList()
         }
         r.title = title
         r.notes = notes
