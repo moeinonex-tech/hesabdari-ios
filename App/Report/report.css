@@ -117,7 +117,8 @@ body { font-family: 'Vazirmatn', -apple-system, sans-serif; direction: rtl; colo
 .bd-row .bar > div { height: 100%; border-radius: 3px; }
 
 /* ---------- the app's own pages (paginate.js): every page an exact A4 box, 1 CSS px = 1 pt ---------- */
-body.paged { width: 595.28px; margin: 0; padding: 0; background: #E9EEF5; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body.paged { width: 595.28px; margin: 0; padding: 0; background: #E9EEF5; position: absolute; left: 0; top: 0; }
 .pg { position: relative; width: 595.28px; height: 841.89px; overflow: hidden;
       background: linear-gradient(180deg, #ECF1F7 0%, #E7ECF4 100%); }
 .pg-content { position: absolute; display: flow-root; }

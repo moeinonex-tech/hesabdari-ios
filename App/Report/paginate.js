@@ -131,5 +131,7 @@ window.paginate = function () {
     pill.textContent = 'صفحه ' + fa(k + 1) + ' از ' + fa(total);
     pg.appendChild(pill);
   });
+  // where each page box really is (the app captures exactly these rectangles)
+  window.__pageRects = pages.map(pg => { const r = pg.getBoundingClientRect(); return [r.left + window.scrollX, r.top + window.scrollY, r.width, r.height]; });
   return total;
 };

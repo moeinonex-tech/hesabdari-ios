@@ -146,7 +146,7 @@ struct UndoBanner: View {
 
 // MARK: - forms
 
-/// Date field: the phone's own calendar (Persian, Iran time). Tapping the date opens it in a small popover with
+/// Date field: the phone's own calendar (Persian, Iran time). Tapping the date opens it in a half-height sheet with
 /// «امروز» at its top centre — away from the fields, so editing an old row never jumps to today by accident.
 struct JalaliDateField: View {
     let title: String
@@ -170,20 +170,9 @@ struct JalaliDateField: View {
                     .background(t.ink.opacity(0.08), in: Capsule())
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $open) {
-                VStack(spacing: 6) {
-                    Button {
-                        Haptics.tap()
-                        date = AppModel.today
-                        open = false
-                    } label: {
-                        Label("امروز", systemImage: "smallcircle.filled.circle")
-                            .font(AppFont.bold(13)).foregroundStyle(t.accent)
-                            .padding(.horizontal, 12).padding(.vertical, 5)
-                            .background(t.accent.opacity(0.12), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 10)
+            // the phone's calendar in a half-height sheet (full width, nothing cut off); «امروز» on its top bar
+            .sheet(isPresented: $open) {
+                NavigationStack {
                     DatePicker("", selection: Binding(get: { Fmt.date(date) }, set: { date = Fmt.jalali($0); open = false }),
                                displayedComponents: .date)
                         .datePickerStyle(.graphical)
@@ -191,10 +180,31 @@ struct JalaliDateField: View {
                         .environment(\.calendar, Self.persian)
                         .environment(\.timeZone, Fmt.tehran)
                         .environment(\.locale, Locale(identifier: "fa_IR"))
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, 16)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .navigationTitle(title)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .principal) {
+                                Button {
+                                    Haptics.tap()
+                                    date = AppModel.today
+                                    open = false
+                                } label: {
+                                    Label("امروز", systemImage: "smallcircle.filled.circle")
+                                        .font(AppFont.bold(14)).foregroundStyle(t.accent)
+                                        .padding(.horizontal, 14).padding(.vertical, 6)
+                                        .background(t.accent.opacity(0.12), in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button { open = false } label: { Image(systemName: "xmark") }
+                            }
+                        }
                 }
-                .frame(width: 330)
-                .presentationCompactAdaptation(.popover)
+                .presentationDetents([.height(500)])
+                .presentationDragIndicator(.visible)
             }
         }
     }

@@ -41,7 +41,7 @@ enum ReportHTML {
 
     static func page(title: String, subtitle: String, legend: [(String, String)], columns: [Column], rows: [(cells: [String], cls: String)],
                      empty: String, totalLabel: String, total: Int, cards: [Card]) -> String {
-        var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><style>" + css + "</style></head><body>"
+        var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=595.28, initial-scale=1, maximum-scale=1, user-scalable=no\"><style>" + css + "</style></head><body>"
         h += "<div class=\"hdr\"><div><div class=\"title\">" + esc(title) + "</div><div class=\"sub\">" + esc(subtitle) + "</div></div>"
         if false && !legend.isEmpty {     // the pay-method legend is no longer printed (icons + names are in the rows)
             h += "<div class=\"legend\"><div class=\"legend-title\">راهنمای آیکون روش پرداخت</div><div class=\"legend-items\">"
@@ -119,10 +119,15 @@ final class HTMLPDF: NSObject, WKNavigationDelegate {
         try? await Task.sleep(nanoseconds: 150_000_000)
         _ = try? await w.callAsyncJavaScript("await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); return 1", contentWorld: .page)
 
+        // the real position of every page box (from the page itself, so nothing is assumed about the layout)
+        let raw = (try? await w.callAsyncJavaScript("return window.__pageRects || []", contentWorld: .page)) as? [[Double]] ?? []
+        let rects: [CGRect] = raw.count == pages
+            ? raw.map { CGRect(x: $0[0], y: $0[1], width: $0[2], height: $0[3]) }
+            : (0..<pages).map { CGRect(x: 0, y: Self.paper.height * CGFloat($0), width: Self.paper.width, height: Self.paper.height) }
         let out = PDFDocument()
         for k in 0..<pages {
             let cfg = WKPDFConfiguration()
-            cfg.rect = CGRect(x: 0, y: Self.paper.height * CGFloat(k), width: Self.paper.width, height: Self.paper.height)
+            cfg.rect = rects[k]
             let data = try await w.pdf(configuration: cfg)
             guard let doc = PDFDocument(data: data) else { continue }
             for p in 0..<doc.pageCount {
@@ -453,7 +458,7 @@ extension ReportHTML {
     }
 
     static func breakdownPage(title: String, subtitle: String, cats: [Slice], subs: [Slice]?, firstIsSub: Bool = false) -> String {
-        var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><style>" + css + "</style></head><body>"
+        var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=595.28, initial-scale=1, maximum-scale=1, user-scalable=no\"><style>" + css + "</style></head><body>"
         h += "<div class=\"hdr\"><div><div class=\"title\">" + esc(title) + "</div><div class=\"sub\">" + esc(subtitle) + "</div></div></div>"
         h += breakdownSection(title: firstIsSub ? "تفکیک زیردسته‌ها" : "تفکیک دسته‌ها", unit: firstIsSub ? "زیردسته" : "دسته", slices: cats)
         if let subs, !subs.isEmpty { h += breakdownSection(title: "تفکیک زیردسته‌ها", unit: "زیردسته", slices: subs) }
