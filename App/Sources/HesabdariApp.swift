@@ -60,6 +60,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var hasData = false
     @Published var pending: ImportReport?
     @Published var errorMessage: String?
+    /// a confirmation the person should read (e.g. what was added to the phone's Reminders and when it will remind)
+    @Published var infoMessage: String?
     @Published var lastImportText: String?
 
     private let store: HesabStore?

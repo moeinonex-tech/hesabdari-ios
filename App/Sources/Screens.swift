@@ -80,6 +80,12 @@ struct RootView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+        .alert("انجام شد", isPresented: Binding(get: { model.infoMessage != nil && model.errorMessage == nil },
+                                                 set: { if !$0 { model.infoMessage = nil } })) {
+            Button("باشه", role: .cancel) { model.infoMessage = nil }
+        } message: {
+            Text(model.infoMessage ?? "")
+        }
     }
 }
 

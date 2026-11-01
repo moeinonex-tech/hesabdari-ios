@@ -39,7 +39,20 @@ enum PhoneReminders {
         return cal
     }
 
-    static func midnight(_ j: JalaliDate) -> Date { Calendar.current.startOfDay(for: Fmt.date(j)) }  // Fmt.date is noon
+    /// 00:00 of that day in Iran time (Fmt.date is noon, Tehran)
+    static func midnight(_ j: JalaliDate) -> Date { Fmt.gregorian.startOfDay(for: Fmt.date(j)) }
+
+    /// «۲۵ آذر ساعت ۲۱:۰۰» for every alert, so the person sees exactly when they will be reminded
+    static func alertsText(_ due: JalaliDate, _ offsets: [TimeInterval]) -> String {
+        let base = midnight(due)
+        return offsets.map { o -> String in
+            let d = base.addingTimeInterval(o)
+            let j = Fmt.jalali(d)
+            let c = Fmt.gregorian.dateComponents([.hour, .minute], from: d)
+            let time = Money.persianDigits(String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0))
+            return "• " + Money.persianDigits(String(j.jd)) + " " + BackupExporter.months[j.jm - 1] + " ساعت " + time
+        }.joined(separator: "\n")
+    }
 
     static func longDate(_ d: JalaliDate) -> String {
         Money.persianDigits(String(d.jd)) + " " + BackupExporter.months[d.jm - 1] + " " + Money.persianDigits(String(d.jy))
@@ -57,7 +70,7 @@ enum PhoneReminders {
         r.title = title
         r.notes = notes
         let g = Jalali.toGregorian(due)
-        r.dueDateComponents = DateComponents(calendar: Calendar(identifier: .gregorian), year: g.gy, month: g.gm, day: g.gd)
+        r.dueDateComponents = DateComponents(calendar: Fmt.gregorian, timeZone: Fmt.tehran, year: g.gy, month: g.gm, day: g.gd)
         r.alarms?.forEach { r.removeAlarm($0) }
         let base = midnight(due)
         for o in alarmOffsets { r.addAlarm(EKAlarm(absoluteDate: base.addingTimeInterval(o))) }
@@ -84,10 +97,14 @@ extension AppModel {
         if let d = c["description"]?.stringValue, !d.isEmpty { lines.append("توضیحات: " + d) }
         lines.append("تاریخ سررسید: " + PhoneReminders.longDate(due))
         do {
+            let offsets: [TimeInterval] = [-(27 * 3600), -(3 * 3600), 0]
+            let updated = c["calendarEventId"]?.stringValue.map { PhoneReminders.store.calendarItem(withIdentifier: $0) != nil } ?? false
             let rid = try PhoneReminders.save(existingId: c["calendarEventId"]?.stringValue, title: title, notes: lines.joined(separator: "\n"),
-                                              due: due, alarmOffsets: [-(27 * 3600), -(3 * 3600), 0])
+                                              due: due, alarmOffsets: offsets)
             markCalendarAdded(listKey: "reminderChecks", id: id, eventId: rid)
             Haptics.success()
+            infoMessage = (updated ? "چک در Reminders گوشی به‌روز شد ✓" : "چک به Reminders گوشی اضافه شد ✓")
+                + "\nسررسید: " + PhoneReminders.longDate(due) + "\nیادآوری‌ها:\n" + PhoneReminders.alertsText(due, offsets)
         } catch { errorMessage = "افزودن به Reminders نشد: " + error.localizedDescription }
     }
 
@@ -114,10 +131,12 @@ extension AppModel {
         let due = ImportAnalyzer.date(a["date"])
         lines.append("تاریخ: " + PhoneReminders.longDate(due))
         do {
+            let offsets: [TimeInterval] = [-(27 * 3600), 0]
             let rid = try PhoneReminders.save(existingId: a["calendarEventId"]?.stringValue, title: title, notes: lines.joined(separator: "\n"),
-                                              due: due, alarmOffsets: [-(27 * 3600), 0])
+                                              due: due, alarmOffsets: offsets)
             markCalendarAdded(listKey: "appointments", id: id, eventId: rid)
             Haptics.success()
+            infoMessage = "قرار به Reminders گوشی اضافه شد ✓\nتاریخ: " + PhoneReminders.longDate(due) + "\nیادآوری‌ها:\n" + PhoneReminders.alertsText(due, offsets)
         } catch { errorMessage = "افزودن به Reminders نشد: " + error.localizedDescription }
     }
 
@@ -130,9 +149,11 @@ extension AppModel {
         let desc = i["description"]?.stringValue ?? ""
         let title = "قسط " + name + (desc.isEmpty ? "" : " — " + desc)
         do {
+            let due = ImportAnalyzer.date(i["dueDate"])
             _ = try PhoneReminders.save(existingId: nil, title: title, notes: "مبلغ: " + Money.format(i["amount"]?.intValue ?? 0) + " تومان",
-                                        due: ImportAnalyzer.date(i["dueDate"]), alarmOffsets: [-(9 * 3600)])
+                                        due: due, alarmOffsets: [-(9 * 3600)])
             Haptics.success()
+            infoMessage = "قسط به Reminders گوشی اضافه شد ✓\nسررسید: " + PhoneReminders.longDate(due) + "\nیادآوری:\n" + PhoneReminders.alertsText(due, [-(9 * 3600)])
         } catch { errorMessage = "افزودن به Reminders نشد: " + error.localizedDescription }
     }
 
