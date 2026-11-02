@@ -476,7 +476,7 @@ struct PersonalFormView: View {
                 let its = model.items(ofRow: "personalExpenses", r.rowId)
                 if its.count > 1 { items = its; itemCount = its.count }
             } else {
-                cardId = model.activeCards.first?.id
+                cardId = SmartDefaults.mostUsedCard(model.state, listKey: "personalExpenses", accountId: nil) ?? model.activeCards.first?.id
             }
         }
         .onChange(of: makesCheck) { _, check in if check && itemCount > 1 { itemCountBinding.wrappedValue = 1 } }

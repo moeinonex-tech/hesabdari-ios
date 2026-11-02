@@ -90,35 +90,89 @@ final class MultiEntryTests: XCTestCase {
 }
 
 final class NotesImportTests: XCTestCase {
-    func testParseLikeWeb() {
+    func testParseAnyOrderAndProblems() {
         let text = """
+        یادداشت قدیمی بی‌تاریخ
         1405/6/19
         8.520.000
         بابت خرید ۲۰۰ عدد بلوک
         از فروشگاه
 
-        ۱۴۰۵/۶/۲۰
-        ۱,۲۰۰,۰۰۰ تومان
+        ۱۴۰۵/۸/۷
+
+        خرید قند و چای خشک برای کارگران (آرماتور بند)
+
+        ۵۱۸.۱۰۰
+        1405/8/8
         کرایه وانت
-        05-6-21
-        نامعتبر
+        1405/8/9
+        12.000 ریال
+        1405/8/10
+        100.000
+        200.000
+        دو عدد
+        1405/8/11
+        950.000
         1405/13/1
         """
         let r = NotesImport.parse(text)
-        XCTAssertEqual(r.entries.count, 2)
-        XCTAssertEqual(r.entries[0].date, JalaliDate(jy: 1405, jm: 6, jd: 19))
+        XCTAssertEqual(r.orphans, ["یادداشت قدیمی بی‌تاریخ"])
+        XCTAssertEqual(r.entries.count, 6)
         XCTAssertEqual(r.entries[0].toman, 8_520_000)
         XCTAssertEqual(r.entries[0].desc, "بابت خرید ۲۰۰ عدد بلوک از فروشگاه")
-        XCTAssertEqual(r.entries[1].toman, 1_200_000)
-        XCTAssertEqual(r.entries[1].desc, "کرایه وانت")
-        XCTAssertEqual(r.skipped, 3)   // 05-6-21 (no amount after it), «نامعتبر», 1405/13/1
+        XCTAssertTrue(r.entries[0].problems.isEmpty)
+        // description before the amount: still read right
+        XCTAssertEqual(r.entries[1].toman, 518_100)
+        XCTAssertEqual(r.entries[1].desc, "خرید قند و چای خشک برای کارگران (آرماتور بند)")
+        XCTAssertTrue(r.entries[1].problems.isEmpty)
+        // no amount → kept and flagged, never dropped
+        XCTAssertEqual(r.entries[2].problems, ["مبلغ پیدا نشد"])
+        // a row with only an amount: flagged for its missing description (12.000 rial = 1.200 toman)
+        XCTAssertEqual(r.entries[3].toman, 1_200)
+        XCTAssertTrue(r.entries[3].problems.contains("شرح پیدا نشد"))
+        // two numbers → amount left empty, the person picks
+        XCTAssertEqual(r.entries[4].toman, 0)
+        XCTAssertTrue(r.entries[4].problems.first?.hasPrefix("چند عدد پیدا شد") ?? false)
+        // an impossible date inside a row is reported on that row
+        XCTAssertTrue(r.entries[5].problems.contains { $0.hasPrefix("تاریخ نامعتبر") })
+        XCTAssertEqual(r.problemCount, 4)
+    }
+
+    func testRial() {
+        let r = NotesImport.parse("1405/8/9\n12.000 ریال\nخرید")
+        XCTAssertEqual(r.entries[0].toman, 1_200)
+    }
+
+    func testTopPayMethods() {
+        let st: [String: JSONValue] = ["expenses": .array([
+            .object(["accountId": .string("a"), "payMethod": .string("cash")]),
+            .object(["accountId": .string("a"), "payMethod": .string("cash")]),
+            .object(["accountId": .string("a"), "payMethod": .string("pos")]),
+            .object(["accountId": .string("b"), "payMethod": .string("transfer")])])]
+        XCTAssertEqual(SmartDefaults.topPayMethods(st, listKey: "expenses", accountId: "a"), ["cash", "pos"])
+        XCTAssertEqual(SmartDefaults.topPayMethods(st, listKey: "expenses", accountId: "z"), ["hamrahbank", "pos"])
+    }
+
+    func testMostUsedCard() {
+        let st: [String: JSONValue] = [
+            "cards": .array([.object(["id": .string("c1")]), .object(["id": .string("c2")]), .object(["id": .string("c3"), "archived": .bool(true)])]),
+            "expenses": .array([
+                .object(["accountId": .string("a"), "cardId": .string("c2"), "ts": .int(1)]),
+                .object(["accountId": .string("a"), "cardId": .string("c2"), "ts": .int(2)]),
+                .object(["accountId": .string("a"), "cardId": .string("c1"), "ts": .int(3)]),
+                .object(["accountId": .string("a"), "cardId": .string("c3"), "ts": .int(4)]),
+                .object(["accountId": .string("a"), "cardId": .string("c3"), "ts": .int(5)]),
+                .object(["accountId": .string("a"), "cardId": .string("c3"), "ts": .int(6)])])]
+        XCTAssertEqual(SmartDefaults.mostUsedCard(st, listKey: "expenses", accountId: "a"), "c2")   // c3 is archived
+        XCTAssertNil(SmartDefaults.mostUsedCard(st, listKey: "expenses", accountId: "b"))
     }
 
     func testAdd() {
         let ids = IdSource(nowMs: { 1_000 }, random5: { "abcde" })
-        let e = [NotesEntry(id: 0, date: JalaliDate(jy: 1405, jm: 1, jd: 1), toman: 10, desc: "سیمان", category: "مصالح", subcategory: "سیمان"),
+        var e = [NotesEntry(id: 0, date: JalaliDate(jy: 1405, jm: 1, jd: 1), toman: 10, desc: "سیمان", category: "مصالح", subcategory: "سیمان"),
                  NotesEntry(id: 1, date: JalaliDate(jy: 1405, jm: 1, jd: 2), toman: 20, desc: "x")]
-        let st = NotesImport.add(["expenses": .array([])], e, ledgerAccountId: "a1", ids: ids)
+        e[0].payMethod = "pos"; e[1].payMethod = "cash"
+        let st = NotesImport.add(["expenses": .array([])], e, ledgerAccountId: "a1", cardId: "c9", ids: ids)
         let rows = st["expenses"]!.arrayValue!
         XCTAssertEqual(rows.count, 2)
         XCTAssertEqual(rows[0]["category"]?.stringValue, "مصالح")
@@ -126,5 +180,9 @@ final class NotesImportTests: XCTestCase {
         XCTAssertEqual(rows[1]["ts"]?.intValue, 1_001)
         XCTAssertNil(rows[1]["category"])
         XCTAssertEqual(st["ledgerCategories"]?.arrayValue?.count, 1)
+        XCTAssertEqual(rows[0]["payMethod"]?.stringValue, "pos")
+        XCTAssertEqual(rows[0]["cardId"]?.stringValue, "c9")
+        XCTAssertEqual(rows[1]["payMethod"]?.stringValue, "cash")
+        XCTAssertNil(rows[1]["cardId"])
     }
 }

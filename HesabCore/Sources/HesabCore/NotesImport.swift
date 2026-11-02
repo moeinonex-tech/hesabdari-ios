@@ -1,8 +1,10 @@
 import Foundation
 
-// web «وارد کردن از یادداشت» (parseNotesImportText): pasted text, for each row: Jalali date line → amount line → description
-// lines until the next date line. Unlimited rows. Here each row also gets a category / subcategory guess from the
-// learning engine (the person can correct it before saving).
+// web «وارد کردن از یادداشت»: pasted text, unlimited rows. Every Jalali date line starts a row; the lines up to the
+// next date belong to it, in ANY order: the line that is only a number is the amount, the rest is the description
+// (web needed date → amount → description). A row that cannot be read for sure is never dropped silently: it is kept
+// with its problem written on it, and text before the first date is reported as unassigned. Each row also gets a
+// category / subcategory guess from the learning engine and, after the preview, a pay method chosen by the person.
 
 public struct NotesEntry: Sendable, Equatable, Identifiable {
     public var id: Int
@@ -12,9 +14,19 @@ public struct NotesEntry: Sendable, Equatable, Identifiable {
     public var category: String
     public var subcategory: String
     public var guessed: Bool          // the category came from the learning engine
+    public var payMethod: String?     // chosen after the preview (nil = none)
+    /// why this row could not be read for sure (shown on the row; empty = fine)
+    public var problems: [String] = []
+    /// the original lines of this row, to show next to a problem
+    public var raw: String = ""
     public init(id: Int, date: JalaliDate, toman: Int, desc: String, category: String = "", subcategory: String = "", guessed: Bool = false) {
         self.id = id; self.date = date; self.toman = toman; self.desc = desc
         self.category = category; self.subcategory = subcategory; self.guessed = guessed
+    }
+    /// still missing something that must be filled before saving
+    public var blocking: Bool {
+        toman <= 0 || desc.trimmingCharacters(in: .whitespaces).isEmpty
+            || category.trimmingCharacters(in: .whitespaces).isEmpty || subcategory.trimmingCharacters(in: .whitespaces).isEmpty
     }
 }
 
@@ -33,8 +45,25 @@ public enum NotesImport {
         return JalaliDate(jy: jy, jm: jm, jd: jd)
     }
 
-    /// web niIsAmountLine / niParseAmountLine
+    /// a line that looks like a date but is not a valid one (e.g. 1405/13/1)
+    static func looksLikeDate(_ l: String) -> Bool {
+        let s = latin(l).trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ".", with: "/").replacingOccurrences(of: "-", with: "/")
+        let parts = s.split(separator: "/", omittingEmptySubsequences: false)
+        return parts.count == 3 && parts.allSatisfy { !$0.isEmpty && $0.count <= 4 && $0.allSatisfy { $0.isASCII && $0.isNumber } }
+    }
+
+    /// web niIsAmountLine / niParseAmountLine (an amount in rials is turned into toman)
     static func parseAmount(_ l: String) -> Int? {
+        var s = latin(l).trimmingCharacters(in: .whitespaces)
+        let rial = s.contains("ریال") || s.contains("ريال")
+        for w in ["تومان", "ریال", "ريال"] { s = s.replacingOccurrences(of: w, with: "") }
+        s = s.trimmingCharacters(in: .whitespaces)
+        let digits = s.filter { !".,،٬".contains($0) && !$0.isWhitespace }
+        guard !digits.isEmpty, digits.allSatisfy({ $0.isASCII && $0.isNumber }), let n = Int(digits) else { return nil }
+        return rial ? n / 10 : n
+    }
+
+    static func legacyAmount(_ l: String) -> Int? {
         var s = latin(l).trimmingCharacters(in: .whitespaces)
         for w in ["تومان", "ریال", "ريال"] { s = s.replacingOccurrences(of: w, with: "") }
         s = s.trimmingCharacters(in: .whitespaces)
@@ -43,7 +72,56 @@ public enum NotesImport {
         return Int(digits) ?? 0
     }
 
-    public static func parse(_ text: String) -> (entries: [NotesEntry], skipped: Int) {
+    public struct Result: Sendable {
+        public var entries: [NotesEntry]
+        /// text before the first date: it belongs to no row
+        public var orphans: [String]
+        public var problemCount: Int { entries.filter { !$0.problems.isEmpty }.count }
+    }
+
+    /// order-insensitive reading (see the top of the file)
+    public static func parse(_ text: String) -> Result {
+        let lines = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        var entries: [NotesEntry] = []
+        var orphans: [String] = []
+        var i = 0
+        while i < lines.count, parseDate(lines[i]) == nil { orphans.append(lines[i]); i += 1 }
+        while i < lines.count {
+            guard let d = parseDate(lines[i]) else { i += 1; continue }
+            var block: [String] = []
+            i += 1
+            while i < lines.count, parseDate(lines[i]) == nil { block.append(lines[i]); i += 1 }
+            var amounts: [Int] = [], text: [String] = [], problems: [String] = []
+            for l in block {
+                if looksLikeDate(l) {
+                    problems.append("تاریخ نامعتبر: «" + l + "»")
+                } else if let n = parseAmount(l) {
+                    amounts.append(n)
+                } else {
+                    text.append(l)
+                }
+            }
+            var e = NotesEntry(id: entries.count, date: d, toman: 0, desc: text.joined(separator: " ").trimmingCharacters(in: .whitespaces))
+            switch amounts.count {
+            case 0: problems.append("مبلغ پیدا نشد")
+            case 1:
+                e.toman = amounts[0]
+                if amounts[0] <= 0 { problems.append("مبلغ صفر است") }
+            default:
+                problems.append("چند عدد پیدا شد (" + amounts.map { Money.persianDigits(Money.format($0)) }.joined(separator: "، ") + ") — مبلغ درست را وارد کنید")
+            }
+            if e.desc.isEmpty { problems.append("شرح پیدا نشد") }
+            e.problems = problems
+            e.raw = ([BackupExporter.formatJalali(d)] + block).joined(separator: "\n")
+            entries.append(e)
+        }
+        return Result(entries: entries, orphans: orphans)
+    }
+
+    /// the old web reading (date → amount → description, strict order) — kept for reference / tests
+    public static func parseStrict(_ text: String) -> (entries: [NotesEntry], skipped: Int) {
         let lines = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -51,7 +129,7 @@ public enum NotesImport {
         while i < lines.count {
             if let d = parseDate(lines[i]) {
                 i += 1
-                if i < lines.count, let n = parseAmount(lines[i]) {
+                if i < lines.count, let n = legacyAmount(lines[i]) {
                     i += 1
                     var desc: [String] = []
                     while i < lines.count && parseDate(lines[i]) == nil { desc.append(lines[i]); i += 1 }
@@ -80,7 +158,7 @@ public enum NotesImport {
 
     /// web confirm: plain rows (no pay method), ts = now + i; here with the category/subcategory, learned like a form entry
     public static func add(_ state: [String: JSONValue], _ entries: [NotesEntry], ledgerAccountId: String?,
-                           ids: IdSource = .system) -> [String: JSONValue] {
+                           cardId: String? = nil, ids: IdSource = .system) -> [String: JSONValue] {
         var st = state
         let key = ledgerAccountId == nil ? "personalExpenses" : "expenses"
         let ctx: LearnContext = ledgerAccountId == nil ? .personal : .ledger
@@ -104,6 +182,11 @@ public enum NotesImport {
             if let a = ledgerAccountId { row["accountId"] = .string(a); row["type"] = .string("expense") }
             if !c.isEmpty { row["category"] = .string(c) }
             if !s.isEmpty { row["subcategory"] = .string(s) }
+            if let m = e.payMethod, !m.isEmpty {
+                row["payMethod"] = .string(m)
+                // card methods get the card this ledger uses most
+                if ["hamrahbank", "pos", "card"].contains(m), let card = cardId { row["cardId"] = .string(card) }
+            }
             list.append(.object(row))
         }
         st[key] = .array(list)

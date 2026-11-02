@@ -305,7 +305,9 @@ final class AppModel: ObservableObject {
             return Choice(id: id, label: bank + " •" + Money.persianDigits(last4))
         }
     }
+    /// the card this ledger uses most (smart default); then the last used one, the default card, the first card
     func defaultCard(accountId: String) -> String? {
+        if let most = SmartDefaults.mostUsedCard(state, listKey: "expenses", accountId: accountId) { return most }
         if let last = state["lastCardByAccount"]?[accountId]?.idString, activeCards.contains(where: { $0.id == last }) { return last }
         let cards = state["cards"]?.arrayValue ?? []
         if let def = cards.first(where: { $0["isDefault"]?.isTruthy == true && !($0["archived"]?.isTruthy ?? false) })?["id"]?.idString { return def }
