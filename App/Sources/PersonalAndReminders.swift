@@ -355,23 +355,29 @@ struct SimpleRowLine: View {
     @Environment(\.theme) private var t
 
     var body: some View {
-        HStack(spacing: 10) {
-            Circle().fill(color ?? (income ? t.success : t.accent)).frame(width: 10, height: 10)
-            VStack(alignment: .leading, spacing: 2) {
+        let dot = color ?? (income ? t.success : t.accent)
+        HStack(alignment: .top, spacing: 10) {
+            Circle().fill(dot).frame(width: 10, height: 10).padding(.top, 5)
+            VStack(alignment: .leading, spacing: 4) {
                 Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(1)
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
+                    if !row.category.isEmpty { CategoryTag(text: row.category, color: dot) }
+                    if !row.subcategory.isEmpty { CategoryTag(text: row.subcategory, color: dot, light: true) }
                     if row.itemCount > 1 { InvoiceTag(count: row.itemCount) }
-                    if !row.category.isEmpty { Text(row.category) }
+                }
+                .lineLimit(1)
+                HStack(spacing: 6) {
                     Text(row.date)
-                    if !income, let p = payTitle(row.payMethod) { Text("· " + p) }
+                    if !income { PayGlyph(method: row.payMethod) }
                     if income && row.accountLink != "personal" && !row.accountName.isEmpty { Text("· " + row.accountName) }
-                    if row.isCommission || row.isLinked { Image(systemName: "link") }
+                    if row.isCommission || row.isLinked { Image(systemName: "link").font(.system(size: 10)) }
                 }
                 .font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
             }
             Spacer(minLength: 8)
             Text((income ? "+" : "") + Money.persianDigits(Money.format(row.toman)))
                 .font(AppFont.bold(14)).foregroundStyle(income ? t.success : t.ink)
+                .padding(.top, 1)
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
@@ -647,7 +653,7 @@ struct RemindersView: View {
                         NavigationLink {
                             PersonDetailView(model: model, personId: p.id)
                         } label: {
-                            PersonCard(person: p)
+                            PersonCard(person: p).wholeCardTouch()
                         }
                         .buttonStyle(.plain)
                     }
@@ -656,6 +662,7 @@ struct RemindersView: View {
                     if apts.isEmpty { EmptyNote(text: "قراری ثبت نشده") }
                     ForEach(apts) { a in
                         AppointmentCard(apt: a)
+                            .wholeCardTouch()
                             .onTapGesture { sheet = .editAppointment(a.id) }
                             .contextMenu {
                                 Button { _ = model.toggleAppointment(a.id) } label: {
@@ -698,6 +705,7 @@ struct RemindersView: View {
     @ViewBuilder
     private func checkRow(_ c: CheckVM) -> some View {
         CheckCard(check: c)
+            .wholeCardTouch()
             .onTapGesture { sheet = .editCheck(c.id) }
             .contextMenu {
                 if c.status != "cashed" {
@@ -869,5 +877,14 @@ struct AppointmentCard: View {
             DueBadge(days: apt.daysLeft, resolved: apt.done)
         }
         .glassCard()
+    }
+}
+
+
+extension View {
+    /// the whole card (not only its text) answers a tap and a long press, and the press preview is the card's shape
+    func wholeCardTouch(corner: CGFloat = 24) -> some View {
+        self.contentShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: corner, style: .continuous))
     }
 }

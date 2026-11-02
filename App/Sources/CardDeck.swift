@@ -220,6 +220,53 @@ func payTitle(_ m: String?) -> String? {
     return PayMethod(rawValue: m)?.title
 }
 
+/// category / subcategory as a small coloured tag (the chart colour of that category)
+struct CategoryTag: View {
+    let text: String
+    let color: Color
+    var light = false
+    var body: some View {
+        Text(text)
+            .font(AppFont.medium(11))
+            .foregroundStyle(light ? color.opacity(0.85) : color)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(color.opacity(light ? 0.08 : 0.16), in: Capsule())
+            .overlay { if light { Capsule().strokeBorder(color.opacity(0.35), lineWidth: 0.6) } }
+            .lineLimit(1)
+    }
+}
+
+/// pay method with a small icon (the same meanings as the PDF column); a quiet mark when none was entered
+struct PayGlyph: View {
+    let method: String?
+    @Environment(\.theme) private var t
+    static func icon(_ m: String) -> String {
+        switch m {
+        case "hamrahbank", "transfer": return "arrow.left.arrow.right"
+        case "pos", "card": return "creditcard"
+        case "cash": return "banknote"
+        case "check": return "checkmark.rectangle"
+        case "branch": return "building.columns"
+        case "nasiyeh": return "hourglass"
+        default: return "questionmark.circle"
+        }
+    }
+    var body: some View {
+        if let m = method, !m.isEmpty, let title = payTitle(m) {
+            HStack(spacing: 3) {
+                Image(systemName: Self.icon(m)).font(.system(size: 10, weight: .semibold)).foregroundStyle(t.accent)
+                Text(title)
+            }
+        } else {
+            HStack(spacing: 3) {
+                Image(systemName: "minus.circle").font(.system(size: 10))
+                Text("بدون روش پرداخت")
+            }
+            .foregroundStyle(t.soft.opacity(0.7))
+        }
+    }
+}
+
 // MARK: - rows card (web floating list): 5 rows visible, scroll inside, unfold to all; newest first, month separators
 
 struct RowsCardEntry<Row: Identifiable>: Identifiable {
@@ -244,9 +291,9 @@ struct RowsCard<Row: Identifiable, RowView: View>: View {
     @State private var building = false
     @Environment(\.theme) private var t
 
-    static var rowH: CGFloat { 62 }
+    static var rowH: CGFloat { 76 }
     static var headH: CGFloat { 30 }
-    private let visibleRows = 5
+    private let visibleRows = 4
 
     init(title: String, total: String, rows: [Row], date: @escaping (Row) -> JalaliDate, amount: @escaping (Row) -> Int,
          empty: String, export: (() async -> ExportFile?)? = nil, @ViewBuilder rowView: @escaping (Row) -> RowView) {

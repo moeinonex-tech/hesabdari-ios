@@ -758,9 +758,49 @@ struct LedgerRowLine: View {
     let row: LedgerRowVM
     let color: Color?
     var subtitle: String? = nil
+    /// the transactions card: category / subcategory as coloured tags, pay method with its icon
+    var detailed = false
     @Environment(\.theme) private var t
 
     var body: some View {
+        if detailed { detailedBody } else { compactBody }
+    }
+
+    private var dot: Color { row.kind == .commission ? Color.purple : (row.kind == .tankhah ? t.success : (color ?? t.accent)) }
+
+    private var detailedBody: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle().fill(dot).frame(width: 10, height: 10).padding(.top, 5)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(1)
+                HStack(spacing: 5) {
+                    if row.kind == .tankhah {
+                        CategoryTag(text: "تنخواه", color: t.success)
+                    } else {
+                        if !row.category.isEmpty { CategoryTag(text: row.category, color: dot) }
+                        if !row.subcategory.isEmpty { CategoryTag(text: row.subcategory, color: dot, light: true) }
+                    }
+                    if row.itemCount > 1 { InvoiceTag(count: row.itemCount) }
+                }
+                .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(row.date)
+                    PayGlyph(method: row.payMethod)
+                    if row.isLinked { Image(systemName: "link").font(.system(size: 10)) }
+                }
+                .font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Text(Money.persianDigits(Money.format(row.toman)))
+                .font(AppFont.bold(14))
+                .foregroundStyle(row.kind == .tankhah ? t.success : t.ink)
+                .padding(.top, 1)
+        }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+    }
+
+    private var compactBody: some View {
         HStack(spacing: 10) {
             Circle()
                 .fill(row.kind == .commission ? Color.purple : (row.kind == .tankhah ? t.success : (color ?? t.accent)))
@@ -1035,7 +1075,7 @@ struct LedgerHomeView: View {
     }
 
     private func ledgerRow(_ r: LedgerRowVM, _ colors: [String: Color]) -> some View {
-        LedgerRowLine(row: r, color: colors[r.category] ?? model.categoryColor(r.category))
+        LedgerRowLine(row: r, color: colors[r.category] ?? model.categoryColor(r.category), detailed: true)
             .onTapGesture { guarded(r) { sheet = .edit(r) } }
             .contextMenu {
                 Button { guarded(r) { sheet = .edit(r) } } label: { Label("ویرایش", systemImage: "pencil") }
