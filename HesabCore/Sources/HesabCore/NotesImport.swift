@@ -49,7 +49,9 @@ public enum NotesImport {
     static func looksLikeDate(_ l: String) -> Bool {
         let s = latin(l).trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ".", with: "/").replacingOccurrences(of: "-", with: "/")
         let parts = s.split(separator: "/", omittingEmptySubsequences: false)
-        return parts.count == 3 && parts.allSatisfy { !$0.isEmpty && $0.count <= 4 && $0.allSatisfy { $0.isASCII && $0.isNumber } }
+        // shaped like y/m/d (2–4, 1–2, 1–2 digits) — an amount like 8.520.000 has 3-digit groups and is not a date
+        guard parts.count == 3, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isNumber } }) else { return false }
+        return (2...4).contains(parts[0].count) && (1...2).contains(parts[1].count) && (1...2).contains(parts[2].count)
     }
 
     /// web niIsAmountLine / niParseAmountLine (an amount in rials is turned into toman)
