@@ -220,19 +220,24 @@ func payTitle(_ m: String?) -> String? {
     return PayMethod(rawValue: m)?.title
 }
 
-/// category / subcategory as a small coloured tag (the chart colour of that category)
+/// category / subcategory tag, the common platform pattern: neutral, high-contrast text on a quiet neutral chip;
+/// colour only in a small dot (the category's chart colour) — never coloured text, which is hard to read
 struct CategoryTag: View {
     let text: String
     let color: Color
+    /// subcategory: no dot, lighter text
     var light = false
+    @Environment(\.theme) private var t
     var body: some View {
-        Text(text)
-            .font(AppFont.medium(11))
-            .foregroundStyle(light ? color.opacity(0.85) : color)
-            .padding(.horizontal, 7).padding(.vertical, 2)
-            .background(color.opacity(light ? 0.08 : 0.16), in: Capsule())
-            .overlay { if light { Capsule().strokeBorder(color.opacity(0.35), lineWidth: 0.6) } }
-            .lineLimit(1)
+        HStack(spacing: 4) {
+            if !light { Circle().fill(color).frame(width: 6, height: 6) }
+            Text(text)
+                .font(AppFont.medium(11))
+                .foregroundStyle(light ? t.soft : t.ink.opacity(0.85))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 7).padding(.vertical, 2)
+        .background(t.ink.opacity(light ? 0.04 : 0.07), in: Capsule())
     }
 }
 
