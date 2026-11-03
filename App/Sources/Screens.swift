@@ -89,6 +89,30 @@ struct RootView: View {
     }
 }
 
+/// one topic row of the settings hub: icon in a coloured tile, title, and a short status line
+struct SettingsRow: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let detail: String?
+    @Environment(\.theme) private var t
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(tint.gradient, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(AppFont.medium(15)).foregroundStyle(t.ink)
+                if let d = detail, !d.isEmpty {
+                    Text(d).font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 // MARK: - welcome
 
 struct WelcomeView: View {
@@ -1393,6 +1417,7 @@ struct BankCardView: View {
 
 // MARK: - settings
 
+/// Settings hub: a short list of topics (like the phone's own Settings), each opening its own page.
 struct SettingsView: View {
     @ObservedObject var model: AppModel
     @Binding var showImporter: Bool
@@ -1409,25 +1434,62 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                NavigationLink {
-                    WidgetsSettingsView(model: model)
-                } label: {
-                    Label("ویجت‌های خانه", systemImage: "square.grid.2x2")
+                NavigationLink { appearancePage } label: {
+                    SettingsRow(icon: "paintbrush.fill", tint: .indigo, title: "ظاهر",
+                                detail: (Palette(rawValue: paletteRaw)?.title ?? "") + " · " + (Appearance(rawValue: appearanceRaw)?.title ?? ""))
                 }
-                NavigationLink {
-                    QuotesSettingsView(model: model)
-                } label: {
-                    Label("جمله‌های انگیزشی", systemImage: "quote.bubble")
+                NavigationLink { homePage } label: {
+                    SettingsRow(icon: "house.fill", tint: .blue, title: "صفحه‌ی خانه", detail: "ویجت‌ها و جمله‌های انگیزشی")
                 }
-                NavigationLink {
-                    PartiesView(model: model)
-                } label: {
-                    Label("طرف‌های حساب", systemImage: "person.2")
-                }
-            } header: {
-                Text("خانه و فهرست‌ها").font(AppFont.medium(13))
             }
 
+            Section {
+                NavigationLink { PartiesView(model: model) } label: {
+                    SettingsRow(icon: "person.2.fill", tint: .teal, title: "طرف‌های حساب", detail: nil)
+                }
+            }
+
+            Section {
+                NavigationLink { securityPage } label: {
+                    SettingsRow(icon: "lock.fill", tint: .gray, title: "امنیت",
+                                detail: (lockEnabled ? "Face ID روشن" : "Face ID خاموش") + (model.hasEditPassword ? " · رمز ردیف‌ها دارد" : ""))
+                }
+                NavigationLink { notificationsPage } label: {
+                    SettingsRow(icon: "bell.badge.fill", tint: .red, title: "اعلان‌ها", detail: notifyEnabled ? "روشن" : "خاموش")
+                }
+            }
+
+            Section {
+                NavigationLink { dataPage } label: {
+                    SettingsRow(icon: "externaldrive.fill.badge.icloud", tint: .green, title: "پشتیبان و داده‌ها",
+                                detail: lastBackupAt > 0 ? "آخرین پشتیبان: " + Backups.describeLast() : "هنوز پشتیبانی گرفته نشده")
+                }
+            }
+
+            Section {
+            } footer: {
+                Text("نسخه‌ی " + Money.persianDigits((Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""))
+                     + " (" + Money.persianDigits(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "") + ")")
+                    .font(AppFont.caption).frame(maxWidth: .infinity)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(AppBackground())
+        .navigationTitle("تنظیمات")
+    }
+
+    // MARK: pages
+
+    private func page<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        Form { content() }
+            .scrollContentBackground(.hidden)
+            .background(AppBackground())
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var appearancePage: some View {
+        page("ظاهر") {
             Section {
                 ForEach(Palette.allCases) { p in
                     let c = p.colors(scheme)
@@ -1452,7 +1514,6 @@ struct SettingsView: View {
             } header: {
                 Text("رنگ اصلی").font(AppFont.medium(13))
             }
-
             Section {
                 Picker("حالت نمایش", selection: $appearanceRaw) {
                     ForEach(Appearance.allCases) { a in Text(a.title).tag(a.rawValue) }
@@ -1460,28 +1521,55 @@ struct SettingsView: View {
             } header: {
                 Text("روشن و تیره").font(AppFont.medium(13))
             }
-
             AppearanceSection()
+        }
+    }
 
+    private var homePage: some View {
+        page("صفحه‌ی خانه") {
             Section {
-                Toggle(isOn: $lockEnabled) {
-                    Label("قفل با Face ID", systemImage: "faceid")
+                NavigationLink { WidgetsSettingsView(model: model) } label: {
+                    Label("ویجت‌های خانه", systemImage: "square.grid.2x2")
                 }
-                NavigationLink {
-                    EditPasswordView(model: model)
-                } label: {
+                NavigationLink { QuotesSettingsView(model: model) } label: {
+                    Label("جمله‌های انگیزشی", systemImage: "quote.bubble")
+                }
+            } footer: {
+                Text("برای جابه‌جا کردن یا تغییر اندازه‌ی ویجت‌ها، روی یک ویجت در صفحه‌ی خانه انگشت نگه دارید.").font(AppFont.caption)
+            }
+        }
+    }
+
+    private var securityPage: some View {
+        page("امنیت") {
+            Section {
+                Toggle(isOn: $lockEnabled) { Label("قفل با Face ID", systemImage: "faceid") }
+            } footer: {
+                Text("وقتی بیش از یک دقیقه از اپ بیرون باشید، Face ID (یا رمز گوشی) خواسته می‌شود.").font(AppFont.caption)
+            }
+            Section {
+                NavigationLink { EditPasswordView(model: model) } label: {
                     Label("رمز ویرایش ردیف‌های قدیمی", systemImage: "lock.rectangle")
                 }
-                Toggle(isOn: $notifyEnabled) {
-                    Label("اعلان سررسید چک، قسط و قرار", systemImage: "bell.badge")
-                }
-                .onChange(of: notifyEnabled) { _, _ in Notifier.sync(model.state) }
-            } header: {
-                Text("امنیت").font(AppFont.medium(13))
             } footer: {
-                Text("قفل: وقتی بیش از یک دقیقه از اپ بیرون باشید، Face ID (یا رمز گوشی) خواسته می‌شود. اعلان‌ها: شب قبل از سررسید چک و قسط ساعت ۲۰، و قرارها ۳ ساعت قبل (قرار بدون ساعت: ۹ صبح همان روز).").font(AppFont.caption)
+                Text("با رمز، ویرایش و حذف ردیف‌هایی که بیش از ۸ روز از تاریخشان گذشته رمز می‌خواهد.").font(AppFont.caption)
             }
+        }
+    }
 
+    private var notificationsPage: some View {
+        page("اعلان‌ها") {
+            Section {
+                Toggle(isOn: $notifyEnabled) { Label("اعلان سررسید چک، قسط و قرار", systemImage: "bell.badge") }
+                    .onChange(of: notifyEnabled) { _, _ in Notifier.sync(model.state) }
+            } footer: {
+                Text("شب قبل از سررسید چک و قسط ساعت ۲۰، و قرارها ۳ ساعت قبل (قرار بدون ساعت: ۹ صبح همان روز). برای فرستادن یک چک یا قرار به Reminders گوشی، در «یادآوری‌ها» انگشت را روی آن نگه دارید.").font(AppFont.caption)
+            }
+        }
+    }
+
+    private var dataPage: some View {
+        page("پشتیبان و داده‌ها") {
             Section {
                 LabeledContent("آخرین پشتیبان", value: lastBackupAt > 0 ? Backups.describeLast() : "هنوز گرفته نشده")
                 LabeledContent("iCloud Drive", value: iCloudText)
@@ -1494,40 +1582,26 @@ struct SettingsView: View {
             } header: {
                 Text("پشتیبان خودکار").font(AppFont.medium(13))
             } footer: {
-                Text("بعد از هر تغییر، پشتیبان امروز به‌روز می‌شود. فایل‌ها در iCloud Drive › دفتر حساب › پشتیبان‌ها، و یک نسخه هم در Files › On My iPhone › دفتر حساب ذخیره می‌شود. قالب فایل همان پشتیبان کامل اپ وب است.").font(AppFont.caption)
+                Text("بعد از هر تغییر، پشتیبان امروز به‌روز می‌شود: در iCloud Drive › دفتر حساب › پشتیبان‌ها و یک نسخه در Files › On My iPhone › دفتر حساب.").font(AppFont.caption)
             }
-
             Section {
-                Button {
-                    exportFile = model.makeExportFile()
-                } label: {
+                Button { exportFile = model.makeExportFile() } label: {
                     Label("خروجی پشتیبان کامل", systemImage: "square.and.arrow.up")
                 }
-                Button {
-                    showImporter = true
-                } label: {
+                Button { showImporter = true } label: {
                     Label("ورود دوباره‌ی پشتیبان", systemImage: "square.and.arrow.down")
                 }
-                NavigationLink {
-                    DangerZoneView(model: model)
-                } label: {
-                    Label("پاک‌سازی (هیستوری یادگیری / همه‌ی اطلاعات)", systemImage: "trash")
-                        .foregroundStyle(t.danger)
-                }
             } header: {
-                Text("داده‌ها").font(AppFont.medium(13))
+                Text("فایل پشتیبان").font(AppFont.medium(13))
             } footer: {
-                Text(model.lastImportText ?? "").font(AppFont.caption)
+                Text(model.lastImportText ?? "قالب فایل همان پشتیبان کامل اپ وب است.").font(AppFont.caption)
             }
-
             Section {
-                LabeledContent("نسخه", value: Money.persianDigits(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""))
-                LabeledContent("شماره‌ی ساخت", value: Money.persianDigits(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))
+                NavigationLink { DangerZoneView(model: model) } label: {
+                    Label("پاک‌سازی (هیستوری یادگیری / همه‌ی اطلاعات)", systemImage: "trash").foregroundStyle(t.danger)
+                }
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(AppBackground())
-        .navigationTitle("تنظیمات")
     }
 
     private var iCloudText: String {

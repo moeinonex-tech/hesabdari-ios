@@ -86,7 +86,6 @@ struct AppearanceSection: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 10) {
-                Text("آیکون‌های داک")
                 ForEach(DockIcons.allCases) { p in
                     Button {
                         Haptics.tap()
@@ -108,6 +107,10 @@ struct AppearanceSection: View {
                     .buttonStyle(.plain)
                 }
             }
+        } header: {
+            Text("آیکون‌های داک").font(AppFont.medium(13))
+        }
+        Section {
             Picker("افکت کارت‌های خانه", selection: $cardFx) {
                 ForEach(CardFx.allCases) { Text($0.title).tag($0.rawValue) }
             }
@@ -121,6 +124,10 @@ struct AppearanceSection: View {
                 Text(glass == 0 ? "کارت‌های مات (حالت فعلی)" : glass >= 95 ? "شیشه‌ی کاملاً شفاف" : "شیشه‌ی مایع با رنگ کمتر")
                     .font(AppFont.caption).foregroundStyle(.secondary)
             }
+        } header: {
+            Text("کارت‌ها").font(AppFont.medium(13))
+        }
+        Section {
             PhotosPicker(selection: $photo, matching: .images) {
                 Label(BackgroundCache.shared.image == nil ? "انتخاب عکس پس‌زمینه" : "تغییر عکس پس‌زمینه", systemImage: "photo.on.rectangle")
             }
@@ -132,9 +139,9 @@ struct AppearanceSection: View {
             }
             if let e = error { Text(e).font(AppFont.caption).foregroundStyle(.red) }
         } header: {
-            Text("ظاهر").font(AppFont.medium(13))
+            Text("پس‌زمینه").font(AppFont.medium(13))
         } footer: {
-            Text("این تنظیمات فقط روی همین گوشی است و داخل فایل پشتیبان نمی‌رود. برای تغییر اندازه‌ی ویجت‌های خانه، روی یک ویجت انگشت نگه دارید و دستگیره‌ی گوشه‌اش را بکشید.")
+            Text("تنظیمات ظاهر فقط روی همین گوشی است و داخل فایل پشتیبان نمی‌رود.")
                 .font(AppFont.caption)
         }
         .onChange(of: photo) { _, item in
