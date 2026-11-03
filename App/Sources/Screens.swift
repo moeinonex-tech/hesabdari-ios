@@ -1035,7 +1035,11 @@ struct LedgerHomeView: View {
     private func ledgerCards(_ a: AccountImportSummary) -> [DeckCard] {
         var cards: [DeckCard] = []
         cards.append(DeckCard("hero", "جمع هزینه‌ها و ثبت", "sum") {
-            LedgerHero(account: a, budget: model.budget(accountId: a.id), onBudget: { budgetAccount = a.id }) { sheet = .new }
+            // commission rows of this ledger (the automatic payments, and any row filed under «کمیسیون»)
+            let commission = model.rows(accountId: a.id)
+                .filter { $0.kind == .commission || ($0.kind == .expense && $0.category.trimmingCharacters(in: .whitespaces) == "کمیسیون") }
+                .reduce(0) { $0 + $1.toman }
+            LedgerHero(account: a, budget: model.budget(accountId: a.id), commission: commission, onBudget: { budgetAccount = a.id }) { sheet = .new }
         })
         if a.commissionEnabled || a.percent != 0 {
             cards.append(DeckCard("commission", "کمیسیون", "percent") { CommissionCard(account: a) { sheet = .settle } })
@@ -1102,6 +1106,8 @@ struct LedgerHomeView: View {
 struct LedgerHero: View {
     let account: AccountImportSummary
     let budget: Int
+    /// commission paid out of this ledger (its commission rows); > 0 shows the net total next to the gross one
+    var commission: Int = 0
     var onBudget: (() -> Void)? = nil
     let onAdd: () -> Void
     @Environment(\.theme) private var t
@@ -1124,6 +1130,26 @@ struct LedgerHero: View {
                     .foregroundStyle(t.accent)
                     .contentTransition(.numericText())
                 Text("تومان").font(AppFont.regular(13)).foregroundStyle(t.soft)
+            }
+            // secondary figures under the headline total: net of commission, and the commission itself
+            if commission > 0 {
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("خالص هزینه‌ها (بدون کمیسیون)").font(AppFont.caption).foregroundStyle(t.soft)
+                        Text(Fmt.toman(account.expenseTotal - commission)).font(AppFont.bold(16)).foregroundStyle(t.ink)
+                            .contentTransition(.numericText())
+                    }
+                    Spacer(minLength: 12)
+                    Rectangle().fill(t.ink.opacity(0.12)).frame(width: 1, height: 30)
+                    Spacer(minLength: 12)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("کمیسیون پرداخت‌شده").font(AppFont.caption).foregroundStyle(t.soft)
+                        Text(Fmt.toman(commission)).font(AppFont.medium(14)).foregroundStyle(t.soft)
+                    }
+                }
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(t.ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             if budget > 0 {
                 let pct = min(1, Double(account.expenseTotal) / Double(budget))
