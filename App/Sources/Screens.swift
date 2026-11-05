@@ -224,6 +224,7 @@ struct HomeView: View {
                            onDragging: { draggingWidget = $0 },
                            blocks: ["attention": attentionHeight]) { key, size, frame in
                     WidgetCard(size: frame) { widget(key, size, inner(frame)) }
+                        .entrance(order.firstIndex(of: key) ?? 0)
                 }
             }
             .padding(.horizontal, 16)
@@ -1288,8 +1289,10 @@ struct CardsView: View {
                 if cards.isEmpty {
                     Text("کارتی نیست").font(AppFont.regular(14)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(40)
                 }
-                ForEach(cards) { c in
+                ForEach(Array(cards.enumerated()), id: \.element.id) { idx, c in
                     BankCardView(card: c)
+                        .modifier(FloatingCard(index: idx))
+                        .entrance(idx)
                         .contextMenu {
                             Button { editing = IdBox(id: c.id) } label: { Label("ویرایش", systemImage: "pencil") }
                             if let text = model.record("cards", c.id).flatMap(SettingsOps.cardCopyText) {
@@ -1522,6 +1525,7 @@ struct SettingsView: View {
                 Text("روشن و تیره").font(AppFont.medium(13))
             }
             AppearanceSection()
+            MotionSettingsSection()
         }
     }
 

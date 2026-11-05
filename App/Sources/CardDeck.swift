@@ -66,7 +66,7 @@ struct CardDeck: View {
     var body: some View {
         if editing { editor } else {
             VStack(alignment: .leading, spacing: 16) {
-                ForEach(visible, id: \.self) { k in card(k)?.view }
+                ForEach(Array(visible.enumerated()), id: \.element) { i, k in card(k)?.view.entrance(i) }
             }
         }
     }

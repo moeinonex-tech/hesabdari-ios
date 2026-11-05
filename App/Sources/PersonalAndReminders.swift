@@ -635,13 +635,14 @@ struct RemindersView: View {
                     SummaryTile(title: "طلب من", value: model.owedToMe, color: t.success)
                     SummaryTile(title: "بدهی من", value: model.iOwe, color: t.danger)
                 }
+                .entrance(0)
 
                 Segmented(selection: $filter, [(0, "چک‌ها"), (1, "اشخاص"), (2, "قرارها")])
 
                 switch filter {
                 case 0:
                     if pending.isEmpty && done.isEmpty { EmptyNote(text: "چکی ثبت نشده") }
-                    ForEach(pending) { c in checkRow(c) }
+                    ForEach(Array(pending.enumerated()), id: \.element.id) { i, c in checkRow(c).entrance(i + 1) }
                     if !done.isEmpty {
                         SectionTitle(text: "وصول‌شده یا بسته‌شده")
                         ForEach(done) { c in checkRow(c).opacity(0.6) }
@@ -649,20 +650,22 @@ struct RemindersView: View {
                 case 1:
                     let persons = model.persons
                     if persons.isEmpty { EmptyNote(text: "کسی ثبت نشده") }
-                    ForEach(persons) { p in
+                    ForEach(Array(persons.enumerated()), id: \.element.id) { i, p in
                         NavigationLink {
                             PersonDetailView(model: model, personId: p.id)
                         } label: {
                             PersonCard(person: p).wholeCardTouch()
                         }
                         .buttonStyle(.plain)
+                        .entrance(i + 1)
                     }
                 default:
                     let apts = model.appointments
                     if apts.isEmpty { EmptyNote(text: "قراری ثبت نشده") }
-                    ForEach(apts) { a in
+                    ForEach(Array(apts.enumerated()), id: \.element.id) { i, a in
                         AppointmentCard(apt: a)
                             .wholeCardTouch()
+                            .entrance(i + 1)
                             .onTapGesture { sheet = .editAppointment(a.id) }
                             .contextMenu {
                                 Button { _ = model.toggleAppointment(a.id) } label: {

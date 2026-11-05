@@ -166,6 +166,9 @@ struct BreakdownCard: View {
     @State private var hand: Int?
     @State private var sweep: Task<Void, Never>?
     @Environment(\.theme) private var t
+    @Environment(\.pageActive) private var pageActive
+    @Environment(\.accessibilityReduceMotion) private var reduce
+    @AppStorage(PageFx.key) private var fxRaw = PageFx.rise.rawValue
     private let topCount = 5
 
     var body: some View {
@@ -210,6 +213,8 @@ struct BreakdownCard: View {
             runSweep()
         }
         .onDisappear { sweep?.cancel() }
+        .onAppear { if pageActive { entrySweep() } }
+        .onChange(of: pageActive) { _, now in if now { entrySweep() } }
         .sheet(item: $share) { f in ActivityView(items: [f.url]) }
     }
 
@@ -241,17 +246,24 @@ struct BreakdownCard: View {
         }
     }
 
+    /// on entering the page the donut makes one quiet pass (no clicks), after the cards have risen
+    private func entrySweep() {
+        guard !reduce, (PageFx(rawValue: fxRaw) ?? .rise) != .none, slices.count > 1 else { return }
+        runSweep(silent: true, after: 0.35)
+    }
+
     /// clockwise pass over the slices: about 0.8 s in total, 40–110 ms per slice
-    private func runSweep() {
+    private func runSweep(silent: Bool = false, after: Double = 0) {
         sweep?.cancel()
         let n = slices.count
         guard n > 0 else { return }
         let step = UInt64(Swift.min(110, Swift.max(40, 800 / n))) * 1_000_000
         sweep = Task { @MainActor in
+            if after > 0 { try? await Task.sleep(nanoseconds: UInt64(after * 1e9)) }
             for i in 0..<n {
                 if Task.isCancelled { return }
                 withAnimation(.spring(duration: 0.22, bounce: 0.3)) { hand = i }
-                if i % 2 == 0 { UISelectionFeedbackGenerator().selectionChanged() }
+                if !silent && i % 2 == 0 { UISelectionFeedbackGenerator().selectionChanged() }
                 try? await Task.sleep(nanoseconds: step)
             }
             withAnimation(.spring(duration: 0.35, bounce: 0.25)) { hand = nil }
