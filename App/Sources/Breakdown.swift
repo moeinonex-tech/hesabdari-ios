@@ -128,6 +128,7 @@ private struct BreakdownRow: View {
     let s: CategorySlice
     let max: Int
     let total: Int
+    var level: Double = 1
     @Environment(\.theme) private var t
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -143,7 +144,7 @@ private struct BreakdownRow: View {
                     .overlay(alignment: .leading) {
                         Capsule()
                             .fill(LinearGradient(colors: [s.color.opacity(0.6), s.color], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: Swift.max(6, g.size.width * (max > 0 ? Swift.max(0.04, Double(s.total) / Double(max)) : 0)))
+                            .frame(width: Swift.max(6, g.size.width * (max > 0 ? Swift.max(0.04, Double(s.total) / Double(max)) : 0) * level))
                     }
             }
             .frame(height: 6)
@@ -191,17 +192,21 @@ struct BreakdownCard: View {
             }
             HStack {
                 Spacer()
-                Donut(slices: slices, label: unit, side: 150, highlight: hand)
+                Revealing(kind: .ring, count: 0) { _ in
+                    Donut(slices: slices, label: unit, side: 150, highlight: hand)
+                }
                 Spacer()
             }
+            Revealing(count: min(slices.count, topCount)) { lv in
             VStack(spacing: 10) {
                 ForEach(Array(slices.prefix(open ? slices.count : topCount).enumerated()), id: \.element.id) { i, s in
-                    BreakdownRow(s: s, max: mx, total: total)
+                    BreakdownRow(s: s, max: mx, total: total, level: lv(i))
                         .transition(.asymmetric(
                             insertion: .move(edge: .top).combined(with: .opacity)
                                 .animation(.spring(duration: 0.45, bounce: 0.25).delay(Double(Swift.max(0, min(i - topCount, 12))) * 0.025)),
                             removal: .opacity.animation(.easeOut(duration: 0.15))))
                 }
+            }
             }
         }
         .glassCard()

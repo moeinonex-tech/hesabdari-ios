@@ -287,14 +287,19 @@ struct ReportsView: View {
             DeckCard("months", "هزینه‌ها در ۱۲ ماه اخیر", "chart.bar.xaxis") {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionTitle(text: "هزینه‌ها در ۱۲ ماه اخیر")
-                    Chart(bars) { b in
-                        BarMark(x: .value("ماه", b.label), y: .value("مبلغ", b.total))
-                            .foregroundStyle(by: .value("بخش", b.series))
-                            .cornerRadius(4)
+                    let labels = bars.reduce(into: [String]()) { if !$0.contains($1.label) { $0.append($1.label) } }
+                    let stackMax = labels.map { l in bars.filter { $0.label == l }.reduce(0) { $0 + $1.total } }.max() ?? 1
+                    Revealing(count: labels.count) { lv in
+                        Chart(Array(bars.enumerated()), id: \.offset) { _, b in
+                            BarMark(x: .value("ماه", b.label), y: .value("مبلغ", Double(b.total) * lv(labels.firstIndex(of: b.label) ?? 0)))
+                                .foregroundStyle(by: .value("بخش", b.series))
+                                .cornerRadius(4)
+                        }
+                        .chartYScale(domain: 0...(Double(max(1, stackMax)) * 1.12))
+                        .chartForegroundStyleScale(["دفتر حساب": t.accent, "شخصی": t.accent2])
+                        .chartYAxis { AxisMarks { _ in AxisGridLine() } }
+                        .frame(height: 220)
                     }
-                    .chartForegroundStyleScale(["دفتر حساب": t.accent, "شخصی": t.accent2])
-                    .chartYAxis { AxisMarks { _ in AxisGridLine() } }
-                    .frame(height: 220)
                 }
                 .glassCard()
             }
@@ -428,13 +433,16 @@ struct ReportsView: View {
         let data = model.monthly(items).map { MonthBar(label: $0.label, series: "", total: $0.total) }
         return VStack(alignment: .leading, spacing: 10) {
             SectionTitle(text: "۱۲ ماه اخیر")
-            Chart(data) { b in
-                BarMark(x: .value("ماه", b.label), y: .value("مبلغ", b.total))
-                    .foregroundStyle(LinearGradient(colors: [color, color.opacity(0.55)], startPoint: .top, endPoint: .bottom))
-                    .cornerRadius(4)
+            Revealing(count: data.count, glow: color) { lv in
+                Chart(Array(data.enumerated()), id: \.offset) { i, b in
+                    BarMark(x: .value("ماه", b.label), y: .value("مبلغ", Double(b.total) * lv(i)))
+                        .foregroundStyle(LinearGradient(colors: [color, color.opacity(0.55)], startPoint: .top, endPoint: .bottom))
+                        .cornerRadius(4)
+                }
+                .chartYScale(domain: 0...(Double(max(1, data.map(\.total).max() ?? 1)) * 1.12))
+                .chartYAxis { AxisMarks { _ in AxisGridLine() } }
+                .frame(height: 200)
             }
-            .chartYAxis { AxisMarks { _ in AxisGridLine() } }
-            .frame(height: 200)
         }
         .glassCard()
     }

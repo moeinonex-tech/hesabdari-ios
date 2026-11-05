@@ -632,10 +632,9 @@ struct RemindersView: View {
                 }
 
                 HStack(spacing: 12) {
-                    SummaryTile(title: "طلب من", value: model.owedToMe, color: t.success)
-                    SummaryTile(title: "بدهی من", value: model.iOwe, color: t.danger)
+                    SummaryTile(title: "طلب من", value: model.owedToMe, color: t.success).entrance(0)
+                    SummaryTile(title: "بدهی من", value: model.iOwe, color: t.danger).entrance(1)
                 }
-                .entrance(0)
 
                 Segmented(selection: $filter, [(0, "چک‌ها"), (1, "اشخاص"), (2, "قرارها")])
 
@@ -744,7 +743,7 @@ struct SummaryTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(AppFont.regular(12)).foregroundStyle(t.soft)
-            Text(Money.persianDigits(Money.format(value))).font(AppFont.heavy(19)).foregroundStyle(color)
+            FxNumber(value) { Money.persianDigits(Money.format($0)) }.font(AppFont.heavy(19)).foregroundStyle(color)
                 .minimumScaleFactor(0.6).lineLimit(1)
             Text("تومان").font(AppFont.caption).foregroundStyle(t.soft)
         }

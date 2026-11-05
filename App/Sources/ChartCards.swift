@@ -35,12 +35,15 @@ struct TrendChartCard: View {
             if data.isEmpty {
                 Text("هنوز داده‌ای برای نمودار نیست").font(AppFont.regular(13)).foregroundStyle(t.soft).frame(maxWidth: .infinity).padding(16)
             } else {
+                let yMax = Double(max(1, data.map(\.value).max() ?? 1)) * 1.12
                 HScroll {
+                  Revealing(count: data.count, glow: color) { lv in
                     Chart(Array(data.enumerated()), id: \.offset) { i, p in
-                        BarMark(x: .value("بازه", "\(i)|" + p.label), y: .value("مبلغ", p.value))
+                        BarMark(x: .value("بازه", "\(i)|" + p.label), y: .value("مبلغ", Double(p.value) * lv(i)))
                             .foregroundStyle(LinearGradient(colors: [color, color.opacity(0.55)], startPoint: .top, endPoint: .bottom))
                             .cornerRadius(4)
                     }
+                    .chartYScale(domain: 0...yMax)
                     .chartXAxis {
                         AxisMarks { v in
                             AxisValueLabel { if let s = v.as(String.self) { Text(s.split(separator: "|").last.map(String.init) ?? "").font(AppFont.caption) } }
@@ -48,6 +51,7 @@ struct TrendChartCard: View {
                     }
                     .chartYAxis { AxisMarks { _ in AxisGridLine() } }
                     .frame(width: max(300, CGFloat(data.count) * (mode == 1 ? 16 : 44)), height: 200)
+                  }
                 }
                 .defaultScrollAnchor(.trailing)
             }
@@ -71,9 +75,9 @@ struct CashFlowCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionTitle(text: "جریان نقدی — درآمد در برابر هزینه")
                 HStack {
-                    VStack(alignment: .leading) { Text("درآمد").font(AppFont.caption).foregroundStyle(t.soft); Text(Fmt.toman(inc)).font(AppFont.bold(13)).foregroundStyle(t.success) }
+                    VStack(alignment: .leading) { Text("درآمد").font(AppFont.caption).foregroundStyle(t.soft); FxNumber(inc, Fmt.toman).font(AppFont.bold(13)).foregroundStyle(t.success) }
                     Spacer()
-                    VStack(alignment: .leading) { Text("هزینه").font(AppFont.caption).foregroundStyle(t.soft); Text(Fmt.toman(exp)).font(AppFont.bold(13)).foregroundStyle(t.accent) }
+                    VStack(alignment: .leading) { Text("هزینه").font(AppFont.caption).foregroundStyle(t.soft); FxNumber(exp, Fmt.toman).font(AppFont.bold(13)).foregroundStyle(t.accent) }
                     Spacer()
                     VStack(alignment: .leading) {
                         Text("خالص").font(AppFont.caption).foregroundStyle(t.soft)
@@ -81,18 +85,21 @@ struct CashFlowCard: View {
                     }
                 }
                 Segmented(selection: $yearly.animation(.snappy), [(false, "ماهانه"), (true, "سالانه")])
+                let yMax = Double(max(1, data.map { max($0.income, $0.expense) }.max() ?? 1)) * 1.12
+                Revealing(count: data.count) { lv in
                 Chart {
                     ForEach(Array(data.enumerated()), id: \.offset) { i, p in
-                        BarMark(x: .value("بازه", "\(i)|" + p.label), y: .value("مبلغ", p.income))
+                        BarMark(x: .value("بازه", "\(i)|" + p.label), y: .value("مبلغ", Double(p.income) * lv(i)))
                             .foregroundStyle(by: .value("نوع", "درآمد"))
                             .position(by: .value("نوع", "درآمد"))
                             .cornerRadius(3)
-                        BarMark(x: .value("بازه", "\(i)|" + p.label), y: .value("مبلغ", p.expense))
+                        BarMark(x: .value("بازه", "\(i)|" + p.label), y: .value("مبلغ", Double(p.expense) * lv(i)))
                             .foregroundStyle(by: .value("نوع", "هزینه"))
                             .position(by: .value("نوع", "هزینه"))
                             .cornerRadius(3)
                     }
                 }
+                .chartYScale(domain: 0...yMax)
                 .chartForegroundStyleScale(["درآمد": t.success, "هزینه": t.accent])
                 .chartXAxis {
                     AxisMarks { v in
@@ -101,6 +108,7 @@ struct CashFlowCard: View {
                 }
                 .chartYAxis { AxisMarks { _ in AxisGridLine() } }
                 .frame(height: 210)
+                }
             }
             .glassCard()
         }
@@ -118,15 +126,19 @@ struct CompareBarCard: View {
         let maxV = max(1, data.map(\.value).max() ?? 1)
         VStack(alignment: .leading, spacing: 10) {
             SectionTitle(text: title)
-            ForEach(Array(data.enumerated()), id: \.offset) { _, d in
+            Revealing(count: data.count, glow: color) { lv in
+            VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(data.enumerated()), id: \.offset) { i, d in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(d.name).font(AppFont.medium(13)).foregroundStyle(t.ink).lineLimit(1)
                         Spacer()
                         Text(Fmt.toman(d.value)).font(AppFont.bold(13)).foregroundStyle(t.ink)
                     }
-                    GradientBar(value: Double(d.value) / Double(maxV), from: color, to: t.accent2)
+                    GradientBar(value: Double(d.value) / Double(maxV) * lv(i), from: color, to: t.accent2)
                 }
+            }
+            }
             }
         }
         .glassCard()
@@ -148,7 +160,9 @@ struct ComparisonCard: View {
                 .foregroundStyle(c.net >= 0 ? t.success : t.danger)
             LabeledContent("نسبت هزینه به درآمد", value: Money.persianDigits(String(c.pct)) + "٪")
             if c.income > 0 {
-                GradientBar(value: min(1, Double(c.expense) / Double(c.income)), from: t.accent, to: c.pct >= 80 ? t.warning : t.accent2)
+                Revealing(count: 1) { lv in
+                    GradientBar(value: min(1, Double(c.expense) / Double(c.income)) * lv(0), from: t.accent, to: c.pct >= 80 ? t.warning : t.accent2)
+                }
             }
         }
         .font(AppFont.regular(14))

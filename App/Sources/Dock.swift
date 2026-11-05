@@ -192,6 +192,7 @@ struct Dock: View {
     let onReports: () -> Void
     @Environment(\.theme) private var t
     @AppStorage(DockIcons.key) private var packRaw = DockIcons.project.rawValue
+    @AppStorage(DockFx.key) private var dockFxRaw = DockFx.wave.rawValue
     @Namespace private var glassNS
 
     private let items: [AppTab] = [.home, .ledger, .personal, .cards, .reminders]
@@ -241,7 +242,7 @@ struct Dock: View {
             let slotW = (g.size.width - 10) / CGFloat(items.count)
             let lensIndex = pressed ?? selectedIndex
             ZStack(alignment: .topLeading) {
-                if let li = lensIndex {
+                if let li = lensIndex, dockFxRaw != DockFx.off.rawValue {
                     // a glowing line along the bottom of the dock that rises into an arch over the chosen page and
                     // glides to the next one (dimmer while «گزارش‌ها» is open: it marks the page the report is about)
                     let cx = 5 + CGFloat(items.count - 1 - li) * slotW + slotW / 2

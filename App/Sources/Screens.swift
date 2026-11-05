@@ -578,7 +578,7 @@ struct HomeView: View {
         let budget = model.budget(accountId: a.id)
         return VStack(alignment: .leading, spacing: 5) {
             Text(a.name).font(AppFont.bold(compact ? 12 : 13)).foregroundStyle(t.ink).lineLimit(1)
-            Text(Money.persianDigits(Money.format(a.expenseTotal))).font(AppFont.heavy(compact ? 17 : 18)).foregroundStyle(t.accent)
+            FxNumber(a.expenseTotal) { Money.persianDigits(Money.format($0)) }.font(AppFont.heavy(compact ? 17 : 18)).foregroundStyle(t.accent)
                 .lineLimit(1).minimumScaleFactor(0.55)
             Text("تومان").font(AppFont.caption).foregroundStyle(t.soft)
             Spacer(minLength: 0)
@@ -739,7 +739,7 @@ struct AccountMiniCard: View {
                 Spacer()
                 Image(systemName: "chevron.left").font(.caption).foregroundStyle(t.soft)
             }
-            Text(Fmt.toman(account.expenseTotal)).font(AppFont.heavy(20)).foregroundStyle(t.accent)
+            FxNumber(account.expenseTotal, Fmt.toman).font(AppFont.heavy(20)).foregroundStyle(t.accent)
             if budget > 0 {
                 let pct = min(1, Double(account.expenseTotal) / Double(budget))
                 ProgressView(value: pct)
@@ -1012,7 +1012,7 @@ struct LedgerHomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("جمع درآمدهای این دفتر").font(AppFont.regular(13)).foregroundStyle(t.soft)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(Money.persianDigits(Money.format(total))).font(AppFont.heavy(30))
+                FxNumber(total) { Money.persianDigits(Money.format($0)) }.font(AppFont.heavy(30))
                     .foregroundStyle(t.success).contentTransition(.numericText())
                 Text("تومان").font(AppFont.regular(13)).foregroundStyle(t.soft)
             }
@@ -1150,7 +1150,7 @@ struct LedgerHero: View {
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(Money.persianDigits(Money.format(account.expenseTotal)))
+                FxNumber(account.expenseTotal) { Money.persianDigits(Money.format($0)) }
                     .font(AppFont.heavy(30))
                     .foregroundStyle(t.accent)
                     .contentTransition(.numericText())
@@ -1161,7 +1161,7 @@ struct LedgerHero: View {
                 HStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("خالص هزینه‌ها (بدون کمیسیون)").font(AppFont.caption).foregroundStyle(t.soft)
-                        Text(Fmt.toman(account.expenseTotal - commission)).font(AppFont.bold(16)).foregroundStyle(t.ink)
+                        FxNumber(account.expenseTotal - commission, Fmt.toman).font(AppFont.bold(16)).foregroundStyle(t.ink)
                             .contentTransition(.numericText())
                     }
                     Spacer(minLength: 12)
