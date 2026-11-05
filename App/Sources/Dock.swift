@@ -253,6 +253,7 @@ struct Dock: View {
                         .shadow(color: t.accent.opacity(0.45), radius: 9)
                         .opacity(tab == .reports ? 0.45 : 1)
                         .frame(width: g.size.width, height: height)
+                        .clipShape(Capsule())
                         .animation(.spring(duration: 0.5, bounce: 0.22), value: cx)
                         .allowsHitTesting(false)
                     Circle().fill(t.accent).frame(width: 4, height: 4)
@@ -438,16 +439,24 @@ struct DockWave: Shape {
     func path(in rect: CGRect) -> Path {
         let h = rect.height, w = rect.width
         let by = h - 1.5, top: CGFloat = 5, r = h / 2
-        let bw = min(bump, w * 0.5)
-        let cx = min(max(x, r + bw / 2), w - r - bw / 2)
+        // the arch keeps its full size and stays centred on its icon, also at the two end slots: there it simply
+        // runs into the capsule's rounded end (the stroke is clipped to the capsule, so nothing pokes out)
+        let cx = x, bw = bump
+        let left = cx - bw / 2, right = cx + bw / 2
         var p = Path()
-        p.move(to: CGPoint(x: 3, y: h * 0.5))
-        p.addQuadCurve(to: CGPoint(x: r, y: by), control: CGPoint(x: 3, y: by))
-        p.addLine(to: CGPoint(x: cx - bw / 2, y: by))
+        if left > r {
+            p.move(to: CGPoint(x: 3, y: h * 0.5))
+            p.addQuadCurve(to: CGPoint(x: r, y: by), control: CGPoint(x: 3, y: by))
+            p.addLine(to: CGPoint(x: left, y: by))
+        } else {
+            p.move(to: CGPoint(x: left, y: by))
+        }
         p.addCurve(to: CGPoint(x: cx, y: top), control1: CGPoint(x: cx - bw * 0.22, y: by), control2: CGPoint(x: cx - bw * 0.32, y: top))
-        p.addCurve(to: CGPoint(x: cx + bw / 2, y: by), control1: CGPoint(x: cx + bw * 0.32, y: top), control2: CGPoint(x: cx + bw * 0.22, y: by))
-        p.addLine(to: CGPoint(x: w - r, y: by))
-        p.addQuadCurve(to: CGPoint(x: w - 3, y: h * 0.5), control: CGPoint(x: w - 3, y: by))
+        p.addCurve(to: CGPoint(x: right, y: by), control1: CGPoint(x: cx + bw * 0.32, y: top), control2: CGPoint(x: cx + bw * 0.22, y: by))
+        if right < w - r {
+            p.addLine(to: CGPoint(x: w - r, y: by))
+            p.addQuadCurve(to: CGPoint(x: w - 3, y: h * 0.5), control: CGPoint(x: w - 3, y: by))
+        }
         return p
     }
 }
