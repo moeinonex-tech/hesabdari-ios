@@ -241,11 +241,26 @@ struct Dock: View {
             let lensIndex = pressed ?? selectedIndex
             ZStack(alignment: .topLeading) {
                 if let li = lensIndex {
-                    Capsule()
-                        .fill(t.accent.opacity(pressed != nil ? 0.20 : (tab == .reports ? 0.22 : 0.14)))
-                        .frame(width: slotW, height: height - 10)
-                        .offset(x: 5 + CGFloat(items.count - 1 - li) * slotW, y: 5)
-                        .animation(.spring(duration: 0.3, bounce: 0.22), value: li)
+                    // a glowing line along the bottom of the dock that rises into an arch over the chosen page and
+                    // glides to the next one (dimmer while «گزارش‌ها» is open: it marks the page the report is about)
+                    let cx = 5 + CGFloat(items.count - 1 - li) * slotW + slotW / 2
+                    DockWave(x: cx, bump: slotW * 1.28)
+                        .stroke(LinearGradient(stops: [.init(color: t.accent.opacity(0), location: 0), .init(color: t.accent, location: 0.12),
+                                                       .init(color: t.accent, location: 0.88), .init(color: t.accent.opacity(0), location: 1)],
+                                               startPoint: .leading, endPoint: .trailing),
+                                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        .shadow(color: t.accent.opacity(0.85), radius: 4)
+                        .shadow(color: t.accent.opacity(0.45), radius: 9)
+                        .opacity(tab == .reports ? 0.45 : 1)
+                        .frame(width: g.size.width, height: height)
+                        .animation(.spring(duration: 0.5, bounce: 0.22), value: cx)
+                        .allowsHitTesting(false)
+                    Circle().fill(t.accent).frame(width: 4, height: 4)
+                        .shadow(color: t.accent, radius: 3)
+                        .offset(x: cx - 2, y: height - 15)
+                        .opacity(tab == .reports ? 0.45 : 1)
+                        .animation(.spring(duration: 0.5, bounce: 0.22), value: cx)
+                        .allowsHitTesting(false)
                 }
                 HStack(spacing: 0) {
                     ForEach(Array(items.enumerated().reversed()), id: \.offset) { i, item in
@@ -344,7 +359,19 @@ struct Dock: View {
             .foregroundStyle(on ? t.accent : t.ink.opacity(0.72))
             .scaleEffect(reportsPressed ? 1.15 : 1)
             .frame(width: reportsSide, height: reportsSide)
-            .background { if on { Circle().fill(t.accent.opacity(0.18)).padding(5) } }
+            // its own glow: a lit arc along the bottom of the round button, same light as the dock line
+            .overlay {
+                Circle().trim(from: 0.06, to: 0.44)
+                    .stroke(t.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(0))
+                    .padding(1.5)
+                    .shadow(color: t.accent.opacity(0.85), radius: 4)
+                    .shadow(color: t.accent.opacity(0.45), radius: 9)
+                    .opacity(on ? 1 : 0)
+                    .scaleEffect(on ? 1 : 0.85)
+                    .animation(.spring(duration: 0.45, bounce: 0.25), value: on)
+                    .allowsHitTesting(false)
+            }
             .contentShape(Circle())
             .glassEffect(.regular, in: Circle())
             .glassEffectID("reports", in: glassNS)
@@ -394,5 +421,33 @@ struct Dock: View {
         }
         .padding(6)
         .glassEffect(.regular, in: Capsule())
+    }
+}
+
+
+/// the dock's light line: follows the bottom of the capsule, curls up a little at both ends and rises into a smooth
+/// arch around the chosen icon; `x` animates, so the arch glides from page to page
+struct DockWave: Shape {
+    var x: CGFloat
+    var bump: CGFloat
+    var animatableData: CGFloat {
+        get { x }
+        set { x = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let h = rect.height, w = rect.width
+        let by = h - 1.5, top: CGFloat = 5, r = h / 2
+        let bw = min(bump, w * 0.5)
+        let cx = min(max(x, r + bw / 2), w - r - bw / 2)
+        var p = Path()
+        p.move(to: CGPoint(x: 3, y: h * 0.5))
+        p.addQuadCurve(to: CGPoint(x: r, y: by), control: CGPoint(x: 3, y: by))
+        p.addLine(to: CGPoint(x: cx - bw / 2, y: by))
+        p.addCurve(to: CGPoint(x: cx, y: top), control1: CGPoint(x: cx - bw * 0.22, y: by), control2: CGPoint(x: cx - bw * 0.32, y: top))
+        p.addCurve(to: CGPoint(x: cx + bw / 2, y: by), control1: CGPoint(x: cx + bw * 0.32, y: top), control2: CGPoint(x: cx + bw * 0.22, y: by))
+        p.addLine(to: CGPoint(x: w - r, y: by))
+        p.addQuadCurve(to: CGPoint(x: w - 3, y: h * 0.5), control: CGPoint(x: w - 3, y: by))
+        return p
     }
 }
