@@ -137,6 +137,13 @@ final class SettingsOpsTests: XCTestCase {
         let r = QuoteBulk.parseFile(raw)
         XCTAssertEqual(r.map(\.text), ["اولین جمله‌ی خوب", "دومین جمله", "سومین جمله", "چهارمین", "پنجمین جمله", "ششمین جمله"])
         XCTAssertEqual(r[1].author, "نویسنده")
+        // sentence line + name line (the owner's format), with and without blank lines between pairs
+        var pairs = ""
+        for k in 0..<5 { pairs += "دانستن کافی نیست؛ باید به کار بست \(k).\nیوهان ولفگانگ فون گوته\n\n" }
+        let p = QuoteBulk.parseFile(pairs)
+        XCTAssertEqual(p.count, 5)
+        XCTAssertEqual(p[0].author, "یوهان ولفگانگ فون گوته")
+        XCTAssertEqual(QuoteBulk.parseFile(pairs.replacingOccurrences(of: "\n\n", with: "\n")).count, 5)
         // blank-line separated files keep the old reading
         let blocks = QuoteBulk.parseFile("جمله یک\n— الف\n\nجمله دو\nادامه‌ی دو\n\nجمله سه")
         XCTAssertEqual(blocks.count, 3)

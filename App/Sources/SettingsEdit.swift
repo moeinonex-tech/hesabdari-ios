@@ -243,6 +243,7 @@ struct QuotesSettingsView: View {
     @State private var imported: [BulkQuote]?
     @State private var importError: String?
     @AppStorage(QuoteDay.offsetKey) private var quoteOffset = 0
+    @AppStorage(QuoteFx.key) private var quoteFx = QuoteFx.auto.rawValue
     @Environment(\.theme) private var t
 
     struct QuoteEdit: Identifiable {
@@ -254,8 +255,10 @@ struct QuotesSettingsView: View {
     var body: some View {
         List {
             Section {
-                Toggle("نمایش تایپی در خانه", isOn: Binding(get: { model.quoteTypewriter }, set: { model.setQuoteTypewriter($0) }))
-                if model.quoteTypewriter {
+                Picker("انیمیشن جمله در خانه", selection: $quoteFx) {
+                    ForEach(QuoteFx.allCases) { f in Text(f.title).tag(f.rawValue) }
+                }
+                if quoteFx == QuoteFx.typewriter.rawValue {
                     Picker("سرعت تایپ", selection: Binding(get: { model.state["quoteTypewriterSpeed"]?.stringValue ?? "normal" },
                                                           set: { model.setTypewriterSpeed($0) })) {
                         Text("آهسته").tag("slow")
@@ -264,7 +267,7 @@ struct QuotesSettingsView: View {
                     }
                 }
             } footer: {
-                Text("هر روز یک جمله (روزهای تهران) نشان داده می‌شود و تا همه دیده نشوند تکرار نمی‌شود.")
+                Text("«هماهنگ با انیمیشن صفحه» یعنی جمله همان حرکتِ انتخاب‌شده برای کارت‌ها را دارد؛ هر کدام از بقیه را هم می‌شود با هر انیمیشن صفحه‌ای جفت کرد. هر روز یک جمله (روزهای تهران) نشان داده می‌شود و تا همه دیده نشوند تکرار نمی‌شود.")
             }
             if let q = QuoteDay.today(model.state, offset: quoteOffset) {
                 Section {

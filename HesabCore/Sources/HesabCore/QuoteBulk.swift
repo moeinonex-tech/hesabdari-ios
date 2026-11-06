@@ -94,6 +94,8 @@ public enum QuoteBulk {
         let lines = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n").map(trim)
         let filled = lines.filter { !$0.isEmpty }
+        // «sentence» on one line and its author's name alone on the next (no dash), pairs with or without blank lines
+        if let pairs = nameLinePairs(lines) { return pairs }
         let blocks = parse(text)
         guard filled.count >= 6, Double(filled.count) / Double(max(1, blocks.count)) > 3 else { return blocks }
         var out: [BulkQuote] = []
@@ -108,6 +110,37 @@ public enum QuoteBulk {
             out.append(BulkQuote(text: t, author: "", suspicious: susp))
         }
         return out
+    }
+
+    /// a line that is just a name: short, no sentence punctuation, no quote marks
+    static func looksLikeName(_ l: String) -> Bool {
+        guard !l.isEmpty, jsLen(l) <= 40, words(l) <= 6 else { return false }
+        if let last = l.last, ".!?؟…:؛,،".contains(last) { return false }
+        return quoteChars.firstMatch(in: l, range: NSRange(l.startIndex..., in: l)) == nil
+    }
+
+    static func nameLinePairs(_ lines: [String]) -> [BulkQuote]? {
+        // blocks split by blank lines
+        var blocks: [[String]] = [[]]
+        for l in lines { if l.isEmpty { if !(blocks.last!.isEmpty) { blocks.append([]) } } else { blocks[blocks.count - 1].append(l) } }
+        blocks = blocks.filter { !$0.isEmpty }
+        var flat: [(String, String)] = []
+        if blocks.count >= 4, blocks.allSatisfy({ $0.count == 2 }) {
+            flat = blocks.map { ($0[0], $0[1]) }
+        } else if blocks.count == 1, blocks[0].count >= 8, blocks[0].count % 2 == 0 {
+            let b = blocks[0]
+            flat = stride(from: 0, to: b.count, by: 2).map { (b[$0], b[$0 + 1]) }
+        } else {
+            return nil
+        }
+        // most second lines must be names and the first lines must not all be names
+        let names = flat.filter { looksLikeName($0.1) }.count
+        guard Double(names) >= Double(flat.count) * 0.9, flat.contains(where: { !looksLikeName($0.0) }) else { return nil }
+        return flat.map { (q, a) in
+            let t = strip(replace(numbering, q, ""))
+            let author = dashAuthor(a) ?? a
+            return BulkQuote(text: t, author: author, suspicious: !looksLikeName(a) || count("[«\"“]", t) != count("[»\"”]", t) || jsLen(t) > 300)
+        }
     }
 
     /// web bulkQuotesConfirmBtn: texts shorter than 4 are skipped.

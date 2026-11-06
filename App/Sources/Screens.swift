@@ -677,33 +677,161 @@ struct HomeView: View {
 
 struct QuoteCard: View {
     let quote: Quote
-    let typewriter: Bool
+    let typewriter: Bool                // kept for the call site; the effect now comes from Settings (QuoteFx)
     var msPerChar = 32
     @Environment(\.theme) private var t
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var shown = 0
+    @Environment(\.pageActive) private var active
+    @AppStorage(QuoteFx.key) private var fxRaw = QuoteFx.auto.rawValue
+    @AppStorage(PageFx.key) private var pageFxRaw = PageFx.rise.rawValue
+    @State private var shown = Int.max
+    @State private var progress: Double = 1
+    @State private var job: Task<Void, Never>?
     nonisolated(unsafe) static var typedOnce = false
 
+    private var fx: QuoteFx {
+        if reduceMotion { return .none }
+        let f = QuoteFx(rawValue: fxRaw) ?? .auto
+        return f == .auto ? QuoteFx.matching(PageFx(rawValue: pageFxRaw) ?? .rise) : f
+    }
+
     var body: some View {
-        let chars = Array(quote.text)
+        let words = quote.text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: "quote.opening").foregroundStyle(t.accent2)
-            Text(String(chars.prefix(shown)))
-                .font(AppFont.medium(16)).foregroundStyle(t.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Group {
+                if fx == .typewriter {
+                    let chars = Array(quote.text)
+                    Text(String(chars.prefix(shown)))
+                } else {
+                    // every word is its own run, so the renderer can move words (Persian letters stay joined)
+                    words.enumerated().reduce(Text("")) { acc, w in
+                        acc + Text(w.element + (w.offset < words.count - 1 ? " " : "")).customAttribute(WordTag(i: w.offset))
+                    }
+                    .textRenderer(WordReveal(progress: progress, count: words.count, style: fx, glow: t.accent))
+                }
+            }
+            .font(AppFont.medium(16)).foregroundStyle(t.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
             if !quote.author.isEmpty {
                 Text("— " + quote.author).font(AppFont.caption).foregroundStyle(t.soft)
+                    .opacity(fx == .typewriter || fx == .none ? 1 : min(1, max(0, progress * 1.6 - 0.6)))
             }
         }
         .glassCard(effect: true)
-        .task(id: quote.id) {
+        .onAppear { if active { play(words.count) } }
+        .onChange(of: active) { _, now in if now { play(words.count) } else { job?.cancel() } }
+        .onChange(of: quote.id) { _, _ in play(words.count) }
+        .onChange(of: fxRaw) { _, _ in play(words.count) }
+        .onDisappear { job?.cancel() }
+    }
+
+    private func play(_ n: Int) {
+        job?.cancel()
+        switch fx {
+        case .none, .auto:
+            shown = .max; progress = 1
+        case .typewriter:
             // web: the typewriter plays once per app session
-            guard typewriter, !reduceMotion, !QuoteCard.typedOnce else { shown = chars.count; return }
+            progress = 1
+            guard !QuoteCard.typedOnce else { shown = .max; return }
             QuoteCard.typedOnce = true
+            let count = quote.text.count
             shown = 0
-            for i in 1...max(1, chars.count) {
-                try? await Task.sleep(nanoseconds: UInt64(msPerChar) * 1_000_000)
-                shown = i
+            job = Task { @MainActor in
+                for i in 1...max(1, count) {
+                    try? await Task.sleep(nanoseconds: UInt64(msPerChar) * 1_000_000)
+                    if Task.isCancelled { shown = .max; return }
+                    shown = i
+                }
+            }
+        default:
+            shown = .max
+            Motion.instantly { progress = 0 }
+            // starts as the card lands; about 70 ms between words, never longer than ~2.6 s in all
+            let dur = min(2.6, 0.55 + Double(n) * 0.07)
+            withAnimation(.linear(duration: dur).delay(0.25)) { progress = 1 }
+        }
+    }
+}
+
+/// how the home quote appears; «auto» follows the page-entrance style, any other choice pairs freely with it
+enum QuoteFx: String, CaseIterable, Identifiable {
+    case auto, none, typewriter, rise, spring, flip, blur, slide, neon
+    var id: String { rawValue }
+    static let key = "quote.fx"
+    var title: String {
+        switch self {
+        case .auto: return "هماهنگ با انیمیشن صفحه"
+        case .none: return "بدون انیمیشن"
+        case .typewriter: return "تایپی (حرف به حرف)"
+        case .rise: return "کلمه به کلمه از پایین"
+        case .spring: return "کلمه‌ها فنری"
+        case .flip: return "کلمه‌ها ورقی"
+        case .blur: return "کلمه‌ها از مه"
+        case .slide: return "کلمه‌ها موجی از کنار"
+        case .neon: return "کلمه‌ها با نور نئونی"
+        }
+    }
+    static func matching(_ p: PageFx) -> QuoteFx {
+        switch p {
+        case .none: return .none
+        case .rise: return .rise
+        case .spring: return .spring
+        case .flip: return .flip
+        case .blur: return .blur
+        case .slide: return .slide
+        case .neon: return .neon
+        }
+    }
+}
+
+struct WordTag: TextAttribute { let i: Int }
+
+/// draws the quote word by word; `progress` 0 → 1 runs a soft wave through the words (each takes ~3 words' time)
+struct WordReveal: TextRenderer, Animatable {
+    var progress: Double
+    let count: Int
+    let style: QuoteFx
+    let glow: Color
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func draw(layout: Text.Layout, in ctx: inout GraphicsContext) {
+        let spread = 3.0
+        for line in layout {
+            for run in line {
+                let i = Double(run[WordTag.self]?.i ?? 0)
+                let t = max(0, min(1, (progress * (Double(count) + spread) - i) / spread))
+                let e = 1 - pow(1 - t, 3)                    // ease-out
+                var c = ctx
+                let b = run.typographicBounds.rect
+                switch style {
+                case .rise:
+                    c.opacity = e
+                    c.translateBy(x: 0, y: (1 - e) * 10)
+                case .spring:
+                    c.opacity = min(1, t * 2.5)
+                    let s = 0.55 + 0.45 * e + 0.14 * sin(t * .pi) * (1 - t * 0.5)
+                    c.translateBy(x: b.midX, y: b.midY); c.scaleBy(x: s, y: s); c.translateBy(x: -b.midX, y: -b.midY)
+                case .flip:
+                    c.opacity = min(1, t * 2)
+                    c.translateBy(x: 0, y: b.midY); c.scaleBy(x: 1, y: max(0.02, e)); c.translateBy(x: 0, y: -b.midY)
+                case .blur:
+                    c.opacity = e
+                    if t < 1 { c.addFilter(.blur(radius: (1 - e) * 6)) }
+                case .slide:
+                    c.opacity = e
+                    c.translateBy(x: (1 - e) * 22, y: 0)
+                case .neon:
+                    c.opacity = min(1, t * 3)
+                    let g = sin(t * .pi)
+                    if g > 0.02 { c.addFilter(.shadow(color: glow.opacity(0.5 * g), radius: 4)) }
+                default: break
+                }
+                c.draw(run)
             }
         }
     }
