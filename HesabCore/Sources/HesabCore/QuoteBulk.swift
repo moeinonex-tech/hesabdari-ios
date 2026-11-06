@@ -84,6 +84,32 @@ public enum QuoteBulk {
         return records
     }
 
+    static let numbering = re("^\\s*[0-9۰-۹٠-٩]{1,4}\\s*[\\.\\-\\)\\]:،ـ]\\s*")
+
+    /// A whole text file of quotes. Blank-line separated quotes go through `parse`; a file with one quote per line
+    /// (no blank lines between them) is read line by line: «— name» on its own line becomes the previous quote's
+    /// author, leading numbers like «12.» or «۱۲-» are dropped. Nothing is dropped silently: overlong lines are flagged.
+    public static func parseFile(_ raw: String) -> [BulkQuote] {
+        let text = raw.replacingOccurrences(of: "\u{FEFF}", with: "")
+        let lines = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n").map(trim)
+        let filled = lines.filter { !$0.isEmpty }
+        let blocks = parse(text)
+        guard filled.count >= 6, Double(filled.count) / Double(max(1, blocks.count)) > 3 else { return blocks }
+        var out: [BulkQuote] = []
+        for line in filled {
+            if let a = dashAuthor(line), !out.isEmpty, out[out.count - 1].author.isEmpty {
+                out[out.count - 1].author = a
+                continue
+            }
+            let t = strip(replace(numbering, line, ""))
+            guard !t.isEmpty else { continue }
+            let susp = count("[«\"“]", t) != count("[»\"”]", t) || jsLen(t) > 300
+            out.append(BulkQuote(text: t, author: "", suspicious: susp))
+        }
+        return out
+    }
+
     /// web bulkQuotesConfirmBtn: texts shorter than 4 are skipped.
     public static func add(_ state: [String: JSONValue], _ items: [BulkQuote], ids: IdSource = .system) -> (state: [String: JSONValue], added: Int, skipped: Int) {
         var st = state

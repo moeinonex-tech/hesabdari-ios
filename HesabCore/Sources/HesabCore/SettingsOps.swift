@@ -241,13 +241,16 @@ public enum SettingsOps {
     }
 
     /// Same quote as the web app for the same half day: every quote once per lap, deterministic shuffle per lap.
-    public static func quoteOfNow(_ st: [String: JSONValue], now: Date = Date(), calendar: Calendar = .current) -> Quote? {
+    /// `daily`: one quote per calendar day (otherwise one per half day, like the web);
+    /// `offset`: how many quotes the owner skipped with «بعدی» — moves today's pick along the same no-repeat order
+    public static func quoteOfNow(_ st: [String: JSONValue], now: Date = Date(), calendar: Calendar = .current,
+                                  daily: Bool = false, offset: Int = 0) -> Quote? {
         let pool = quotes(st)
         guard !pool.isEmpty else { return nil }
         let start = calendar.startOfDay(for: now)
         let days = Int((start.timeIntervalSince1970 / 86400).rounded(.down))
         let half = calendar.component(.hour, from: now) < 12 ? 0 : 1
-        let slot = days * 2 + half
+        let slot = max(0, (daily ? days : days * 2 + half) + offset)
         let lap = slot / pool.count
         let pos = slot % pool.count
         let ordered = pool.map { ($0, quoteHash32($0.id + "|" + String(lap))) }

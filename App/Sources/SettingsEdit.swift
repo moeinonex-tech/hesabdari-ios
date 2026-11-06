@@ -239,6 +239,10 @@ struct QuotesSettingsView: View {
     @State private var editing: QuoteEdit?
     @State private var showBulk = false
     @State private var confirmClear = false
+    @State private var importing = false
+    @State private var imported: [BulkQuote]?
+    @State private var importError: String?
+    @AppStorage(QuoteDay.offsetKey) private var quoteOffset = 0
     @Environment(\.theme) private var t
 
     struct QuoteEdit: Identifiable {
@@ -260,7 +264,29 @@ struct QuotesSettingsView: View {
                     }
                 }
             } footer: {
-                Text("هر نیم‌روز یک جمله نشان داده می‌شود و تا همه دیده نشوند تکرار نمی‌شود.")
+                Text("هر روز یک جمله (روزهای تهران) نشان داده می‌شود و تا همه دیده نشوند تکرار نمی‌شود.")
+            }
+            if let q = QuoteDay.today(model.state, offset: quoteOffset) {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(q.text).font(AppFont.regular(15)).foregroundStyle(t.ink)
+                            .contentTransition(.opacity)
+                        if !q.author.isEmpty { Text("— " + q.author).font(AppFont.caption).foregroundStyle(t.soft) }
+                    }
+                    .padding(.vertical, 2)
+                    .id(q.id)
+                    .transition(.opacity)
+                    Button {
+                        Haptics.tap()
+                        withAnimation(.smooth) { quoteOffset += 1 }
+                    } label: {
+                        Label("جمله‌ی بعدی", systemImage: "forward.fill").font(AppFont.medium(15))
+                    }
+                } header: {
+                    Text("جمله‌ی امروز")
+                } footer: {
+                    Text("اگر جمله‌ی امروز را دوست نداری، «جمله‌ی بعدی» را بزن؛ خانه هم همان را نشان می‌دهد. جمله‌ی ردشده تا یک دور کامل دوباره نمی‌آید.")
+                }
             }
             Section("جمله‌ها") {
                 if model.customQuotes.isEmpty {
@@ -286,7 +312,8 @@ struct QuotesSettingsView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button { editing = QuoteEdit(id: "", text: "", author: "") } label: { Label("جمله جدید", systemImage: "plus") }
-                    Button { showBulk = true } label: { Label("ورود انبوه", systemImage: "text.badge.plus") }
+                    Button { importing = true } label: { Label("وارد کردن از فایل (txt)", systemImage: "doc.text") }
+                    Button { showBulk = true } label: { Label("ورود انبوه (چسباندن متن)", systemImage: "text.badge.plus") }
                     if !model.customQuotes.isEmpty {
                         Button(role: .destructive) { confirmClear = true } label: { Label("حذف همه", systemImage: "trash") }
                     }
@@ -294,6 +321,21 @@ struct QuotesSettingsView: View {
             }
         }
         .sheet(isPresented: $showBulk) { NavigationStack { QuoteBulkView(model: model) } }
+        .fileImporter(isPresented: $importing, allowedContentTypes: QuoteFile.types) { result in
+            switch result {
+            case .success(let url):
+                do { imported = QuoteBulk.parseFile(try QuoteFile.read(url)) }
+                catch { importError = "فایل خوانده نشد. یک فایل متنی (txt) با یک جمله در هر خط یا جمله‌های جدا با خط خالی انتخاب کن." }
+                if imported?.isEmpty == true { imported = nil; importError = "در این فایل جمله‌ای پیدا نشد." }
+            case .failure: break
+            }
+        }
+        .sheet(isPresented: Binding(get: { imported != nil }, set: { if !$0 { imported = nil } })) {
+            NavigationStack { QuoteBulkView(model: model, preset: imported) }
+        }
+        .alert("وارد کردن فایل", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+            Button("باشه", role: .cancel) {}
+        } message: { Text(importError ?? "") }
         .confirmationDialog("همه‌ی \(Money.persianDigits(String(model.customQuotes.count))) جمله حذف شوند؟", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("بله، همه رو حذف کن", role: .destructive) { _ = model.clearAllQuotes() }
         } message: {

@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import SwiftUI
 import LocalAuthentication
 import HesabCore
@@ -125,6 +126,7 @@ struct DangerZoneView: View {
 struct QuoteBulkView: View {
     @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    var preset: [BulkQuote]? = nil
     @State private var raw = ""
     @State private var items: [BulkQuote]?
     @State private var result: String?
@@ -144,6 +146,7 @@ struct QuoteBulkView: View {
                 }
             }
         }
+        .onAppear { if items == nil, let preset { items = preset } }
         .navigationTitle(items == nil ? "ورود انبوه جمله‌ها" : "پیش‌نمایش")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -151,7 +154,15 @@ struct QuoteBulkView: View {
             ToolbarItem(placement: .confirmationAction) {
                 if let list = items {
                     Button("افزودن به مجموعه") {
-                        let r = model.addBulkQuotes(list)
+                        // the same sentence already in the collection is not added twice (importing a file again is safe)
+                        let have = Set(model.customQuotes.map { QuoteFile.key($0.text) })
+                        var seen = Set<String>()
+                        let fresh = list.filter { q in
+                            let k = QuoteFile.key(q.text)
+                            return !have.contains(k) && seen.insert(k).inserted
+                        }
+                        let r = model.addBulkQuotes(fresh)
+                        if fresh.isEmpty { Haptics.warning(); dismiss(); return }
                         if r.added > 0 { Haptics.success(); dismiss() }
                     }
                     .bold()
@@ -168,6 +179,9 @@ struct QuoteBulkView: View {
     private func summary(_ list: [BulkQuote]) -> String {
         let susp = list.filter(\.suspicious).count
         var t = Money.persianDigits(String(list.count)) + " مورد شناسایی شد"
+        let have = Set(model.customQuotes.map { QuoteFile.key($0.text) })
+        let dup = list.filter { have.contains(QuoteFile.key($0.text)) }.count
+        if dup > 0 { t += " — " + Money.persianDigits(String(dup)) + " مورد از قبل در مجموعه هست و دوباره اضافه نمی‌شود" }
         if susp > 0 { t += " — " + Money.persianDigits(String(susp)) + " موردِ مشکوک نیاز به بررسی دارد" }
         return t + ". قبل از تایید، می‌تونی هر مورد رو ویرایش یا حذف کنی؛ چیزی هنوز ذخیره نشده."
     }
@@ -186,5 +200,47 @@ struct QuoteBulkView: View {
             TextField("نویسنده (اختیاری)", text: authorBinding(i))
             Button("حذف از پیش‌نمایش", role: .destructive) { items?.remove(at: i) }
         }
+    }
+}
+
+// MARK: - quotes: one per day, file import
+
+enum QuoteDay {
+    static let offsetKey = "quote.offset"
+    /// today's quote (Tehran days), moved along by the times the owner pressed «جمله‌ی بعدی»
+    static func today(_ st: [String: JSONValue], offset: Int) -> Quote? {
+        SettingsOps.quoteOfNow(st, calendar: Fmt.gregorian, daily: true, offset: offset)
+    }
+}
+
+enum QuoteFile {
+    static var types: [UTType] {
+        var t: [UTType] = [.plainText, .text, .utf8PlainText, .utf16PlainText, .rtf, .commaSeparatedText]
+        if let md = UTType(filenameExtension: "md") { t.append(md) }
+        return t
+    }
+
+    /// text of a .txt (UTF-8, UTF-16 or the Windows Persian/Arabic code page) or .rtf file
+    static func read(_ url: URL) throws -> String {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        if url.pathExtension.lowercased() == "rtf",
+           let a = try? NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil) {
+            return a.string
+        }
+        if let s = String(data: data, encoding: .utf8) { return s }
+        if data.count >= 2, data[0] == 0xFF || data[0] == 0xFE, let s = String(data: data, encoding: .utf16) { return s }
+        let win = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.windowsArabic.rawValue)))
+        if let s = String(data: data, encoding: win) { return s }
+        if let s = String(data: data, encoding: .utf16) { return s }
+        throw CocoaError(.fileReadInapplicableStringEncoding)
+    }
+
+    /// comparison key: spacing, half-spaces and Arabic/Persian letter variants don't make a sentence "new"
+    static func key(_ s: String) -> String {
+        s.replacingOccurrences(of: "\u{200C}", with: " ")
+            .replacingOccurrences(of: "ي", with: "ی").replacingOccurrences(of: "ك", with: "ک")
+            .split(whereSeparator: { $0.isWhitespace || $0.isPunctuation }).joined(separator: " ")
     }
 }

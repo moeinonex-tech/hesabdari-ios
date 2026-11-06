@@ -116,6 +116,32 @@ final class SettingsOpsTests: XCTestCase {
         XCTAssertEqual(Set(seen[first..<first + 5]).count, 5)
     }
 
+    func testDailyQuoteAndSkip() {
+        var st: [String: JSONValue] = ["customQuotes": .array([])]
+        for i in 0..<7 { st = try! SettingsOps.addQuote(st, text: "جمله \(i)", author: "") }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Tehran")!
+        let day = cal.date(from: DateComponents(year: 2026, month: 11, day: 6, hour: 8))!
+        let morning = SettingsOps.quoteOfNow(st, now: day, calendar: cal, daily: true)!.id
+        let evening = SettingsOps.quoteOfNow(st, now: day.addingTimeInterval(13 * 3600), calendar: cal, daily: true)!.id
+        XCTAssertEqual(morning, evening)                     // one quote for the whole day
+        var week: [String] = []
+        for k in 0..<7 { week.append(SettingsOps.quoteOfNow(st, now: day.addingTimeInterval(Double(k) * 86400), calendar: cal, daily: true)!.id) }
+        XCTAssertEqual(week[0], morning)
+        let skipped = SettingsOps.quoteOfNow(st, now: day, calendar: cal, daily: true, offset: 1)!.id
+        XCTAssertEqual(skipped, week[1])                       // «بعدی» = tomorrow's quote, same order
+    }
+
+    func testQuoteFileOnePerLine() {
+        let raw = "\u{FEFF}۱. اولین جمله‌ی خوب\n2- دومین جمله\n— نویسنده\nسومین جمله\nچهارمین\nپنجمین جمله\n۶) ششمین جمله\n"
+        let r = QuoteBulk.parseFile(raw)
+        XCTAssertEqual(r.map(\.text), ["اولین جمله‌ی خوب", "دومین جمله", "سومین جمله", "چهارمین", "پنجمین جمله", "ششمین جمله"])
+        XCTAssertEqual(r[1].author, "نویسنده")
+        // blank-line separated files keep the old reading
+        let blocks = QuoteBulk.parseFile("جمله یک\n— الف\n\nجمله دو\nادامه‌ی دو\n\nجمله سه")
+        XCTAssertEqual(blocks.count, 3)
+    }
+
     func testCardSaveDropsCVVAndDetectsBank() throws {
         XCTAssertEqual(SettingsOps.bank(forCardNumber: "۶۰۳۷۹۹۱۲۳۴۵۶۷۸۹۰")?.key, "melli")
         let st: [String: JSONValue] = ["cards": .array([.object(["id": .string("c1"), "bankName": .string("ملت"), "cvv": .string("123")])])]

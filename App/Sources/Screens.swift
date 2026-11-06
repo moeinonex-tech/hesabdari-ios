@@ -155,6 +155,7 @@ struct WelcomeView: View {
 // MARK: - home
 
 struct HomeView: View {
+    @AppStorage(QuoteDay.offsetKey) private var quoteOffset = 0
     @ObservedObject var model: AppModel
     @Binding var tab: AppTab
     @Binding var ledgerSheet: LedgerSheet?
@@ -206,7 +207,7 @@ struct HomeView: View {
                     Text(greet.text + "، " + AppModel.ownerName).font(AppFont.bold(19)).foregroundStyle(t.ink)
                 }
 
-                if let q = SettingsOps.quoteOfNow(model.state) {
+                if let q = QuoteDay.today(model.state, offset: quoteOffset) {
                     QuoteCard(quote: q, typewriter: model.state["quoteTypewriterEnabled"]?.boolValue ?? true, msPerChar: SettingsOps.typewriterMs(model.state))
                 }
 
