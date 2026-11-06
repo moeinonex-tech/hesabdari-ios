@@ -1397,8 +1397,14 @@ struct CardsView: View {
 
     /// web cwShareAsPng: a clean picture of the card
     @MainActor private func shareImage(_ c: WalletCard) {
-        let r = ImageRenderer(content: BankCardView(card: c).frame(width: 640).padding(24).environment(\.layoutDirection, .rightToLeft))
+        // the card alone, edge to edge, at ~3000 px wide (more than a 300 dpi print of a real card)
+        let w: CGFloat = 1000
+        let r = ImageRenderer(content: BankCardView(card: c, forSharing: true)
+            .frame(width: w, height: w / 1.586)
+            .environment(\.layoutDirection, .rightToLeft)
+            .environment(\.theme, t))
         r.scale = 3
+        r.isOpaque = true
         guard let img = r.uiImage, let data = img.pngData() else { return }
         let name = (c.bankName.isEmpty ? "کارت" : c.bankName) + ".png"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
@@ -1467,6 +1473,9 @@ struct IdBox: Identifiable, Hashable { let id: String }
 
 struct BankCardView: View {
     let card: WalletCard
+    /// the picture sent to someone else: only bank + logo, card number, IBAN, account number and holder; no
+    /// account type, expiry, shadow or rounded corners (full-bleed, so no frame appears in any messenger)
+    var forSharing = false
     @State private var copied: String?
 
     var body: some View {
@@ -1475,47 +1484,48 @@ struct BankCardView: View {
         Color.clear
             .aspectRatio(1.586, contentMode: .fit)
             .overlay { background }
-            .overlay { LinearGradient(colors: [.black.opacity(0.05), .black.opacity(0.45)], startPoint: .top, endPoint: .bottom) }
-            .overlay(alignment: .topLeading) { face }
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .shadow(color: .black.opacity(0.25), radius: 14, y: 8)
+            .overlay { LinearGradient(colors: [.black.opacity(0.08), .black.opacity(0.18), .black.opacity(0.5)], startPoint: .top, endPoint: .bottom) }
+            .overlay { GeometryReader { g in face(g.size.width / 340) } }
+            .clipShape(RoundedRectangle(cornerRadius: forSharing ? 0 : 22, style: .continuous))
+            .shadow(color: .black.opacity(forSharing ? 0 : 0.25), radius: forSharing ? 0 : 14, y: forSharing ? 0 : 8)
     }
 
-    private var face: some View {
-        ZStack(alignment: .topLeading) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 10) {
-                    BankLogo(bank: card.bank, name: card.bankName, size: 34, tile: true)
-                    Text(card.bankName).font(AppFont.heavy(18))
-                    Spacer()
-                    if !card.accountType.isEmpty { Text(card.accountType).font(AppFont.medium(12)).opacity(0.85) }
-                }
-                Spacer()
-                Button {
-                    copy(card.number, label: "شماره کارت")
-                } label: {
-                    Text(Money.persianDigits(grouped(card.number)))
-                        .font(AppFont.bold(22))
-                        .environment(\.layoutDirection, .leftToRight)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                .buttonStyle(.plain)
-                if !card.iban.isEmpty {
-                    Button { copy(card.iban, label: "شبا") } label: {
-                        Text(Money.persianDigits(card.iban)).font(AppFont.regular(12)).opacity(0.9)
-                            .environment(\.layoutDirection, .leftToRight)
-                            .frame(maxWidth: .infinity, alignment: .center)
+    /// layout in card units (u = 1 at a 340 pt wide card), so the app card and the large shared picture are identical:
+    /// header · card number in the upper half · IBAN in the middle · account number in the lower half · holder at the bottom
+    private func face(_ u: CGFloat) -> some View {
+        ZStack {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 9 * u) {
+                    BankLogo(bank: card.bank, name: card.bankName, size: 32 * u, tile: true)
+                    Text(card.bankName).font(AppFont.heavy(17 * u)).lineLimit(1).minimumScaleFactor(0.6)
+                    Spacer(minLength: 4 * u)
+                    if !forSharing && !card.accountType.isEmpty {
+                        Text(card.accountType).font(AppFont.medium(11.5 * u)).opacity(0.85).lineLimit(1)
                     }
-                    .buttonStyle(.plain)
                 }
-                HStack {
-                    Text(card.holder).font(AppFont.medium(13))
-                    Spacer()
-                    if !card.expiry.isEmpty { Text(Money.persianDigits(card.expiry)).font(AppFont.medium(13)) }
+                Spacer(minLength: 0)
+                number(grouped(card.number), size: 23, weight: .bold, label: nil, copyLabel: "شماره کارت", value: card.number, u: u)
+                Spacer(minLength: 0)
+                if !card.iban.isEmpty {
+                    number(groupedIban(card.iban), size: 13.5, weight: .medium, label: "شبا", copyLabel: "شبا", value: card.iban, u: u)
+                }
+                Spacer(minLength: 0)
+                if !card.accountNumber.isEmpty {
+                    number(card.accountNumber, size: 15, weight: .medium, label: "حساب", copyLabel: "شماره حساب", value: card.accountNumber, u: u)
+                }
+                Spacer(minLength: 0)
+                HStack(alignment: .lastTextBaseline) {
+                    Text(card.holder).font(AppFont.heavy(18 * u)).lineLimit(1).minimumScaleFactor(0.6)
+                    Spacer(minLength: 6 * u)
+                    if !forSharing && !card.expiry.isEmpty {
+                        Text(Money.persianDigits(card.expiry)).font(AppFont.medium(12.5 * u)).opacity(0.9)
+                    }
                 }
             }
             .foregroundStyle(.white)
-            .padding(18)
+            .shadow(color: .black.opacity(0.3), radius: 1.5 * u, y: 0.8 * u)
+            .padding(.horizontal, 18 * u)
+            .padding(.vertical, 15 * u)
             if let c = copied {
                 Text(c + " کپی شد")
                     .font(AppFont.bold(13))
@@ -1525,6 +1535,37 @@ struct BankCardView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
+    }
+
+    /// one centred number line; a small label («شبا» / «حساب») sits in front of it, the number always left-to-right
+    private func number(_ text: String, size: CGFloat, weight: Font.Weight, label: String?, copyLabel: String, value: String, u: CGFloat) -> some View {
+        Button {
+            copy(value, label: copyLabel)
+        } label: {
+            HStack(spacing: 6 * u) {
+                if let label {
+                    Text(label).font(AppFont.medium(10.5 * u)).opacity(0.75)
+                }
+                Text(Money.persianDigits(text))
+                    .font(weight == .bold ? AppFont.bold(size * u) : AppFont.medium(size * u))
+                    .environment(\.layoutDirection, .leftToRight)
+                    .lineLimit(1).minimumScaleFactor(0.55)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .buttonStyle(.plain)
+        .disabled(forSharing)
+    }
+
+    /// IR12 3456 7890 … in groups of four, easier to read aloud
+    private func groupedIban(_ s: String) -> String {
+        let clean = s.replacingOccurrences(of: " ", with: "")
+        var out = ""
+        for (i, ch) in clean.enumerated() {
+            if i > 0 && i % 4 == 0 { out.append(" ") }
+            out.append(ch)
+        }
+        return out
     }
 
     @ViewBuilder private var background: some View {
