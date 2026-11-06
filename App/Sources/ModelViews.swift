@@ -44,6 +44,7 @@ struct WalletCard: Identifiable {
     let image: UIImage?
     let color: Color?
     var bank: Bank? = nil
+    var preset: String? = nil
 }
 
 extension AppModel {
@@ -179,7 +180,8 @@ extension AppModel {
                               archived: c["archived"]?.isTruthy ?? false, image: image,
                               color: Color.web(c["bgColor"]?.stringValue),
                               bank: SettingsOps.resolveBank(key: c["bankKey"]?.stringValue, cardNumber: c["cardNumber"]?.idString,
-                                                            name: c["bankName"]?.stringValue))
+                                                            name: c["bankName"]?.stringValue),
+                              preset: c["bgPreset"]?.stringValue)
         }
     }
 }

@@ -22,13 +22,15 @@ public struct CardInput: Sendable {
     public var holderName: String
     public var bgColor: String?
     public var bgImage: String?        // data URL
+    public var bgPreset: String?       // built-in card design (app only; the web ignores it)
     public var archived: Bool
 
     public init(bankName: String, bankKey: String?, cardNumber: String, accountNumber: String, iban: String, accountType: String,
-                expiryYear: Int?, expiryMonth: Int?, holderName: String, bgColor: String?, bgImage: String?, archived: Bool) {
+                expiryYear: Int?, expiryMonth: Int?, holderName: String, bgColor: String?, bgImage: String?, archived: Bool, bgPreset: String? = nil) {
         self.bankName = bankName; self.bankKey = bankKey; self.cardNumber = cardNumber; self.accountNumber = accountNumber
         self.iban = iban; self.accountType = accountType; self.expiryYear = expiryYear; self.expiryMonth = expiryMonth
         self.holderName = holderName; self.bgColor = bgColor; self.bgImage = bgImage; self.archived = archived
+        self.bgPreset = bgPreset
     }
 }
 
@@ -154,6 +156,7 @@ public enum SettingsOps {
         set("holderName", input.holderName)
         set("bgImage", input.bgImage)
         set("bgColor", input.bgColor)
+        set("bgPreset", input.bgPreset)
         c["archived"] = .bool(input.archived)
         if let i = index { cards[i] = .object(c) } else { cards.append(.object(c)) }
         st["cards"] = .array(cards)

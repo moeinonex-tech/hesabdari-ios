@@ -59,6 +59,7 @@ struct CardFormView: View {
     @State private var useColor = false
     @State private var color = Color.blue
     @State private var image: String?
+    @State private var preset: String?
     @State private var photo: PhotosPickerItem?
     @State private var archived = false
     @State private var loaded = false
@@ -108,6 +109,14 @@ struct CardFormView: View {
                     }
                 }
             }
+            Section {
+                CardArtPicker(selection: Binding(get: { preset }, set: { preset = $0; if $0 != nil { image = nil } }), bankKey: bankKey)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+            } header: {
+                Text("طرح کارت بانکی")
+            } footer: {
+                Text("طرح‌های اختصاصی با رنگ‌های هر بانک؛ عکس دلخواه، اگر انتخاب شود، جای طرح را می‌گیرد.")
+            }
             Section("ظاهر کارت") {
                 Toggle("رنگ دلخواه", isOn: $useColor)
                 if useColor { ColorPicker("رنگ", selection: $color, supportsOpacity: false) }
@@ -144,19 +153,32 @@ struct CardFormView: View {
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
                     image = Self.dataURL(ui)
+                    preset = nil
                 }
             }
         }
         .onAppear(perform: load)
     }
 
-    /// Small JPEG so the backup stays light (web also stores a data URL).
+    /// The photo is cut to the bank-card shape (1.586 : 1, centred — like «fill») and saved as a light JPEG, so
+    /// whatever its own size, it always sits exactly on the card. (Web also stores a data URL.)
     static func dataURL(_ img: UIImage) -> String? {
-        let maxSide: CGFloat = 900
-        let scale = min(1, maxSide / max(img.size.width, img.size.height))
-        let size = CGSize(width: img.size.width * scale, height: img.size.height * scale)
-        let resized = UIGraphicsImageRenderer(size: size).image { _ in img.draw(in: CGRect(origin: .zero, size: size)) }
-        guard let jpg = resized.jpegData(compressionQuality: 0.75) else { return nil }
+        let ratio: CGFloat = 1.586
+        let src = img.size
+        guard src.width > 0, src.height > 0 else { return nil }
+        let crop: CGSize = src.width / src.height > ratio
+            ? CGSize(width: src.height * ratio, height: src.height)
+            : CGSize(width: src.width, height: src.width / ratio)
+        let outW = min(1200, crop.width)
+        let out = CGSize(width: outW.rounded(), height: (outW / ratio).rounded())
+        let k = out.width / crop.width
+        let fmt = UIGraphicsImageRendererFormat.default()
+        fmt.scale = 1
+        let resized = UIGraphicsImageRenderer(size: out, format: fmt).image { _ in
+            img.draw(in: CGRect(x: -(src.width - crop.width) / 2 * k, y: -(src.height - crop.height) / 2 * k,
+                                width: src.width * k, height: src.height * k))
+        }
+        guard let jpg = resized.jpegData(compressionQuality: 0.82) else { return nil }
         return "data:image/jpeg;base64," + jpg.base64EncodedString()
     }
 
@@ -178,6 +200,7 @@ struct CardFormView: View {
         holder = c["holderName"]?.stringValue ?? ""
         if let col = Color.web(c["bgColor"]?.stringValue) { useColor = true; color = col }
         image = c["bgImage"]?.stringValue
+        preset = c["bgPreset"]?.stringValue
         archived = c["archived"]?.isTruthy ?? false
     }
 
@@ -188,7 +211,8 @@ struct CardFormView: View {
                               accountType: accountType.trimmingCharacters(in: .whitespaces),
                               expiryYear: hasExpiry ? expiryYear : nil, expiryMonth: hasExpiry ? expiryMonth : nil,
                               holderName: holder.trimmingCharacters(in: .whitespaces),
-                              bgColor: useColor ? color.hexString : nil, bgImage: image, archived: archived)
+                              bgColor: useColor ? color.hexString : nil, bgImage: image, archived: archived,
+                              bgPreset: image == nil ? preset : nil)
         if model.saveCard(editingId, input) { Haptics.success(); dismiss() }
     }
 }

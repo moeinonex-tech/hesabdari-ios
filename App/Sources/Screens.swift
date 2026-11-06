@@ -1470,9 +1470,19 @@ struct BankCardView: View {
     @State private var copied: String?
 
     var body: some View {
+        // the card's size and shape come only from this clear 1.586 box (ID-1 bank card); the photo or design is laid
+        // over it, fills it and is cropped — it can never stretch or reshape the card
+        Color.clear
+            .aspectRatio(1.586, contentMode: .fit)
+            .overlay { background }
+            .overlay { LinearGradient(colors: [.black.opacity(0.05), .black.opacity(0.45)], startPoint: .top, endPoint: .bottom) }
+            .overlay(alignment: .topLeading) { face }
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: .black.opacity(0.25), radius: 14, y: 8)
+    }
+
+    private var face: some View {
         ZStack(alignment: .topLeading) {
-            background
-            LinearGradient(colors: [.black.opacity(0.05), .black.opacity(0.45)], startPoint: .top, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
                     BankLogo(bank: card.bank, name: card.bankName, size: 34, tile: true)
@@ -1515,14 +1525,17 @@ struct BankCardView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .aspectRatio(1.586, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.25), radius: 14, y: 8)
     }
 
     @ViewBuilder private var background: some View {
         if let img = card.image {
-            Image(uiImage: img).resizable().scaledToFill()
+            GeometryReader { g in
+                Image(uiImage: img).resizable().scaledToFill()
+                    .frame(width: g.size.width, height: g.size.height)
+                    .clipped()
+            }
+        } else if let art = card.preset.flatMap(CardArt.init(rawValue:)) {
+            CardArtView(art: art)
         } else {
             LinearGradient(colors: [card.color ?? Color.hex(0x1F3A5F), (card.color ?? Color.hex(0x1F3A5F)).opacity(0.6)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
