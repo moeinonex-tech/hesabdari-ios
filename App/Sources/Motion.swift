@@ -83,7 +83,7 @@ extension EnvironmentValues {
 /// The dock's light, run around a card. It is drawn on the card's own outline (the card passes its real corner
 /// radius), so it can never circle the wrong box. Born at the bottom centre — where the dock's line lives — with the
 /// dock's bright dot, it splits into two comets that climb the two sides at the same pace, each covering half the card,
-/// meet at the top centre in a small flash and fade. Same colour, 2 pt width, round caps and the same two-layer glow
+/// meet at the top centre and fade. Kept quiet: thin lines and half the dock's glow, round caps like the dock
 /// as the dock; a thin white-hot core rides at each head. The card itself is never filtered (the glow is only on the line).
 struct NeonEdge: ViewModifier {
     let radius: CGFloat
@@ -96,7 +96,7 @@ struct NeonEdge: ViewModifier {
     @Environment(\.theme) private var t
     @State private var head: CGFloat = 0        // 0 → 0.5 (half the outline), then the tails catch up
     @State private var running = false
-    @State private var flash: Double = 0
+    @State private var glow: Double = 0
     @State private var job: Task<Void, Never>?
 
     private var enabled: Bool { inPage && !nested && !reduce && PageFx(rawValue: raw) == .neon }
@@ -106,18 +106,16 @@ struct NeonEdge: ViewModifier {
             .environment(\.insideNeon, true)
             .overlay {
                 if running {
+                    // quiet on purpose: thin lines, half the dock's glow, and the whole light fades in at the start
+                    // and out while the two comets gather at the top (so the meeting point never gets thick)
                     ZStack {
-                        NeonArms(radius: radius, head: head, tail: 0.20).stroke(t.accent.opacity(0.35), style: .init(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        NeonArms(radius: radius, head: head, tail: 0.11).stroke(t.accent.opacity(0.75), style: .init(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        NeonArms(radius: radius, head: head, tail: 0.045).stroke(t.accent, style: .init(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
-                        NeonArms(radius: radius, head: head, tail: 0.018).stroke(Color.white.opacity(0.9), style: .init(lineWidth: 1, lineCap: .round))
-                        // the meeting flash at the top centre (a short bright arc, like the dock's arch top)
-                        NeonArms(radius: radius, head: 0.5, tail: 0.07).stroke(t.accent, style: .init(lineWidth: 2.4, lineCap: .round))
-                            .opacity(flash)
+                        NeonArms(radius: radius, head: head, tail: 0.18).stroke(t.accent.opacity(0.3), style: .init(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
+                        NeonArms(radius: radius, head: head, tail: 0.07).stroke(t.accent.opacity(0.7), style: .init(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
+                        NeonArms(radius: radius, head: head, tail: 0.015).stroke(Color.white.opacity(0.55), style: .init(lineWidth: 0.7, lineCap: .round))
                     }
-                    .shadow(color: t.accent.opacity(0.85), radius: 4)
-                    .shadow(color: t.accent.opacity(0.45), radius: 9)
-                    .padding(-0.5)
+                    .shadow(color: t.accent.opacity(0.45), radius: 3)
+                    .shadow(color: t.accent.opacity(0.2), radius: 7)
+                    .opacity(0.5 * glow)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
                 }
@@ -132,19 +130,20 @@ struct NeonEdge: ViewModifier {
 
     private func play() {
         job?.cancel()
-        Motion.instantly { head = 0; flash = 0; running = true }
+        Motion.instantly { head = 0; glow = 0; running = true }
         let start = delay + 0.12
         job = Task { @MainActor in
             await Motion.wait(start)
             if Task.isCancelled { return }
-            // the two heads run up the sides (ease-in-out, like the dock's glide), then the tails pull into the top
+            // the two heads run up the sides (ease-in-out, like the dock's glide) while the light softly comes up
+            withAnimation(.easeOut(duration: 0.3)) { glow = 1 }
             withAnimation(.timingCurve(0.45, 0, 0.25, 1, duration: 0.9)) { head = 0.5 }
-            await Motion.wait(0.78)
-            withAnimation(.easeOut(duration: 0.12)) { flash = 1 }
-            withAnimation(.easeIn(duration: 0.35)) { head = 0.72 }
-            await Motion.wait(0.14)
-            withAnimation(.easeOut(duration: 0.55)) { flash = 0 }
             await Motion.wait(0.6)
+            // gather at the top: the tails pull in while the light fades out
+            withAnimation(.easeInOut(duration: 0.55)) { glow = 0 }
+            await Motion.wait(0.25)
+            withAnimation(.easeIn(duration: 0.35)) { head = 0.7 }
+            await Motion.wait(0.4)
             if !Task.isCancelled { running = false }
         }
     }
