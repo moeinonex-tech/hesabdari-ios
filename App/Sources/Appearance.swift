@@ -1,5 +1,4 @@
 import SwiftUI
-import CoreMotion
 import PhotosUI
 import HesabCore
 

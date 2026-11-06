@@ -1,9 +1,8 @@
 import SwiftUI
-import CoreMotion
 
-// Page-entrance animations (Settings › ظاهر › انیمیشن ورود) and the floating 3D bank cards.
-// Patterns used by modern iOS apps: content rises in a short stagger (≈50–60 ms apart) on springs, never all at once,
-// and nothing moves when «Reduce Motion» is on.
+// Page-entrance animations (Settings › ظاهر › انیمیشن ورود) and the 3D bank cards.
+// Rules that keep it clean: each style applies only its own effect (no idle filters left on the cards), charts and
+// numbers never get blur, glow or 3D (they only grow / count, so they stay sharp), and nothing moves with «Reduce Motion».
 
 enum PageFx: String, CaseIterable, Identifiable {
     case none, rise, spring, flip, blur, slide, neon
@@ -17,7 +16,7 @@ enum PageFx: String, CaseIterable, Identifiable {
         case .flip: return "چرخش سه‌بعدی (ورق)"
         case .blur: return "محو از مه (شیشه‌ای)"
         case .slide: return "ورود موجی از کنار"
-        case .neon: return "خط نئونی (هماهنگ با داک)"
+        case .neon: return "روشن‌شدن نئونی"
         }
     }
     var note: String {
@@ -26,10 +25,13 @@ enum PageFx: String, CaseIterable, Identifiable {
         case .rise: return "هر کارت کمی بعد از قبلی، نرم از پایین بالا می‌آید — رایج‌ترین الگوی اپ‌های بانکی"
         case .spring: return "کارت‌ها از کمی کوچک‌تر با حرکت فنری به اندازه‌ی خود می‌رسند"
         case .flip: return "کارت‌ها از لبه‌ی بالا مثل ورق دفتر به جلو می‌چرخند"
-        case .blur: return "کارت‌ها از حالت مات و بلوری، شفاف و واضح می‌شوند"
+        case .blur: return "کارت‌ها از حالت مات، شفاف و واضح می‌شوند"
         case .slide: return "کارت‌ها یکی‌یکی از سمت راست صفحه وارد می‌شوند"
-        case .neon: return "همان خط درخشان داک دور لبه‌ی هر کارت می‌دود و خاموش می‌شود"
+        case .neon: return "کارت‌ها مثل لامپ نئون چند بار چشمک می‌زنند و روشن می‌مانند"
         }
+    }
+    static var current: PageFx {
+        PageFx(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .rise
     }
 }
 
@@ -42,61 +44,82 @@ extension EnvironmentValues {
     }
 }
 
+/// shared timing helpers
+@MainActor
+enum Motion {
+    static func instantly(_ body: () -> Void) {
+        var tr = Transaction()
+        tr.disablesAnimations = true
+        withTransaction(tr, body)
+    }
+    static func wait(_ s: Double) async {
+        if s > 0 { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
+    }
+    /// a neon tube switching on: a few quick blinks, then steady
+    static func flicker(after delay: Double, _ set: @escaping @MainActor (Double) -> Void) -> Task<Void, Never> {
+        Task { @MainActor in
+            await wait(delay)
+            for (v, d) in [(0.85, 0.05), (0.1, 0.06), (0.7, 0.05), (0.2, 0.05), (1.0, 0.22)] {
+                if Task.isCancelled { return }
+                withAnimation(.easeOut(duration: d)) { set(v) }
+                await wait(d + 0.02)
+            }
+        }
+    }
+}
+
+// MARK: - cards
+
 private struct Entrance: ViewModifier {
     let index: Int
     @AppStorage(PageFx.key) private var raw = PageFx.rise.rawValue
     @Environment(\.pageActive) private var active
     @Environment(\.accessibilityReduceMotion) private var reduce
-    @State private var shown = false
-    @State private var trace: CGFloat = 0
-    @State private var glow: Double = 0
-    @Environment(\.theme) private var t
+    @State private var p: CGFloat = 0           // 0 hidden → 1 in place
+    @State private var job: Task<Void, Never>?
 
     private var fx: PageFx { reduce ? .none : (PageFx(rawValue: raw) ?? .rise) }
-    private var on: Bool { fx == .none || shown }
 
     func body(content: Content) -> some View {
-        content
-            .opacity(on ? 1 : 0)
-            .offset(x: !on && fx == .slide ? 60 : 0, y: !on && fx == .rise ? 26 : 0)
-            .scaleEffect(!on && fx == .spring ? 0.88 : (!on && fx == .blur ? 1.04 : 1), anchor: .center)
-            .blur(radius: !on && fx == .blur ? 14 : 0)
-            .rotation3DEffect(.degrees(!on && fx == .flip ? 62 : 0), axis: (x: 1, y: 0, z: 0), anchor: .top, perspective: 0.55)
-            .overlay {
-                if fx == .neon && glow > 0 {
-                    // the dock's light line: same colour, width and two-layer glow, running once around the card's edge
-                    NeonTrace(p: trace)
-                        .stroke(t.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                        .shadow(color: t.accent.opacity(0.85), radius: 4)
-                        .shadow(color: t.accent.opacity(0.45), radius: 9)
-                        .opacity(glow)
-                        .allowsHitTesting(false)
-                }
+        let q = 1 - p
+        Group {
+            switch fx {
+            case .none: content
+            case .rise: content.opacity(p).offset(y: 26 * q)
+            case .spring: content.opacity(p).scaleEffect(0.88 + 0.12 * p)
+            case .flip: content.opacity(p).rotation3DEffect(.degrees(62 * q), axis: (x: 1, y: 0, z: 0), anchor: .top, perspective: 0.55)
+            case .blur: content.opacity(p).blur(radius: 12 * q)
+            case .slide: content.opacity(p).offset(x: 60 * q)
+            case .neon: content.opacity(p)
             }
-            .onAppear { if active { play() } }
-            .onChange(of: active) { _, now in
-                if now { shown = false; play() } else { shown = false }
-            }
+        }
+        .onAppear { if active { play() } }
+        .onChange(of: active) { _, now in
+            job?.cancel()
+            if now { play() } else { Motion.instantly { p = 0 } }
+        }
+        .onDisappear { job?.cancel() }
     }
 
     private func play() {
-        guard fx != .none else { shown = true; return }
+        job?.cancel()
+        let f = fx
+        guard f != .none else { p = 1; return }
+        Motion.instantly { p = 0 }
         let delay = Double(min(index, 8)) * 0.06
-        let anim: Animation
-        switch fx {
-        case .rise: anim = .spring(duration: 0.55, bounce: 0.18)
-        case .spring: anim = .spring(duration: 0.55, bounce: 0.38)
-        case .flip: anim = .spring(duration: 0.75, bounce: 0.14)
-        case .blur: anim = .easeOut(duration: 0.5)
-        case .slide: anim = .spring(duration: 0.55, bounce: 0.22)
-        case .neon: anim = .easeOut(duration: 0.35)
-        case .none: anim = .default
-        }
-        withAnimation(anim.delay(delay)) { shown = true }
-        if fx == .neon {
-            trace = 0; glow = 1
-            withAnimation(.easeInOut(duration: 0.85).delay(delay)) { trace = 1.32 }
-            withAnimation(.easeOut(duration: 0.5).delay(delay + 0.8)) { glow = 0 }
+        switch f {
+        case .neon:
+            job = Motion.flicker(after: delay) { p = $0 }
+        default:
+            let anim: Animation
+            switch f {
+            case .spring: anim = .spring(duration: 0.55, bounce: 0.38)
+            case .flip: anim = .spring(duration: 0.75, bounce: 0.14)
+            case .blur: anim = .easeOut(duration: 0.5)
+            case .slide: anim = .spring(duration: 0.55, bounce: 0.22)
+            default: anim = .spring(duration: 0.55, bounce: 0.18)
+            }
+            withAnimation(anim.delay(delay)) { p = 1 }
         }
     }
 }
@@ -106,111 +129,85 @@ extension View {
     func entrance(_ index: Int) -> some View { modifier(Entrance(index: index)) }
 }
 
-/// a bright segment that travels once around a rounded card (p: 0 → 1.32)
-struct NeonTrace: Shape {
-    var p: CGFloat
-    var animatableData: CGFloat {
-        get { p }
-        set { p = newValue }
-    }
-    func path(in rect: CGRect) -> Path {
-        let from = max(0, p - 0.32), to = min(1, p)
-        guard to > from else { return Path() }
-        return RoundedRectangle(cornerRadius: 24, style: .continuous).path(in: rect).trimmedPath(from: from, to: to)
-    }
-}
+// MARK: - charts follow the same choice (sharp: only the bars' values move)
 
-// MARK: - charts and numbers follow the same choice
-
-/// Each card style has its own matching motion for charts:
-/// rise = bars grow one after another · spring = all bars jump up together with a bounce · flip = the chart tips up
-/// from its base in 3D · blur = the chart clears out of a haze · slide = bars grow in a wave from the right ·
-/// neon = bars light up quickly with the dock's glow, which then fades. A ring (donut) gets the matching turn.
+/// rise = bars grow one after another · spring = all jump up together with a bounce · flip = they open from the middle
+/// outward · blur = all rise slowly and softly · slide = a wave from the right · neon = the chart blinks on, bars fast.
+/// A ring (donut) gets a matching 2D turn / pop.
 enum RevealKind { case bars, ring }
 
 struct ChartReveal: ViewModifier {
     let kind: RevealKind
     let count: Int
     @Binding var levels: [Double]
-    let glowColor: Color
     @AppStorage(PageFx.key) private var raw = PageFx.rise.rawValue
     @Environment(\.pageActive) private var active
     @Environment(\.accessibilityReduceMotion) private var reduce
-    @State private var phase: CGFloat = 1
-    @State private var neon: Double = 0
+    @State private var p: CGFloat = 1
     @State private var job: Task<Void, Never>?
 
     private var fx: PageFx { reduce ? .none : (PageFx(rawValue: raw) ?? .rise) }
 
     func body(content: Content) -> some View {
-        let q = 1 - phase
-        return Group {
+        let q = 1 - p
+        Group {
             if kind == .ring {
-                content
-                    .rotationEffect(.degrees(fx == .rise ? -90 * q : fx == .slide ? -180 * q : 0))
-                    .scaleEffect(fx == .spring ? 0.5 + 0.5 * phase : fx == .rise ? 0.85 + 0.15 * phase : 1)
-                    .rotation3DEffect(.degrees(fx == .flip ? 180 * q : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-                    .offset(x: fx == .slide ? 40 * q : 0)
+                switch fx {
+                case .none: content
+                case .rise: content.opacity(p).rotationEffect(.degrees(-90 * q))
+                case .spring: content.opacity(p).scaleEffect(0.6 + 0.4 * p)
+                case .flip: content.opacity(p).scaleEffect(x: max(0.01, p), y: 1)
+                case .blur: content.opacity(p)
+                case .slide: content.opacity(p).rotationEffect(.degrees(-180 * q))
+                case .neon: content.opacity(p)
+                }
             } else {
-                content
-                    .offset(y: fx == .rise ? 12 * q : 0)
-                    .scaleEffect(fx == .spring ? 0.94 + 0.06 * phase : 1, anchor: .bottom)
-                    .rotation3DEffect(.degrees(fx == .flip ? 75 * q : 0), axis: (x: 1, y: 0, z: 0), anchor: .bottom, perspective: 0.5)
-                    .offset(x: fx == .slide ? 50 * q : 0)
+                switch fx {
+                case .neon: content.opacity(p)
+                default: content
+                }
             }
         }
-        .blur(radius: fx == .blur ? 10 * q : 0)
-        .opacity(fx == .none ? 1 : 0.15 + 0.85 * phase)
-        .shadow(color: glowColor.opacity(0.85 * neon), radius: 4)
-        .shadow(color: glowColor.opacity(0.45 * neon), radius: 10)
         .onAppear { if active { play() } }
-        .onChange(of: active) { _, now in if now { play() } }
-        .onChange(of: count) { _, _ in job?.cancel(); levels = []; phase = 1; neon = 0 }
-        .onDisappear { job?.cancel(); levels = []; phase = 1; neon = 0 }
-    }
-
-    private func instantly(_ body: () -> Void) {
-        var tr = Transaction(); tr.disablesAnimations = true
-        withTransaction(tr, body)
+        .onChange(of: active) { _, now in if now { play() } else { job?.cancel() } }
+        .onChange(of: count) { _, _ in job?.cancel(); levels = []; p = 1 }
+        .onDisappear { job?.cancel() }
     }
 
     private func play() {
         job?.cancel()
         let f = fx
-        guard f != .none else { levels = []; phase = 1; return }
+        guard f != .none else { levels = []; p = 1; return }
         let n = kind == .bars ? count : 0
-        instantly { levels = Array(repeating: 0, count: n); phase = 0; neon = 0 }
-        let full = { (all: inout [Double]) in for i in all.indices { all[i] = 1 } }
+        Motion.instantly { levels = Array(repeating: 0, count: n); p = f == .neon || kind == .ring ? 0 : 1 }
         let step = n > 0 ? min(0.06, 0.6 / Double(n)) : 0
         job = Task { @MainActor in
-            func wait(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
             func grow(_ i: Int, _ a: Animation) { if i < levels.count { withAnimation(a) { levels[i] = 1 } } }
-            await wait(0.18)
+            func growAll(_ a: Animation) { withAnimation(a) { for i in levels.indices { levels[i] = 1 } } }
+            await Motion.wait(0.18)
             if Task.isCancelled { return }
             switch f {
             case .rise:
-                withAnimation(.spring(duration: 0.7, bounce: 0.2)) { phase = 1 }
-                for i in 0..<n { if Task.isCancelled { return }; grow(i, .spring(duration: 0.55, bounce: 0.15)); await wait(step) }
+                if kind == .ring { withAnimation(.spring(duration: 0.7, bounce: 0.15)) { p = 1 } }
+                for i in 0..<n { if Task.isCancelled { return }; grow(i, .spring(duration: 0.5, bounce: 0.15)); await Motion.wait(step) }
             case .spring:
-                withAnimation(.spring(duration: 0.8, bounce: 0.3)) { phase = 1; full(&levels) }
+                withAnimation(.spring(duration: 0.7, bounce: 0.35)) { p = 1 }
+                growAll(.spring(duration: 0.7, bounce: 0.3))
             case .flip:
-                withAnimation(.spring(duration: 0.8, bounce: 0.12)) { phase = 1 }
-                await wait(0.15)
-                withAnimation(.spring(duration: 0.6, bounce: 0.18)) { full(&levels) }
+                if kind == .ring { withAnimation(.spring(duration: 0.6, bounce: 0.2)) { p = 1 } }
+                let mid = Double(n - 1) / 2
+                let order = (0..<n).sorted { abs(Double($0) - mid) < abs(Double($1) - mid) }
+                for i in order { if Task.isCancelled { return }; grow(i, .spring(duration: 0.5, bounce: 0.2)); await Motion.wait(step * 0.8) }
             case .blur:
-                withAnimation(.easeOut(duration: 0.7)) { phase = 1; full(&levels) }
+                withAnimation(.easeOut(duration: 0.7)) { p = 1 }
+                growAll(.easeOut(duration: 0.8))
             case .slide:
-                withAnimation(.spring(duration: 0.6, bounce: 0.2)) { phase = 1 }
-                for i in (0..<n).reversed() { if Task.isCancelled { return }; grow(i, .spring(duration: 0.5, bounce: 0.2)); await wait(step) }
+                if kind == .ring { withAnimation(.spring(duration: 0.8, bounce: 0.15)) { p = 1 } }
+                for i in (0..<n).reversed() { if Task.isCancelled { return }; grow(i, .spring(duration: 0.5, bounce: 0.2)); await Motion.wait(step) }
             case .neon:
-                withAnimation(.easeOut(duration: 0.3)) { phase = 1; neon = 1 }
-                if kind == .ring {
-                    withAnimation(.easeInOut(duration: 0.35).repeatCount(2, autoreverses: true)) { neon = 0.35 }
-                    await wait(0.75)
-                }
-                for i in 0..<n { if Task.isCancelled { return }; grow(i, .easeOut(duration: 0.3)); await wait(step * 0.7) }
-                await wait(0.35)
-                withAnimation(.easeOut(duration: 1.0)) { neon = 0 }
+                let blink = Motion.flicker(after: 0) { p = $0 }
+                for i in 0..<n { if Task.isCancelled { blink.cancel(); return }; grow(i, .easeOut(duration: 0.25)); await Motion.wait(step * 0.6) }
+                _ = await blink.value
             case .none: break
             }
         }
@@ -221,20 +218,19 @@ struct ChartReveal: ViewModifier {
 struct Revealing<Content: View>: View {
     var kind: RevealKind = .bars
     let count: Int
-    var glow: Color? = nil
+    var glow: Color? = nil          // kept for call sites; charts no longer glow (it made them look blurry)
     @ViewBuilder let content: (_ level: @escaping (Int) -> Double) -> Content
     @State private var levels: [Double] = []
-    @Environment(\.theme) private var t
 
     var body: some View {
         let lv = levels
         content({ i in i >= 0 && i < lv.count ? lv[i] : 1 })
-            .modifier(ChartReveal(kind: kind, count: count, levels: $levels, glowColor: glow ?? t.accent))
+            .modifier(ChartReveal(kind: kind, count: count, levels: $levels))
     }
 }
 
-/// a number that plays the same entrance as the cards: counts up from zero, and per style also rises, pops,
-/// flips like a flip-clock, clears from a blur, slides in, or glows like the dock's line
+// MARK: - numbers count up from zero (sharp: no blur, glow or 3D)
+
 private struct CountingText: View, Animatable {
     var value: Double
     let text: (Int) -> String
@@ -251,10 +247,9 @@ struct FxNumber: View {
     @AppStorage(PageFx.key) private var raw = PageFx.rise.rawValue
     @Environment(\.pageActive) private var active
     @Environment(\.accessibilityReduceMotion) private var reduce
-    @Environment(\.theme) private var t
     @State private var shown: Double?
-    @State private var phase: CGFloat = 1
-    @State private var neon: Double = 0
+    @State private var p: CGFloat = 1
+    @State private var job: Task<Void, Never>?
 
     init(_ value: Int, _ text: @escaping (Int) -> String) {
         self.value = value
@@ -264,39 +259,39 @@ struct FxNumber: View {
     private var fx: PageFx { reduce ? .none : (PageFx(rawValue: raw) ?? .rise) }
 
     var body: some View {
-        let q = 1 - phase
-        CountingText(value: shown ?? Double(value), text: text)
-            .offset(x: fx == .slide ? 24 * q : 0, y: fx == .rise ? 10 * q : 0)
-            .scaleEffect(fx == .spring ? 0.7 + 0.3 * phase : 1)
-            .rotation3DEffect(.degrees(fx == .flip ? 90 * q : 0), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
-            .blur(radius: fx == .blur ? 8 * q : 0)
-            .opacity(fx == .none ? 1 : 0.2 + 0.8 * phase)
-            .shadow(color: t.accent.opacity(0.9 * neon), radius: 5)
-            .onAppear { if active { play() } }
-            .onChange(of: active) { _, now in if now { play() } }
-            .onChange(of: value) { _, _ in shown = nil }
+        let q = 1 - p
+        let label = CountingText(value: shown ?? Double(value), text: text)
+        Group {
+            switch fx {
+            case .none: label
+            case .rise: label.opacity(p).offset(y: 10 * q)
+            case .spring: label.opacity(p).scaleEffect(0.7 + 0.3 * p)
+            case .flip: label.opacity(p).scaleEffect(x: 1, y: max(0.01, p))
+            case .blur, .neon: label.opacity(p)
+            case .slide: label.opacity(p).offset(x: 24 * q)
+            }
+        }
+        .onAppear { if active { play() } }
+        .onChange(of: active) { _, now in if now { play() } else { job?.cancel() } }
+        .onChange(of: value) { _, _ in shown = nil }
+        .onDisappear { job?.cancel() }
     }
 
     private func play() {
+        job?.cancel()
         let f = fx
-        guard f != .none, value != 0 else { shown = nil; phase = 1; return }
-        var tr = Transaction(); tr.disablesAnimations = true
-        withTransaction(tr) { shown = 0; phase = 0; neon = 0 }
+        guard f != .none, value != 0 else { shown = nil; p = 1; return }
+        Motion.instantly { shown = 0; p = 0 }
         let delay = 0.15
-        let phaseAnim: Animation
         switch f {
-        case .spring: phaseAnim = .spring(duration: 0.6, bounce: 0.45)
-        case .flip: phaseAnim = .spring(duration: 0.7, bounce: 0.2)
-        case .blur: phaseAnim = .easeOut(duration: 0.6)
-        default: phaseAnim = .spring(duration: 0.55, bounce: 0.2)
-        }
-        withAnimation(phaseAnim.delay(delay)) { phase = 1 }
-        if f == .neon {
-            withAnimation(.easeOut(duration: 0.25).delay(delay)) { neon = 1 }
-            withAnimation(.easeOut(duration: 1.0).delay(delay + 0.9)) { neon = 0 }
+        case .neon: job = Motion.flicker(after: delay) { p = $0 }
+        case .spring: withAnimation(.spring(duration: 0.6, bounce: 0.45).delay(delay)) { p = 1 }
+        case .flip: withAnimation(.spring(duration: 0.6, bounce: 0.2).delay(delay)) { p = 1 }
+        case .blur: withAnimation(.easeOut(duration: 0.6).delay(delay)) { p = 1 }
+        default: withAnimation(.spring(duration: 0.55, bounce: 0.2).delay(delay)) { p = 1 }
         }
         let target = Double(value)
-        withAnimation(.easeOut(duration: f == .spring ? 0.7 : 0.9).delay(delay)) {
+        withAnimation(.easeOut(duration: 0.85).delay(delay)) {
             shown = target
         } completion: {
             if shown == target { shown = nil }
@@ -324,76 +319,44 @@ enum DockFx: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - floating 3D bank cards
+// MARK: - 3D bank cards (no sensors)
 
 enum CardFloat {
     static let key = "look.cardFloat"
 }
 
-/// device tilt, shared by every card (one sensor stream, ~30 per second, only while a card is on screen)
-@MainActor
-final class Tilt: ObservableObject {
-    static let shared = Tilt()
-    @Published var pitch: Double = 0
-    @Published var roll: Double = 0
-    private let mm = CMMotionManager()
-    private var users = 0
-    private var base: (Double, Double)?
-
-    func start() {
-        users += 1
-        guard users == 1, mm.isDeviceMotionAvailable else { return }
-        base = nil
-        mm.deviceMotionUpdateInterval = 1.0 / 30
-        mm.startDeviceMotionUpdates(to: .main) { [weak self] m, _ in
-            guard let self, let a = m?.attitude else { return }
-            if self.base == nil { self.base = (a.pitch, a.roll) }
-            // relative to how the phone was held when the cards appeared, softly smoothed
-            let p = a.pitch - (self.base?.0 ?? 0), r = a.roll - (self.base?.1 ?? 0)
-            self.pitch += (p - self.pitch) * 0.2
-            self.roll += (r - self.roll) * 0.2
-        }
-    }
-    func stop() {
-        users = max(0, users - 1)
-        if users == 0 { mm.stopDeviceMotionUpdates() }
-    }
-}
-
-/// the card hovers: it follows the tilt of the phone a few degrees in 3D, its shadow moves the other way, a soft light
-/// glides across it, and it slowly bobs up and down
+/// a fixed 3D pose: the card leans back a little in perspective, shows a thin edge underneath (its thickness), a soft
+/// light across the top, and a deep shadow on the page. Nothing reads the phone's sensors; the only motion is a slow
+/// float up and down (a plain 2D move, so the card stays sharp).
 struct FloatingCard: ViewModifier {
     let index: Int
     @AppStorage(CardFloat.key) private var enabled = true
     @Environment(\.accessibilityReduceMotion) private var reduce
-    @ObservedObject private var tilt = Tilt.shared
-    @State private var bob = false
+    @State private var up = false
 
     func body(content: Content) -> some View {
-        if !enabled || reduce {
+        if !enabled {
             content
         } else {
-            let rx = max(-9, min(9, -tilt.pitch * 28))
-            let ry = max(-9, min(9, tilt.roll * 28))
+            let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
             content
                 .overlay {
-                    // moving sheen
-                    LinearGradient(colors: [.white.opacity(0), .white.opacity(0.22), .white.opacity(0)],
-                                   startPoint: UnitPoint(x: 0.0 + ry / 30, y: 0), endPoint: UnitPoint(x: 1.0 + ry / 30, y: 1))
-                        .blendMode(.plusLighter)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    LinearGradient(colors: [.white.opacity(0.18), .white.opacity(0)], startPoint: .top, endPoint: .center)
+                        .clipShape(shape)
                         .allowsHitTesting(false)
                 }
-                .rotation3DEffect(.degrees(rx), axis: (x: 1, y: 0, z: 0), perspective: 0.5)
-                .rotation3DEffect(.degrees(ry), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-                .offset(y: bob ? -3 : 3)
-                .shadow(color: .black.opacity(0.22), radius: 18, x: -ry * 1.2, y: 14 + rx * 0.8)
-                .animation(.interactiveSpring(response: 0.25), value: rx)
-                .onAppear {
-                    Tilt.shared.start()
-                    withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true).delay(Double(index % 3) * 0.4)) { bob = true }
+                .background {
+                    // the card's edge, seen because it leans back
+                    shape.fill(Color.black.opacity(0.35)).offset(y: 5).padding(.horizontal, 2)
                 }
-                .onDisappear { Tilt.shared.stop() }
+                .rotation3DEffect(.degrees(9), axis: (x: 1, y: 0, z: 0), anchor: .bottom, perspective: 0.35)
+                .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 16)
+                .padding(.vertical, 4)
+                .offset(y: reduce ? 0 : (up ? -3 : 3))
+                .onAppear {
+                    guard !reduce else { return }
+                    withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true).delay(Double(index % 3) * 0.5)) { up = true }
+                }
         }
     }
 }
@@ -428,7 +391,7 @@ struct MotionSettingsSection: View {
         } header: {
             Text("انیمیشن ورود به هر صفحه").font(AppFont.medium(13))
         } footer: {
-            Text("هر بار که وارد صفحه‌ای می‌شوید، کارت‌ها با همین حرکت ظاهر می‌شوند؛ میله‌های نمودار، نمودارهای دایره‌ای و مبلغ‌های اصلی هم حرکت مخصوص همین سبک را دارند (اعداد از صفر می‌شمارند). اگر «کاهش حرکت» آیفون روشن باشد، انیمیشنی پخش نمی‌شود.").font(AppFont.caption)
+            Text("هر بار که وارد صفحه‌ای می‌شوید، کارت‌ها با همین حرکت ظاهر می‌شوند؛ میله‌های نمودار، نمودارهای دایره‌ای و مبلغ‌های اصلی هم حرکت مخصوص همین سبک را دارند (اعداد از صفر می‌شمارند) و همیشه واضح می‌مانند. اگر «کاهش حرکت» آیفون روشن باشد، انیمیشنی پخش نمی‌شود.").font(AppFont.caption)
         }
         Section {
             ForEach(DockFx.allCases) { f in
@@ -452,9 +415,9 @@ struct MotionSettingsSection: View {
             Text("انیمیشن داک").font(AppFont.medium(13))
         }
         Section {
-            Toggle(isOn: $float) { Label("کارت‌های بانکی معلق و سه‌بعدی", systemImage: "rotate.3d") }
+            Toggle(isOn: $float) { Label("کارت‌های بانکی سه‌بعدی", systemImage: "rotate.3d") }
         } footer: {
-            Text("کارت‌ها با کج کردن گوشی کمی می‌چرخند، سایه و نورشان جابه‌جا می‌شود و آرام در هوا بالا و پایین می‌روند.").font(AppFont.caption)
+            Text("کارت‌ها کمی به عقب خم شده‌اند، لبه و سایه‌ی عمیق دارند و آرام در هوا بالا و پایین می‌روند. به حسگرهای گوشی کاری ندارد.").font(AppFont.caption)
         }
     }
 }
