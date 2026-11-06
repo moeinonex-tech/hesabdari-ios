@@ -5,13 +5,12 @@ import UIKit
 // from the main color to the secondary ones.
 
 enum Palette: String, CaseIterable, Identifiable {
-    case web, forest
+    case web
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .web: return "آبی و فیروزه‌ای (پیش‌فرض)"
-        case .forest: return "سبز جنگلی"
         }
     }
 
@@ -19,7 +18,6 @@ enum Palette: String, CaseIterable, Identifiable {
     var swatches: [Color] {
         switch self {
         case .web: return [.hex(0x0A7CFF), .hex(0x22B8A6), .hex(0x161822), .hex(0xEDEFF3)]
-        case .forest: return [0x0F1F17, 0x1E3A2E, 0x3E5A3F, 0x6B7F67, 0xC7CBB8, 0x3D4337].map { Color.hex($0) }
         }
     }
 
@@ -47,19 +45,6 @@ enum Palette: String, CaseIterable, Identifiable {
                 : Colors(accent: .hex(0x0A7CFF), accent2: .hex(0x22B8A6), paper: .hex(0xEDEFF3), card: .hex(0xF5F7FA),
                          ink: .hex(0x161822), soft: .hex(0x585C68), danger: .hex(0xF0435F), success: .hex(0x1FAE74),
                          warning: .hex(0xC77700), onAccent: .white)
-        case .forest:
-            // #0F1F17 · #1E3A2E · #3E5A3F · #6B7F67 · #C7CBB8 · #3D4337
-            // dark: the deepest green is the page, the next one the cards; the pale sage is the light/accent (it glows
-            // on the dark green like the palette's own light), the mid greens are the secondary accent and quiet text.
-            // light: the same roles mirrored — the deepest green is the ink and the accent, the pale sage the page.
-            // (only text tones are lifted a little where the raw swatch would be too faint to read)
-            return dark
-                ? Colors(accent: .hex(0xC7CBB8), accent2: .hex(0x6B7F67), paper: .hex(0x0F1F17), card: .hex(0x1E3A2E),
-                         ink: .hex(0xE8EADF), soft: .hex(0x9DA996), danger: .hex(0xE07A6F), success: .hex(0x8FB98A),
-                         warning: .hex(0xD9B76A), onAccent: .hex(0x0F1F17))
-                : Colors(accent: .hex(0x1E3A2E), accent2: .hex(0x3E5A3F), paper: .hex(0xC7CBB8), card: .hex(0xE4E6DC),
-                         ink: .hex(0x0F1F17), soft: .hex(0x3D4337), danger: .hex(0xB4473C), success: .hex(0x3E5A3F),
-                         warning: .hex(0x9A6B12), onAccent: .hex(0xE8EADF))
         }
     }
 }
@@ -214,6 +199,7 @@ struct GlassCard: ViewModifier {
             }
         }
         .modifier(CardEffect(fx: effect ? CardFx.from(cardFx) : .none))
+        .neonEdge(radius: 24)
     }
 }
 

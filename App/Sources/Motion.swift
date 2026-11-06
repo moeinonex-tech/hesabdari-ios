@@ -16,7 +16,7 @@ enum PageFx: String, CaseIterable, Identifiable {
         case .flip: return "چرخش سه‌بعدی (ورق)"
         case .blur: return "محو از مه (شیشه‌ای)"
         case .slide: return "ورود موجی از کنار"
-        case .neon: return "روشن‌شدن نرم (نئونی)"
+        case .neon: return "نوار نئونی (هم‌زبان با داک)"
         }
     }
     var note: String {
@@ -27,7 +27,7 @@ enum PageFx: String, CaseIterable, Identifiable {
         case .flip: return "کارت‌ها از لبه‌ی بالا مثل ورق دفتر به جلو می‌چرخند"
         case .blur: return "کارت‌ها از حالت مات، شفاف و واضح می‌شوند"
         case .slide: return "کارت‌ها یکی‌یکی از سمت راست صفحه وارد می‌شوند"
-        case .neon: return "کارت‌ها پرنور و درخشان ظاهر می‌شوند و نرم به رنگ خودشان برمی‌گردند — بدون چشمک"
+        case .neon: return "از وسط پایین هر کارت، همان نور داک زاده می‌شود، دو شاخه می‌شود، از دو طرف لبه‌ها بالا می‌رود و بالای کارت به هم می‌رسد و محو می‌شود"
         }
     }
     static var current: PageFx {
@@ -59,6 +59,139 @@ enum Motion {
 
 // MARK: - cards
 
+private struct InPageKey: EnvironmentKey { static let defaultValue = false }
+private struct EntranceDelayKey: EnvironmentKey { static let defaultValue: Double = 0 }
+private struct InsideNeonKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    /// true only for the dock's pages (sheets and forms never play the neon)
+    var inPage: Bool {
+        get { self[InPageKey.self] }
+        set { self[InPageKey.self] = newValue }
+    }
+    /// the card's place in the page's stagger (set by `.entrance`)
+    var entranceDelay: Double {
+        get { self[EntranceDelayKey.self] }
+        set { self[EntranceDelayKey.self] = newValue }
+    }
+    /// a card inside a card: only the outer one lights up
+    var insideNeon: Bool {
+        get { self[InsideNeonKey.self] }
+        set { self[InsideNeonKey.self] = newValue }
+    }
+}
+
+/// The dock's light, run around a card. It is drawn on the card's own outline (the card passes its real corner
+/// radius), so it can never circle the wrong box. Born at the bottom centre — where the dock's line lives — with the
+/// dock's bright dot, it splits into two comets that climb the two sides at the same pace, each covering half the card,
+/// meet at the top centre in a small flash and fade. Same colour, 2 pt width, round caps and the same two-layer glow
+/// as the dock; a thin white-hot core rides at each head. The card itself is never filtered (the glow is only on the line).
+struct NeonEdge: ViewModifier {
+    let radius: CGFloat
+    @AppStorage(PageFx.key) private var raw = PageFx.rise.rawValue
+    @Environment(\.pageActive) private var active
+    @Environment(\.inPage) private var inPage
+    @Environment(\.insideNeon) private var nested
+    @Environment(\.entranceDelay) private var delay
+    @Environment(\.accessibilityReduceMotion) private var reduce
+    @Environment(\.theme) private var t
+    @State private var head: CGFloat = 0        // 0 → 0.5 (half the outline), then the tails catch up
+    @State private var running = false
+    @State private var flash: Double = 0
+    @State private var job: Task<Void, Never>?
+
+    private var enabled: Bool { inPage && !nested && !reduce && PageFx(rawValue: raw) == .neon }
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.insideNeon, true)
+            .overlay {
+                if running {
+                    ZStack {
+                        NeonArms(radius: radius, head: head, tail: 0.20).stroke(t.accent.opacity(0.35), style: .init(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        NeonArms(radius: radius, head: head, tail: 0.11).stroke(t.accent.opacity(0.75), style: .init(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        NeonArms(radius: radius, head: head, tail: 0.045).stroke(t.accent, style: .init(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
+                        NeonArms(radius: radius, head: head, tail: 0.018).stroke(Color.white.opacity(0.9), style: .init(lineWidth: 1, lineCap: .round))
+                        // the meeting flash at the top centre (a short bright arc, like the dock's arch top)
+                        NeonArms(radius: radius, head: 0.5, tail: 0.07).stroke(t.accent, style: .init(lineWidth: 2.4, lineCap: .round))
+                            .opacity(flash)
+                    }
+                    .shadow(color: t.accent.opacity(0.85), radius: 4)
+                    .shadow(color: t.accent.opacity(0.45), radius: 9)
+                    .padding(-0.5)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+            }
+            .onAppear { if active && enabled { play() } }
+            .onChange(of: active) { _, now in
+                job?.cancel()
+                if now && enabled { play() } else { running = false }
+            }
+            .onDisappear { job?.cancel(); running = false }
+    }
+
+    private func play() {
+        job?.cancel()
+        Motion.instantly { head = 0; flash = 0; running = true }
+        let start = delay + 0.12
+        job = Task { @MainActor in
+            await Motion.wait(start)
+            if Task.isCancelled { return }
+            // the two heads run up the sides (ease-in-out, like the dock's glide), then the tails pull into the top
+            withAnimation(.timingCurve(0.45, 0, 0.25, 1, duration: 0.9)) { head = 0.5 }
+            await Motion.wait(0.78)
+            withAnimation(.easeOut(duration: 0.12)) { flash = 1 }
+            withAnimation(.easeIn(duration: 0.35)) { head = 0.72 }
+            await Motion.wait(0.14)
+            withAnimation(.easeOut(duration: 0.55)) { flash = 0 }
+            await Motion.wait(0.6)
+            if !Task.isCancelled { running = false }
+        }
+    }
+}
+
+extension View {
+    func neonEdge(radius: CGFloat) -> some View { modifier(NeonEdge(radius: radius)) }
+}
+
+/// Two mirrored comets on a rounded rectangle whose outline starts and ends at the bottom centre.
+/// `head` is how far along each half the bright end is (0 … 0.5); each comet is `tail` long and never passes the top.
+struct NeonArms: Shape {
+    let radius: CGFloat
+    var head: CGFloat
+    let tail: CGFloat
+    var animatableData: CGFloat {
+        get { head }
+        set { head = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let to = min(0.5, head), from = max(0, head - tail)
+        guard to > from + 0.0005 else { return Path() }
+        let o = Self.outline(rect, radius)
+        var p = o.trimmedPath(from: from, to: to)
+        p.addPath(o.trimmedPath(from: 1 - to, to: 1 - from))
+        return p
+    }
+
+    /// clockwise (on screen: bottom centre → left side → top → right side → back), one closed loop
+    static func outline(_ r: CGRect, _ radius: CGFloat) -> Path {
+        let c = min(radius, min(r.width, r.height) / 2)
+        var p = Path()
+        p.move(to: CGPoint(x: r.midX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX + c, y: r.maxY))
+        p.addQuadCurve(to: CGPoint(x: r.minX, y: r.maxY - c), control: CGPoint(x: r.minX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.minY + c))
+        p.addQuadCurve(to: CGPoint(x: r.minX + c, y: r.minY), control: CGPoint(x: r.minX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX - c, y: r.minY))
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY + c), control: CGPoint(x: r.maxX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - c))
+        p.addQuadCurve(to: CGPoint(x: r.maxX - c, y: r.maxY), control: CGPoint(x: r.maxX, y: r.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+
 private struct Entrance: ViewModifier {
     let index: Int
     @AppStorage(PageFx.key) private var raw = PageFx.rise.rawValue
@@ -79,9 +212,10 @@ private struct Entrance: ViewModifier {
             case .flip: content.opacity(p).rotation3DEffect(.degrees(62 * q), axis: (x: 1, y: 0, z: 0), anchor: .top, perspective: 0.55)
             case .blur: content.opacity(p).blur(radius: 12 * q)
             case .slide: content.opacity(p).offset(x: 60 * q)
-            case .neon: content.opacity(p).brightness(0.4 * q)
+            case .neon: content.opacity(p)
             }
         }
+        .environment(\.entranceDelay, Double(min(index, 8)) * 0.06)
         .onAppear { if active { play() } }
         .onChange(of: active) { _, now in
             job?.cancel()
@@ -144,11 +278,11 @@ struct ChartReveal: ViewModifier {
                 case .flip: content.opacity(p).scaleEffect(x: max(0.01, p), y: 1)
                 case .blur: content.opacity(p)
                 case .slide: content.opacity(p).rotationEffect(.degrees(-180 * q))
-                case .neon: content.opacity(p).brightness(0.3 * q)
+                case .neon: content.opacity(p)
                 }
             } else {
                 switch fx {
-                case .neon: content.opacity(p).brightness(0.3 * q)
+                case .neon: content.opacity(p)
                 default: content
                 }
             }
@@ -252,7 +386,7 @@ struct FxNumber: View {
             case .spring: label.opacity(p).scaleEffect(0.7 + 0.3 * p)
             case .flip: label.opacity(p).scaleEffect(x: 1, y: max(0.01, p))
             case .blur: label.opacity(p)
-            case .neon: label.opacity(p).brightness(0.4 * q)
+            case .neon: label.opacity(p)
             case .slide: label.opacity(p).offset(x: 24 * q)
             }
         }

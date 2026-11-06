@@ -1291,6 +1291,7 @@ struct CardsView: View {
                 }
                 ForEach(Array(cards.enumerated()), id: \.element.id) { idx, c in
                     BankCardView(card: c)
+                        .neonEdge(radius: 22)
                         .modifier(FloatingCard(index: idx))
                         .entrance(idx)
                         .contextMenu {

@@ -62,6 +62,7 @@ struct AppShell: View {
                 if visited.contains(p) {
                     page(p)
                         .environment(\.pageActive, tab == p)
+                        .environment(\.inPage, true)
                         .contentMargins(.bottom, Self.dockClearance, for: .scrollContent)
                         .opacity(tab == p ? 1 : 0)
                         .allowsHitTesting(tab == p)
