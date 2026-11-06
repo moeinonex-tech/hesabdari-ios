@@ -16,7 +16,7 @@ enum PageFx: String, CaseIterable, Identifiable {
         case .flip: return "چرخش سه‌بعدی (ورق)"
         case .blur: return "محو از مه (شیشه‌ای)"
         case .slide: return "ورود موجی از کنار"
-        case .neon: return "روشن‌شدن نئونی"
+        case .neon: return "روشن‌شدن نرم (نئونی)"
         }
     }
     var note: String {
@@ -27,7 +27,7 @@ enum PageFx: String, CaseIterable, Identifiable {
         case .flip: return "کارت‌ها از لبه‌ی بالا مثل ورق دفتر به جلو می‌چرخند"
         case .blur: return "کارت‌ها از حالت مات، شفاف و واضح می‌شوند"
         case .slide: return "کارت‌ها یکی‌یکی از سمت راست صفحه وارد می‌شوند"
-        case .neon: return "کارت‌ها مثل لامپ نئون چند بار چشمک می‌زنند و روشن می‌مانند"
+        case .neon: return "کارت‌ها پرنور و درخشان ظاهر می‌شوند و نرم به رنگ خودشان برمی‌گردند — بدون چشمک"
         }
     }
     static var current: PageFx {
@@ -55,17 +55,6 @@ enum Motion {
     static func wait(_ s: Double) async {
         if s > 0 { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
     }
-    /// a neon tube switching on: a few quick blinks, then steady
-    static func flicker(after delay: Double, _ set: @escaping @MainActor (Double) -> Void) -> Task<Void, Never> {
-        Task { @MainActor in
-            await wait(delay)
-            for (v, d) in [(0.85, 0.05), (0.1, 0.06), (0.7, 0.05), (0.2, 0.05), (1.0, 0.22)] {
-                if Task.isCancelled { return }
-                withAnimation(.easeOut(duration: d)) { set(v) }
-                await wait(d + 0.02)
-            }
-        }
-    }
 }
 
 // MARK: - cards
@@ -90,7 +79,7 @@ private struct Entrance: ViewModifier {
             case .flip: content.opacity(p).rotation3DEffect(.degrees(62 * q), axis: (x: 1, y: 0, z: 0), anchor: .top, perspective: 0.55)
             case .blur: content.opacity(p).blur(radius: 12 * q)
             case .slide: content.opacity(p).offset(x: 60 * q)
-            case .neon: content.opacity(p)
+            case .neon: content.opacity(p).brightness(0.4 * q)
             }
         }
         .onAppear { if active { play() } }
@@ -107,20 +96,16 @@ private struct Entrance: ViewModifier {
         guard f != .none else { p = 1; return }
         Motion.instantly { p = 0 }
         let delay = Double(min(index, 8)) * 0.06
+        let anim: Animation
         switch f {
-        case .neon:
-            job = Motion.flicker(after: delay) { p = $0 }
-        default:
-            let anim: Animation
-            switch f {
-            case .spring: anim = .spring(duration: 0.55, bounce: 0.38)
-            case .flip: anim = .spring(duration: 0.75, bounce: 0.14)
-            case .blur: anim = .easeOut(duration: 0.5)
-            case .slide: anim = .spring(duration: 0.55, bounce: 0.22)
-            default: anim = .spring(duration: 0.55, bounce: 0.18)
-            }
-            withAnimation(anim.delay(delay)) { p = 1 }
+        case .spring: anim = .spring(duration: 0.55, bounce: 0.38)
+        case .flip: anim = .spring(duration: 0.75, bounce: 0.14)
+        case .blur: anim = .easeOut(duration: 0.5)
+        case .slide: anim = .spring(duration: 0.55, bounce: 0.22)
+        case .neon: anim = .easeOut(duration: 0.7)
+        default: anim = .spring(duration: 0.55, bounce: 0.18)
         }
+        withAnimation(anim.delay(delay)) { p = 1 }
     }
 }
 
@@ -159,11 +144,11 @@ struct ChartReveal: ViewModifier {
                 case .flip: content.opacity(p).scaleEffect(x: max(0.01, p), y: 1)
                 case .blur: content.opacity(p)
                 case .slide: content.opacity(p).rotationEffect(.degrees(-180 * q))
-                case .neon: content.opacity(p)
+                case .neon: content.opacity(p).brightness(0.3 * q)
                 }
             } else {
                 switch fx {
-                case .neon: content.opacity(p)
+                case .neon: content.opacity(p).brightness(0.3 * q)
                 default: content
                 }
             }
@@ -205,9 +190,8 @@ struct ChartReveal: ViewModifier {
                 if kind == .ring { withAnimation(.spring(duration: 0.8, bounce: 0.15)) { p = 1 } }
                 for i in (0..<n).reversed() { if Task.isCancelled { return }; grow(i, .spring(duration: 0.5, bounce: 0.2)); await Motion.wait(step) }
             case .neon:
-                let blink = Motion.flicker(after: 0) { p = $0 }
-                for i in 0..<n { if Task.isCancelled { blink.cancel(); return }; grow(i, .easeOut(duration: 0.25)); await Motion.wait(step * 0.6) }
-                _ = await blink.value
+                withAnimation(.easeOut(duration: 0.7)) { p = 1 }
+                for i in 0..<n { if Task.isCancelled { return }; grow(i, .easeOut(duration: 0.3)); await Motion.wait(step * 0.6) }
             case .none: break
             }
         }
@@ -267,7 +251,8 @@ struct FxNumber: View {
             case .rise: label.opacity(p).offset(y: 10 * q)
             case .spring: label.opacity(p).scaleEffect(0.7 + 0.3 * p)
             case .flip: label.opacity(p).scaleEffect(x: 1, y: max(0.01, p))
-            case .blur, .neon: label.opacity(p)
+            case .blur: label.opacity(p)
+            case .neon: label.opacity(p).brightness(0.4 * q)
             case .slide: label.opacity(p).offset(x: 24 * q)
             }
         }
@@ -284,7 +269,7 @@ struct FxNumber: View {
         Motion.instantly { shown = 0; p = 0 }
         let delay = 0.15
         switch f {
-        case .neon: job = Motion.flicker(after: delay) { p = $0 }
+        case .neon: withAnimation(.easeOut(duration: 0.7).delay(delay)) { p = 1 }
         case .spring: withAnimation(.spring(duration: 0.6, bounce: 0.45).delay(delay)) { p = 1 }
         case .flip: withAnimation(.spring(duration: 0.6, bounce: 0.2).delay(delay)) { p = 1 }
         case .blur: withAnimation(.easeOut(duration: 0.6).delay(delay)) { p = 1 }
@@ -325,14 +310,11 @@ enum CardFloat {
     static let key = "look.cardFloat"
 }
 
-/// a fixed 3D pose: the card leans back a little in perspective, shows a thin edge underneath (its thickness), a soft
-/// light across the top, and a deep shadow on the page. Nothing reads the phone's sensors; the only motion is a slow
-/// float up and down (a plain 2D move, so the card stays sharp).
+/// depth without any tilt or motion: a soft light across the top, a fine bright rim, and two layered shadows
+/// (a tight one under the card and a wide soft one), so the card reads as lifted off the page.
 struct FloatingCard: ViewModifier {
     let index: Int
     @AppStorage(CardFloat.key) private var enabled = true
-    @Environment(\.accessibilityReduceMotion) private var reduce
-    @State private var up = false
 
     func body(content: Content) -> some View {
         if !enabled {
@@ -341,22 +323,16 @@ struct FloatingCard: ViewModifier {
             let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
             content
                 .overlay {
-                    LinearGradient(colors: [.white.opacity(0.18), .white.opacity(0)], startPoint: .top, endPoint: .center)
-                        .clipShape(shape)
-                        .allowsHitTesting(false)
+                    ZStack {
+                        LinearGradient(colors: [.white.opacity(0.16), .white.opacity(0)], startPoint: .top, endPoint: .center)
+                        shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.35), .white.opacity(0.05)], startPoint: .top, endPoint: .bottom), lineWidth: 0.8)
+                    }
+                    .clipShape(shape)
+                    .allowsHitTesting(false)
                 }
-                .background {
-                    // the card's edge, seen because it leans back
-                    shape.fill(Color.black.opacity(0.35)).offset(y: 5).padding(.horizontal, 2)
-                }
-                .rotation3DEffect(.degrees(9), axis: (x: 1, y: 0, z: 0), anchor: .bottom, perspective: 0.35)
-                .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 16)
+                .shadow(color: .black.opacity(0.22), radius: 3, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 14)
                 .padding(.vertical, 4)
-                .offset(y: reduce ? 0 : (up ? -3 : 3))
-                .onAppear {
-                    guard !reduce else { return }
-                    withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true).delay(Double(index % 3) * 0.5)) { up = true }
-                }
         }
     }
 }
@@ -415,9 +391,9 @@ struct MotionSettingsSection: View {
             Text("انیمیشن داک").font(AppFont.medium(13))
         }
         Section {
-            Toggle(isOn: $float) { Label("کارت‌های بانکی سه‌بعدی", systemImage: "rotate.3d") }
+            Toggle(isOn: $float) { Label("کارت‌های بانکی با سایه و عمق", systemImage: "square.stack.3d.down.forward") }
         } footer: {
-            Text("کارت‌ها کمی به عقب خم شده‌اند، لبه و سایه‌ی عمیق دارند و آرام در هوا بالا و پایین می‌روند. به حسگرهای گوشی کاری ندارد.").font(AppFont.caption)
+            Text("کارت‌ها صاف می‌مانند و فقط با نور لبه و سایه‌ی دولایه، برجسته و جدا از صفحه دیده می‌شوند.").font(AppFont.caption)
         }
     }
 }

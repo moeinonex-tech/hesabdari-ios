@@ -1501,11 +1501,14 @@ struct SettingsView: View {
                         withAnimation(.smooth) { paletteRaw = p.rawValue }
                     } label: {
                         HStack(spacing: 12) {
-                            HStack(spacing: -6) {
-                                Circle().fill(c.accent).frame(width: 26, height: 26)
-                                Circle().fill(c.accent2).frame(width: 26, height: 26)
-                                    .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
+                            // the palette's colors in their own order, main → secondary
+                            HStack(spacing: -7) {
+                                ForEach(Array(p.swatches.enumerated()), id: \.offset) { _, col in
+                                    Circle().fill(col).frame(width: 22, height: 22)
+                                        .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 1.5))
+                                }
                             }
+                            .environment(\.layoutDirection, .leftToRight)
                             Text(p.title).font(AppFont.medium(15)).foregroundStyle(t.ink)
                             Spacer()
                             if paletteRaw == p.rawValue {

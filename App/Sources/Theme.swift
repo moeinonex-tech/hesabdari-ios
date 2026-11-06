@@ -1,18 +1,25 @@
 import SwiftUI
 import UIKit
 
-// MARK: - palettes (owner's choice: all four selectable, default = the web colors)
+// MARK: - palettes: the default (web) colors, plus palettes the owner sends. Each sent palette is used in its own order,
+// from the main color to the secondary ones.
 
 enum Palette: String, CaseIterable, Identifiable {
-    case web, navyGold, emerald, indigo
+    case web, forest
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .web: return "آبی و فیروزه‌ای (همان وب)"
-        case .navyGold: return "سرمه‌ای و طلایی"
-        case .emerald: return "زمردی"
-        case .indigo: return "نیلی"
+        case .web: return "آبی و فیروزه‌ای (پیش‌فرض)"
+        case .forest: return "سبز جنگلی"
+        }
+    }
+
+    /// the colors as sent, main → secondary (shown as swatches in Settings)
+    var swatches: [Color] {
+        switch self {
+        case .web: return [.hex(0x0A7CFF), .hex(0x22B8A6), .hex(0x161822), .hex(0xEDEFF3)]
+        case .forest: return [0x0F1F17, 0x1E3A2E, 0x3E5A3F, 0x6B7F67, 0xC7CBB8, 0x3D4337].map { Color.hex($0) }
         }
     }
 
@@ -40,30 +47,19 @@ enum Palette: String, CaseIterable, Identifiable {
                 : Colors(accent: .hex(0x0A7CFF), accent2: .hex(0x22B8A6), paper: .hex(0xEDEFF3), card: .hex(0xF5F7FA),
                          ink: .hex(0x161822), soft: .hex(0x585C68), danger: .hex(0xF0435F), success: .hex(0x1FAE74),
                          warning: .hex(0xC77700), onAccent: .white)
-        case .navyGold:
+        case .forest:
+            // #0F1F17 · #1E3A2E · #3E5A3F · #6B7F67 · #C7CBB8 · #3D4337
+            // dark: the deepest green is the page, the next one the cards; the pale sage is the light/accent (it glows
+            // on the dark green like the palette's own light), the mid greens are the secondary accent and quiet text.
+            // light: the same roles mirrored — the deepest green is the ink and the accent, the pale sage the page.
+            // (only text tones are lifted a little where the raw swatch would be too faint to read)
             return dark
-                ? Colors(accent: .hex(0xD9B45A), accent2: .hex(0x7FA7D9), paper: .hex(0x0B1020), card: .hex(0x1C2234),
-                         ink: .hex(0xF2EEE4), soft: .hex(0xA3A9B8), danger: .hex(0xFF6B7F), success: .hex(0x4FD18F),
-                         warning: .hex(0xFFB84D), onAccent: .hex(0x0B1020))
-                : Colors(accent: .hex(0x1F3A5F), accent2: .hex(0xB8892E), paper: .hex(0xF1EEE7), card: .hex(0xFFFDF8),
-                         ink: .hex(0x1B2433), soft: .hex(0x5E6675), danger: .hex(0xC8364F), success: .hex(0x1E8E5A),
-                         warning: .hex(0xB86E00), onAccent: .white)
-        case .emerald:
-            return dark
-                ? Colors(accent: .hex(0x3DDBA4), accent2: .hex(0x7AA7FF), paper: .hex(0x07100D), card: .hex(0x182620),
-                         ink: .hex(0xEEF5F1), soft: .hex(0x97A8A0), danger: .hex(0xFF6B7F), success: .hex(0x3DDBA4),
-                         warning: .hex(0xFFB84D), onAccent: .hex(0x07100D))
-                : Colors(accent: .hex(0x0E8F6A), accent2: .hex(0x2F6FDB), paper: .hex(0xECF1EE), card: .hex(0xFFFFFF),
-                         ink: .hex(0x14211C), soft: .hex(0x53635C), danger: .hex(0xD23A55), success: .hex(0x0E8F6A),
-                         warning: .hex(0xB86E00), onAccent: .white)
-        case .indigo:
-            return dark
-                ? Colors(accent: .hex(0x8E8CFF), accent2: .hex(0xFF7A9C), paper: .hex(0x0A0A14), card: .hex(0x202034),
-                         ink: .hex(0xF1F0FA), soft: .hex(0xA3A2B8), danger: .hex(0xFF6B7F), success: .hex(0x4FD18F),
-                         warning: .hex(0xFFB84D), onAccent: .hex(0x0A0A14))
-                : Colors(accent: .hex(0x5B5BD6), accent2: .hex(0xE0577A), paper: .hex(0xEEEEF6), card: .hex(0xFFFFFF),
-                         ink: .hex(0x1A1A2E), soft: .hex(0x5C5C70), danger: .hex(0xD23A55), success: .hex(0x1E8E5A),
-                         warning: .hex(0xB86E00), onAccent: .white)
+                ? Colors(accent: .hex(0xC7CBB8), accent2: .hex(0x6B7F67), paper: .hex(0x0F1F17), card: .hex(0x1E3A2E),
+                         ink: .hex(0xE8EADF), soft: .hex(0x9DA996), danger: .hex(0xE07A6F), success: .hex(0x8FB98A),
+                         warning: .hex(0xD9B76A), onAccent: .hex(0x0F1F17))
+                : Colors(accent: .hex(0x1E3A2E), accent2: .hex(0x3E5A3F), paper: .hex(0xC7CBB8), card: .hex(0xE4E6DC),
+                         ink: .hex(0x0F1F17), soft: .hex(0x3D4337), danger: .hex(0xB4473C), success: .hex(0x3E5A3F),
+                         warning: .hex(0x9A6B12), onAccent: .hex(0xE8EADF))
         }
     }
 }
