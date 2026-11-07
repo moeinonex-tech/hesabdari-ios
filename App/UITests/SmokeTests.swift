@@ -33,7 +33,6 @@ final class SmokeTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments += ["-lock.enabled", "NO", "-notify.enabled", "NO"]
         app.launchEnvironment["UITEST_STATE"] = Self.fixture
         app.launch()
     }

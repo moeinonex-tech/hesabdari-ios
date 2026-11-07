@@ -73,6 +73,8 @@ final class AppModel: ObservableObject {
         // UI smoke tests (simulator, Debug builds only): start from a small synthetic state in memory
         if let json = ProcessInfo.processInfo.environment["UITEST_STATE"], let data = json.data(using: .utf8),
            let st = try? JSONDecoder().decode([String: JSONValue].self, from: data), let mem = try? HesabStore() {
+            UserDefaults.standard.set(false, forKey: AppLock.enabledKey)      // no Face ID on the simulator
+            UserDefaults.standard.set(false, forKey: "notify.enabled")
             try? mem.save(st)
             store = mem
             reload()
