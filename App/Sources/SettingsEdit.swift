@@ -431,7 +431,7 @@ struct WidgetsSettingsView: View {
         .navigationTitle("ویجت‌های خانه")
         .onAppear {
             order = SettingsOps.widgetOrder(model.state)
-            visible = Dictionary(uniqueKeysWithValues: order.map { ($0, SettingsOps.widgetVisible(model.state, $0)) })
+            visible = Dictionary(order.map { ($0, SettingsOps.widgetVisible(model.state, $0)) }, uniquingKeysWith: { a, _ in a })
         }
     }
 
