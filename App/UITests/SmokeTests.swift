@@ -55,6 +55,7 @@ final class SmokeTests: XCTestCase {
         let del = app.buttons["حذف"].firstMatch
         e.swipeRight()
         if !del.waitForExistence(timeout: 2) { e.swipeLeft() }
+        if !del.waitForExistence(timeout: 2) { print("UITREE-BEGIN\n" + app.debugDescription + "\nUITREE-END") }
         tap(del, step)
     }
 
