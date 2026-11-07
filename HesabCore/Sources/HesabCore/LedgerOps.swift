@@ -194,6 +194,11 @@ public enum LedgerOps {
             list.append(.string(c))
             st[key] = .array(list)
         }
+        // a name the owner removed and now uses again is a real category again (suggestions may offer it)
+        if key.hasSuffix("Categories") {
+            let rk = String(key.dropLast("Categories".count)) + "CategoryRedirects"
+            if var red = st[rk]?.objectValue, red[c] != nil { red.removeValue(forKey: c); st[rk] = .object(red) }
+        }
     }
 
     /// web addSubcategoryIfNew / addIncomeSubcategoryIfNew

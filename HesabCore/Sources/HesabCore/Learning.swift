@@ -172,10 +172,10 @@ public enum Learning {
     /// web suggestCategoryCandidates
     public static func categoryCandidates(_ st: [String: JSONValue], _ ctx: LearnContext, desc: String) -> [String] {
         guard !descWords(desc).isEmpty else { return [] }
-        if let exact = exactCategory(st, ctx, desc) { return [exact] }
+        if let exact = exactCategory(st, ctx, desc) { return CategoryOps.redirect(st, ctx, [exact]) }
         var merged = ctx == .ledger ? baseScores(desc) : [:]
         for (k, v) in learnedScores(st, ctx, desc) { merged[k, default: 0] += v }
-        return rank(merged)
+        return CategoryOps.redirect(st, ctx, rank(merged))
     }
 
     /// web suggestSubcategory (exact / fuzzy / keyword without a tie)

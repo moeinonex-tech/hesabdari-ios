@@ -159,3 +159,53 @@ private final class Counter: @unchecked Sendable {
     init(_ start: Int) { value = start }
     func next() -> Int { defer { value += 1 }; return value }
 }
+
+final class CategoryOpsTests: XCTestCase {
+    func state() -> [String: JSONValue] {
+        [
+            "ledgerCategories": .array([.string("مصالح"), .string("خوراک"), .string("کمیسیون")]),
+            "ledgerSubcategories": .object(["مصالح": .array([.string("سیمان"), .string("آهن")]), "خوراک": .array([.string("نهار")])]),
+            "expenses": .array([
+                .object(["id": .string("e1"), "category": .string("خوراک"), "subcategory": .string("نهار"), "toman": .int(100)]),
+                .object(["id": .string("e2"), "category": .string("مصالح"), "subcategory": .string("سیمان"), "toman": .int(900)]),
+                .object(["id": .string("e3"), "toman": .int(300), "items": .array([
+                    .object(["category": .string("خوراک"), "subcategory": .string("نهار"), "toman": .int(100), "desc": .string("")]),
+                    .object(["category": .string("مصالح"), "subcategory": .string("آهن"), "toman": .int(200), "desc": .string("")]),
+                ])]),
+            ]),
+            "ledgerDescMap": .object(["نهار کارگر": .string("خوراک")]),
+        ]
+    }
+
+    func testUsageAndGuard() throws {
+        let st = state()
+        XCTAssertEqual(CategoryOps.usage(st, .ledger, category: "خوراک"), 2)
+        XCTAssertEqual(CategoryOps.usage(st, .ledger, category: "مصالح", sub: "آهن"), 1)
+        XCTAssertThrowsError(try CategoryOps.removeCategory(st, .ledger, "خوراک", replaceWith: nil))   // used → needs a replacement
+        XCTAssertThrowsError(try CategoryOps.removeCategory(st, .ledger, "کمیسیون", replaceWith: "مصالح"))  // built-in
+    }
+
+    func testReplaceCategoryMovesRowsItemsAndLearning() throws {
+        let out = try CategoryOps.removeCategory(state(), .ledger, "خوراک", replaceWith: "هزینه‌های کارگاهی")
+        XCTAssertFalse(CategoryOps.categories(out, .ledger).contains("خوراک"))
+        XCTAssertEqual(CategoryOps.usage(out, .ledger, category: "هزینه‌های کارگاهی"), 2)
+        let rows = out["expenses"]!.arrayValue!
+        XCTAssertEqual(rows[0]["category"]?.stringValue, "هزینه‌های کارگاهی")
+        XCTAssertEqual(rows[0]["subcategory"]?.stringValue, "نهار")
+        XCTAssertEqual(rows[2]["toman"]?.intValue, 300)                          // amount untouched
+        XCTAssertEqual(rows[2]["items"]?.arrayValue?[0]["category"]?.stringValue, "هزینه‌های کارگاهی")
+        XCTAssertEqual(out["ledgerDescMap"]?["نهار کارگر"]?.stringValue, "هزینه‌های کارگاهی")
+        XCTAssertEqual(CategoryOps.subcategories(out, .ledger, category: "هزینه‌های کارگاهی"), ["نهار"])
+        // the fixed keyword table («خوراک» for «نهار») is redirected, never suggests the removed name
+        XCTAssertFalse(Learning.categoryCandidates(out, .ledger, desc: "تهیه نهار تیم").contains("خوراک"))
+    }
+
+    func testRemoveUnusedAndReplaceSub() throws {
+        var st = state()
+        st = try CategoryOps.removeSubcategory(st, .ledger, category: "مصالح", "آهن", replaceWith: "سیمان")
+        XCTAssertEqual(CategoryOps.usage(st, .ledger, category: "مصالح", sub: "سیمان"), 2)
+        XCTAssertEqual(CategoryOps.subcategories(st, .ledger, category: "مصالح"), ["سیمان"])
+        let st2 = try CategoryOps.removeCategory(state(), .ledger, "کمیسیون2", replaceWith: nil)   // unknown + unused → just gone
+        XCTAssertEqual(CategoryOps.categories(st2, .ledger).count, 3)
+    }
+}

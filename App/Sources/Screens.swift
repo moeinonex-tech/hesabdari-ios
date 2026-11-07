@@ -1523,7 +1523,10 @@ struct BankCardView: View {
                 }
             }
             .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.3), radius: 1.5 * u, y: 0.8 * u)
+            // embossed print: a thin light edge above, a crisp dark edge below and a soft drop under the letters
+            .shadow(color: .white.opacity(0.35), radius: 0, x: 0, y: -0.6 * u)
+            .shadow(color: .black.opacity(0.55), radius: 0, x: 0, y: 0.9 * u)
+            .shadow(color: .black.opacity(0.35), radius: 2.5 * u, x: 0, y: 1.6 * u)
             .padding(.horizontal, 18 * u)
             .padding(.vertical, 15 * u)
             if let c = copied {
@@ -1539,22 +1542,24 @@ struct BankCardView: View {
 
     /// one centred number line; a small label («شبا» / «حساب») sits in front of it, the number always left-to-right
     private func number(_ text: String, size: CGFloat, weight: Font.Weight, label: String?, copyLabel: String, value: String, u: CGFloat) -> some View {
-        Button {
-            copy(value, label: copyLabel)
-        } label: {
-            HStack(spacing: 6 * u) {
-                if let label {
-                    Text(label).font(AppFont.medium(10.5 * u)).opacity(0.75)
-                }
-                Text(Money.persianDigits(text))
-                    .font(weight == .bold ? AppFont.bold(size * u) : AppFont.medium(size * u))
-                    .environment(\.layoutDirection, .leftToRight)
-                    .lineLimit(1).minimumScaleFactor(0.55)
+        let line = HStack(spacing: 6 * u) {
+            if let label {
+                Text(label).font(AppFont.bold(10.5 * u)).opacity(0.85)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
+            Text(Money.persianDigits(text))
+                .font(weight == .bold ? AppFont.heavy(size * u) : AppFont.bold(size * u))
+                .environment(\.layoutDirection, .leftToRight)
+                .lineLimit(1).minimumScaleFactor(0.55)
         }
-        .buttonStyle(.plain)
-        .disabled(forSharing)
+        .frame(maxWidth: .infinity, alignment: .center)
+        // in the shared picture there is nothing to tap (a disabled button would print faded)
+        return Group {
+            if forSharing {
+                line
+            } else {
+                Button { copy(value, label: copyLabel) } label: { line }.buttonStyle(.plain)
+            }
+        }
     }
 
     /// IR12 3456 7890 … in groups of four, easier to read aloud
@@ -1633,6 +1638,9 @@ struct SettingsView: View {
             Section {
                 NavigationLink { PartiesView(model: model) } label: {
                     SettingsRow(icon: "person.2.fill", tint: .teal, title: "طرف‌های حساب", detail: nil)
+                }
+                NavigationLink { CategoryManagerView(model: model) } label: {
+                    SettingsRow(icon: "tag.fill", tint: .orange, title: "دسته‌ها و زیردسته‌ها", detail: "مرور، حذف و جایگزینی")
                 }
             }
 
