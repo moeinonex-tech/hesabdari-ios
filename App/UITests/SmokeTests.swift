@@ -50,6 +50,14 @@ final class SmokeTests: XCTestCase {
         try? XCUIScreen.main.screenshot().pngRepresentation.write(to: dir.appendingPathComponent(name + ".png"))
     }
 
+    /// reveal the trailing swipe action (in right-to-left the trailing edge is on the left, so try both ways)
+    private func swipeDelete(_ e: XCUIElement, _ step: String) {
+        let del = app.buttons["حذف"].firstMatch
+        e.swipeRight()
+        if !del.waitForExistence(timeout: 2) { e.swipeLeft() }
+        tap(del, step)
+    }
+
     private func alive(_ step: String) {
         XCTAssertEqual(app.state, .runningForeground, "app is not running after: \(step)")
     }
@@ -88,8 +96,7 @@ final class SmokeTests: XCTestCase {
         let ahan = labelled("آهن")
         if !ahan.waitForExistence(timeout: 5) { print("UITREE-BEGIN\n" + app.debugDescription + "\nUITREE-END") }
         XCTAssertTrue(ahan.exists, "subcategory page did not open")
-        ahan.swipeLeft()
-        tap(app.buttons["حذف"].firstMatch, "swipe delete آهن")
+        swipeDelete(ahan, "swipe delete آهن")
         tap(app.buttons["سیمان"].firstMatch, "pick replacement")
         tap(app.buttons["remove.confirm"].firstMatch, "confirm replace آهن")
         sleep(2)
@@ -99,8 +106,7 @@ final class SmokeTests: XCTestCase {
         // unused subcategory → plain delete
         let gach = labelled("گچ")
         XCTAssertTrue(gach.waitForExistence(timeout: 5))
-        gach.swipeLeft()
-        tap(app.buttons["حذف"].firstMatch, "swipe delete گچ")
+        swipeDelete(gach, "swipe delete گچ")
         tap(app.buttons["remove.confirm"].firstMatch, "confirm delete گچ")
         sleep(2)
         alive("after removing گچ")
