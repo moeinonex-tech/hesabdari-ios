@@ -35,9 +35,12 @@ struct CategoryManagerView: View {
                                      subs: CategoryOps.subcategories(model.state, scope, category: c).count,
                                      locked: CategoryOps.isProtected(scope, c))
                     }
-                    .swipeActions(edge: .trailing) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if !CategoryOps.isProtected(scope, c) {
-                            Button(role: .destructive) { removing = Removal(scope: scope, category: c, sub: nil) } label: { Label("حذف", systemImage: "trash") }
+                            // not role: .destructive — that makes the list animate the row away although nothing is
+                            // deleted yet (the replacement sheet asks first), which breaks the list update
+                            Button { ask(Removal(scope: scope, category: c, sub: nil)) } label: { Label("حذف", systemImage: "trash") }
+                                .tint(.red)
                         }
                     }
                 }
@@ -50,6 +53,11 @@ struct CategoryManagerView: View {
         .navigationTitle("دسته‌ها و زیردسته‌ها")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $removing) { r in NavigationStack { RemoveCategorySheet(model: model, removal: r) } }
+    }
+
+    /// the swipe row closes first, then the sheet opens (presenting while the row animates is what crashed)
+    private func ask(_ r: Removal) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { removing = r }
     }
 }
 
@@ -96,10 +104,20 @@ struct SubcategoryManagerView: View {
             Section {
                 if subs.isEmpty { Text("زیردسته‌ای ثبت نشده").foregroundStyle(.secondary) }
                 ForEach(subs, id: \.self) { s in
-                    CategoryLine(name: s, count: CategoryOps.usage(model.state, scope, category: category, sub: s))
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { removing = Removal(scope: scope, category: category, sub: s) } label: { Label("حذف", systemImage: "trash") }
+                    HStack(spacing: 10) {
+                        CategoryLine(name: s, count: CategoryOps.usage(model.state, scope, category: category, sub: s))
+                        // a plain delete button on the row as well, so deleting never depends on the swipe
+                        Button { ask(Removal(scope: scope, category: category, sub: s)) } label: {
+                            Image(systemName: "trash").foregroundStyle(.red)
                         }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("حذف " + s)
+                        .accessibilityIdentifier("del." + s)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button { ask(Removal(scope: scope, category: category, sub: s)) } label: { Label("حذف", systemImage: "trash") }
+                            .tint(.red)
+                    }
                 }
             } header: {
                 Text("زیردسته‌های «\(category)»")
@@ -108,17 +126,25 @@ struct SubcategoryManagerView: View {
             }
             if !CategoryOps.isProtected(scope, category) {
                 Section {
-                    Button(role: .destructive) { removing = Removal(scope: scope, category: category, sub: nil) } label: {
+                    Button(role: .destructive) { ask(Removal(scope: scope, category: category, sub: nil)) } label: {
                         Label("حذف خود دسته‌ی «\(category)»", systemImage: "trash")
                     }
+                    .accessibilityIdentifier("del.category")
                 }
             }
         }
         .navigationTitle(category)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $removing, onDismiss: {
-            if !CategoryOps.categories(model.state, scope).contains(category) { dismiss() }
+            // the category itself was removed: leave its page (after the sheet is fully gone)
+            if !CategoryOps.categories(model.state, scope).contains(category) {
+                DispatchQueue.main.async { dismiss() }
+            }
         }) { r in NavigationStack { RemoveCategorySheet(model: model, removal: r) } }
+    }
+
+    private func ask(_ r: Removal) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { removing = r }
     }
 }
 
@@ -129,17 +155,15 @@ struct RemoveCategorySheet: View {
     @State private var picked: String?
     @State private var typed = ""
     @State private var manual = false
+    @State private var done = false
+    // read once when the sheet opens: after the removal the sheet must not re-read a name that no longer exists
+    @State private var used = 0
+    @State private var choices: [String] = []
+    @State private var loaded = false
     @Environment(\.dismiss) private var dismiss
 
     private var isSub: Bool { removal.sub != nil }
     private var name: String { removal.sub ?? removal.category }
-    private var used: Int {
-        CategoryOps.usage(model.state, removal.scope, category: removal.category, sub: removal.sub)
-    }
-    private var choices: [String] {
-        (isSub ? CategoryOps.subcategories(model.state, removal.scope, category: removal.category)
-               : CategoryOps.categories(model.state, removal.scope)).filter { $0 != name }
-    }
     private var replacement: String? {
         let r = manual ? typed.trimmingCharacters(in: .whitespaces) : (picked ?? "")
         return r.isEmpty ? nil : r
@@ -191,24 +215,32 @@ struct RemoveCategorySheet: View {
         }
         .navigationTitle("حذف «\(name)»")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            guard !loaded else { return }
+            loaded = true
+            used = CategoryOps.usage(model.state, removal.scope, category: removal.category, sub: removal.sub)
+            choices = (isSub ? CategoryOps.subcategories(model.state, removal.scope, category: removal.category)
+                             : CategoryOps.categories(model.state, removal.scope)).filter { $0 != name }
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("انصراف") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button(used > 0 ? "جایگزین و حذف" : "حذف", role: .destructive) { run() }
                     .bold()
                     .accessibilityIdentifier("remove.confirm")
-                    .disabled(used > 0 && replacement == nil)
+                    .disabled(done || (used > 0 && replacement == nil))
             }
         }
     }
 
     private func run() {
+        guard !done else { return }
         let ok: Bool
         if let s = removal.sub {
             ok = model.removeSubcategory(removal.scope, category: removal.category, s, replaceWith: replacement)
         } else {
             ok = model.removeCategory(removal.scope, removal.category, replaceWith: replacement)
         }
-        if ok { Haptics.success(); dismiss() }
+        if ok { done = true; Haptics.success(); dismiss() }
     }
 }

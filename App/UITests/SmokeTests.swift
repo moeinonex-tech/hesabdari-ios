@@ -97,7 +97,7 @@ final class SmokeTests: XCTestCase {
         let ahan = labelled("آهن")
         if !ahan.waitForExistence(timeout: 5) { print("UITREE-BEGIN\n" + app.debugDescription + "\nUITREE-END") }
         XCTAssertTrue(ahan.exists, "subcategory page did not open")
-        swipeDelete(ahan, "swipe delete آهن")
+        tap(app.buttons["del.آهن"].firstMatch, "delete آهن")
         tap(app.buttons["سیمان"].firstMatch, "pick replacement")
         tap(app.buttons["remove.confirm"].firstMatch, "confirm replace آهن")
         sleep(2)
@@ -107,16 +107,24 @@ final class SmokeTests: XCTestCase {
         // unused subcategory → plain delete
         let gach = labelled("گچ")
         XCTAssertTrue(gach.waitForExistence(timeout: 5))
-        swipeDelete(gach, "swipe delete گچ")
+        tap(app.buttons["del.گچ"].firstMatch, "delete گچ")
         tap(app.buttons["remove.confirm"].firstMatch, "confirm delete گچ")
         sleep(2)
         alive("after removing گچ")
 
         // whole category with a replacement, from inside its page
-        tap(app.buttons["حذف خود دسته‌ی «مصالح»"].firstMatch, "delete category button")
+        tap(app.buttons["del.category"].firstMatch, "delete category button")
         tap(app.buttons["خوراک"].firstMatch, "pick category replacement")
         tap(app.buttons["remove.confirm"].firstMatch, "confirm category")
         sleep(2)
         alive("after removing مصالح")
+        XCTAssertFalse(labelled("سیمان").exists && labelled("مصالح").exists)
+
+        // swipe on the category list (the path that used to crash)
+        let food = labelled("خوراک")
+        XCTAssertTrue(food.waitForExistence(timeout: 5))
+        swipeDelete(food, "swipe delete خوراک")
+        sleep(1)
+        alive("swipe sheet open")
     }
 }

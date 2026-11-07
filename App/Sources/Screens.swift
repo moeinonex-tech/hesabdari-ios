@@ -31,6 +31,9 @@ struct RootView: View {
     @State private var ledgerSheet: LedgerSheet?
     @StateObject private var lock = AppLock()
     @Environment(\.scenePhase) private var phase
+    #if DEBUG
+    @State private var uiTestCategories = ProcessInfo.processInfo.environment["UITEST_OPEN"] == "categories"
+    #endif
 
     var body: some View {
         Themed {
@@ -56,7 +59,7 @@ struct RootView: View {
         }
         .preferredColorScheme(Appearance(rawValue: appearanceRaw)?.scheme)
         #if DEBUG
-        .sheet(isPresented: .constant(ProcessInfo.processInfo.environment["UITEST_OPEN"] == "categories")) {
+        .sheet(isPresented: $uiTestCategories) {
             NavigationStack { CategoryManagerView(model: model) }
         }
         #endif
