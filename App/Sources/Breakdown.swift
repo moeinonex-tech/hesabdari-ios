@@ -281,10 +281,14 @@ struct CategoryChartCard: View {
     var subs: [CategorySlice] = []
     var model: AppModel? = nil
     var scope = ""
+    /// the rows behind the chart (for the PDF, which groups subcategories under their categories)
+    var items: [StatItem] = []
+    var income = false
     var body: some View {
         BreakdownCard(title: "تفکیک دسته‌ها", unit: "دسته", slices: slices,
                       // each chart exports on its own (categories and subcategories are separate files)
-                      export: model.map { m in { _ in await m.breakdownPDF(scopeTitle: scope, cats: slices, subs: nil) } })
+                      export: model.map { m in { [items, income, scope] _ in
+                          await m.breakdownReportPDF(scopeTitle: scope, items: items, withSubs: false, income: income) } })
     }
 }
 
@@ -292,8 +296,11 @@ struct SubcategoryChartCard: View {
     let slices: [CategorySlice]
     var model: AppModel? = nil
     var scope = ""
+    var items: [StatItem] = []
+    var income = false
     var body: some View {
         BreakdownCard(title: "تفکیک زیردسته‌ها", unit: "زیردسته", slices: slices,
-                      export: model.map { m in { _ in await m.breakdownPDF(scopeTitle: scope, cats: slices, subs: nil, firstIsSub: true) } })
+                      export: model.map { m in { [items, income, scope] _ in
+                          await m.breakdownReportPDF(scopeTitle: scope, items: items, withSubs: true, income: income) } })
     }
 }

@@ -1224,10 +1224,10 @@ struct LedgerHomeView: View {
         let subs = model.breakdown(items, kind: .expense, sub: true)
         let colors = model.colorMap(slices)
         if !slices.isEmpty {
-            cards.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: slices, subs: subs, model: model, scope: a.name) })
+            cards.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: slices, subs: subs, model: model, scope: a.name, items: items) })
         }
         if !subs.isEmpty {
-            cards.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: subs, model: model, scope: a.name) })
+            cards.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: subs, model: model, scope: a.name, items: items) })
         }
         // every row, newest first; 5 visible, the rest scroll inside the card or unfold
         let all = Array(model.rows(accountId: a.id).reversed())

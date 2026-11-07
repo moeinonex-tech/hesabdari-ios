@@ -315,8 +315,8 @@ struct PersonalView: View {
             }
             .glassCard()
         }]
-        if !s.isEmpty { cards.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }) }
-        if !sub.isEmpty { cards.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: sub, model: model, scope: scope) }) }
+        if !s.isEmpty { cards.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope, items: st, income: showIncome) }) }
+        if !sub.isEmpty { cards.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: sub, model: model, scope: scope, items: st, income: showIncome) }) }
         cards.append(DeckCard("rows", showIncome ? "درآمدها" : "هزینه‌ها", "list.bullet.rectangle") {
             RowsCard(title: showIncome ? "درآمدها" : "هزینه‌ها", total: Fmt.count(rows.count) + " ردیف", rows: rows, date: \.dateValue,
                      amount: \.toman, empty: "هنوز ردیفی نیست",

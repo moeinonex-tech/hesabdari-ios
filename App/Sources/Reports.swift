@@ -355,7 +355,7 @@ struct ReportsView: View {
                 DeckCard("comparison", "درآمد در برابر هزینه", "scalemass") {
                     ComparisonCard(title: "درآمد در برابر هزینه — " + scope, c: ReportCharts.comparisonLedger(model.state, accountId: id))
                 }
-            ] + breakdownCards(s, sub, scope: scope)).id("reports.ledger")
+            ] + breakdownCards(s, sub, scope: scope, items: st, income: false)).id("reports.ledger")
             exportButtons(pdf: { await model.ledgerPDF(accountId: id, range: range) },
                           excel: { model.ledgerExcel(accountIds: [id], range: range) },
                           extra: nil)     // each ledger exports only itself
@@ -380,16 +380,16 @@ struct ReportsView: View {
                 DeckCard("comparison", "درآمد در برابر هزینه", "scalemass") {
                     ComparisonCard(title: "درآمد شخصی در برابر هزینه شخصی", c: ReportCharts.comparisonPersonal(model.state))
                 }
-            ] + breakdownCards(s, sub, scope: scope)).id(page)
+            ] + breakdownCards(s, sub, scope: scope, items: st, income: !personal)).id(page)
             exportButtons(pdf: { personal ? await model.personalPDF(range: range) : await model.incomePDF(range: range) },
                           excel: { personal ? model.personalExcel(range: range) : model.incomeExcel(range: range) }, extra: nil)
         }
     }
 
-    private func breakdownCards(_ s: [CategorySlice], _ sub: [CategorySlice], scope: String) -> [DeckCard] {
+    private func breakdownCards(_ s: [CategorySlice], _ sub: [CategorySlice], scope: String, items: [StatItem], income: Bool) -> [DeckCard] {
         var out: [DeckCard] = []
-        if !s.isEmpty { out.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope) }) }
-        if !sub.isEmpty { out.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: sub, model: model, scope: scope) }) }
+        if !s.isEmpty { out.append(DeckCard("categories", "تفکیک دسته‌ها", "chart.pie") { CategoryChartCard(slices: s, subs: sub, model: model, scope: scope, items: items, income: income) }) }
+        if !sub.isEmpty { out.append(DeckCard("subcategories", "تفکیک زیردسته‌ها", "chart.bar") { SubcategoryChartCard(slices: sub, model: model, scope: scope, items: items, income: income) }) }
         return out
     }
 

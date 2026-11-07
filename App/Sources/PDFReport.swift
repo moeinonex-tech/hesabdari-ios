@@ -466,7 +466,121 @@ extension ReportHTML {
     }
 }
 
+// MARK: - breakdown report v2 (for the owner / client): a short summary on top, then ONE clean table.
+// Categories report: one row per category. Subcategories report: every category as a group with its own
+// subcategories under it, so each subcategory is read in the context of its category. Few colours: the five largest
+// categories get one colour each, everything else is grey; one column, read top to bottom.
+
+extension ReportHTML {
+    struct Group { let name: String; let total: Int; let subs: [(String, Int)] }
+
+    static let cxPalette = ["#2F5D8A", "#3E8E7E", "#D08C3A", "#8A5A9E", "#C0504D"]
+    static let cxOther = "#AEB6C2"
+
+    /// rows → groups (category → subcategories), biggest first; multi-item rows are already split into their items
+    static func groups(_ items: [StatItem]) -> [Group] {
+        var sums: [String: [String: Int]] = [:]
+        var order: [String] = [], subOrder: [String: [String]] = [:]
+        for it in items {
+            let c = it.category.trimmingCharacters(in: .whitespaces).isEmpty ? "بدون دسته" : it.category.trimmingCharacters(in: .whitespaces)
+            let s = it.subcategory.trimmingCharacters(in: .whitespaces).isEmpty ? "بدون زیردسته" : it.subcategory.trimmingCharacters(in: .whitespaces)
+            if sums[c] == nil { sums[c] = [:]; order.append(c) }
+            if sums[c]![s] == nil { subOrder[c, default: []].append(s) }
+            sums[c]![s, default: 0] += it.toman
+        }
+        let gs = order.enumerated().map { i, c -> (Int, Group) in
+            let subs = (subOrder[c] ?? []).enumerated()
+                .sorted { a, b in (sums[c]![a.element]!, b.offset) > (sums[c]![b.element]!, a.offset) }
+                .map { ($0.element, sums[c]![$0.element]!) }
+            return (i, Group(name: c, total: subs.reduce(0) { $0 + $1.1 }, subs: subs))
+        }
+        return gs.sorted { a, b in a.1.total != b.1.total ? a.1.total > b.1.total : a.0 < b.0 }.map(\.1)
+    }
+
+    static func breakdownReport(title: String, subtitle: String, items: [StatItem], withSubs: Bool, income: Bool) -> String {
+        let gs = groups(items).filter { $0.total != 0 }
+        let total = gs.reduce(0) { $0 + $1.total }
+        func pct(_ v: Int, _ of: Int) -> String {
+            let p = of > 0 ? Double(v) / Double(of) * 100 : 0
+            return p > 0 && p < 1 ? "زیر ۱٪" : Money.persianDigits(Money.jsRound(p)) + "٪"
+        }
+        func amt(_ v: Int) -> String { Money.persianDigits(Money.format(v)) }
+        func w(_ v: Int, _ mx: Int) -> String { String(format: "%.2f", max(1.5, mx > 0 ? Double(v) / Double(mx) * 100 : 0)) }
+        let color: [String: String] = Dictionary(gs.enumerated().map { ($0.element.name, $0.offset < 5 ? cxPalette[$0.offset] : cxOther) },
+                                                 uniquingKeysWith: { a, _ in a })
+        let word = income ? "درآمد" : "هزینه"
+
+        var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=595.28, initial-scale=1, maximum-scale=1, user-scalable=no\"><style>" + css + "</style></head><body>"
+        h += "<div class=\"hdr\"><div><div class=\"title\">" + esc(title) + "</div><div class=\"sub\">" + esc(subtitle) + "</div></div></div>"
+        guard let top = gs.first else { return h + "<div class=\"empty\">موردی برای نمایش نیست</div></body></html>" }
+
+        // summary: total · how many · the largest
+        let nsub = gs.reduce(0) { $0 + $1.subs.count }
+        h += "<div class=\"cx-kpis\"><div class=\"cx-kpi\"><div class=\"k\">جمع کل " + word + "‌ها (تومان)</div><div class=\"v main\">" + amt(total) + "</div></div>"
+        h += "<div class=\"cx-kpi\"><div class=\"k\">" + (withSubs ? "تعداد دسته / زیردسته" : "تعداد دسته‌ها") + "</div><div class=\"v\">"
+            + Money.persianDigits(gs.count) + (withSubs ? " <small>/ " + Money.persianDigits(nsub) + "</small>" : "") + "</div></div>"
+        h += "<div class=\"cx-kpi\"><div class=\"k\">بیشترین " + word + "</div><div class=\"v nm\">" + esc(top.name) + " — " + pct(top.total, total) + "</div></div></div>"
+
+        // one bar for the whole: the five largest and «others»
+        let others = gs.dropFirst(5).reduce(0) { $0 + $1.total }
+        h += "<div class=\"cx-mix\"><div class=\"t\">سهم هر دسته از کل " + word + "</div><div class=\"cx-strip\">"
+        for g in gs.prefix(5) { h += "<i style=\"width:" + w(g.total, total) + "%;background:" + color[g.name]! + "\"></i>" }
+        if others > 0 { h += "<i style=\"width:" + w(others, total) + "%;background:" + cxOther + "\"></i>" }
+        h += "</div><div class=\"cx-legend\">"
+        for g in gs.prefix(5) {
+            h += "<div><span class=\"cx-dot\" style=\"background:" + color[g.name]! + "\"></span><span class=\"n\">" + esc(g.name) + "</span><b>" + pct(g.total, total) + "</b></div>"
+        }
+        if others > 0 {
+            h += "<div><span class=\"cx-dot\" style=\"background:" + cxOther + "\"></span><span class=\"n\">سایر (" + Money.persianDigits(gs.count - 5)
+                + " دسته)</span><b>" + pct(others, total) + "</b></div>"
+        }
+        h += "</div></div>"
+
+        let mx = max(1, gs.map(\.total).max() ?? 1)
+        if !withSubs {
+            h += "<div class=\"cx-th head\"><span></span><span>دسته</span><span>سهم از کل</span><span class=\"r\">مبلغ (تومان)</span><span class=\"r\">درصد</span></div>"
+            for g in gs {
+                let c = color[g.name]!
+                h += "<div class=\"cx-row\"><span class=\"cx-dot\" style=\"background:" + c + "\"></span><span class=\"nm\">" + esc(g.name)
+                    + "</span><div class=\"cx-bar\"><i style=\"width:" + w(g.total, mx) + "%;background:" + c + "\"></i></div><span class=\"am\">"
+                    + amt(g.total) + "</span><span class=\"pc\">" + pct(g.total, total) + "</span></div>"
+            }
+        } else {
+            h += "<div class=\"cx-th head\"><span></span><span>دسته و زیردسته</span><span>سهم در دسته</span><span class=\"r\">مبلغ (تومان)</span><span class=\"r\">درصد</span></div>"
+            for g in gs {
+                let c = color[g.name]! == cxOther ? "#5B6575" : color[g.name]!
+                let smx = max(1, g.subs.first?.1 ?? 1)
+                h += "<div class=\"cx-grp head\" style=\"--c:" + c + "\"><span class=\"cx-dot\" style=\"background:" + c + "\"></span><span>" + esc(g.name)
+                    + "<span class=\"cnt\">" + Money.persianDigits(g.subs.count) + " زیردسته</span></span><span></span><span class=\"am\">" + amt(g.total)
+                    + "</span><span class=\"pc\">" + pct(g.total, total) + "</span></div>"
+                for (i, s) in g.subs.enumerated() {
+                    h += "<div class=\"cx-row sub" + (i == g.subs.count - 1 ? " last" : "") + "\"><span></span><span class=\"nm\">" + esc(s.0)
+                        + "</span><div class=\"cx-bar\"><i style=\"width:" + w(s.1, smx) + "%;background:" + c + "\"></i></div><span class=\"am\">"
+                        + amt(s.1) + "</span><span class=\"pc\">" + pct(s.1, g.total) + "</span></div>"
+                }
+            }
+            h += "<div class=\"cx-note\">درصد هر زیردسته سهم آن از دسته‌ی خودش است و درصد هر دسته سهم آن از کل.</div>"
+        }
+        return h + "</body></html>"
+    }
+}
+
 extension AppModel {
+    /// the owner-facing breakdown report (summary + one table); `withSubs` groups the subcategories under their categories
+    func breakdownReportPDF(scopeTitle: String, items: [StatItem], withSubs: Bool, income: Bool) async -> ExportFile? {
+        let word = income ? "درآمد" : "هزینه"
+        let title = "گزارش " + word + "‌ها به تفکیک " + (withSubs ? "دسته و زیردسته" : "دسته") + " — " + scopeTitle
+        let html = ReportHTML.breakdownReport(title: title, subtitle: "تا تاریخ " + BackupExporter.formatJalali(Self.today) + " — مبالغ به تومان",
+                                              items: items, withSubs: withSubs, income: income)
+        do {
+            return exportFile(name: (withSubs ? "تفکیک زیردسته‌ها - " : "تفکیک دسته‌ها - ") + scopeTitle + " - " + Self.todayTag() + ".pdf",
+                              data: try await HTMLPDF.make(html))
+        } catch {
+            errorMessage = "PDF ساخته نشد: " + error.localizedDescription
+            return nil
+        }
+    }
+
     /// web-style «گزارش دسته‌ها» PDF: ring + ranked bars; optionally the subcategories in the same file.
     func breakdownPDF(scopeTitle: String, cats: [CategorySlice], subs: [CategorySlice]?, firstIsSub: Bool = false) async -> ExportFile? {
         let conv = { (s: [CategorySlice]) in s.map { ReportHTML.Slice(name: $0.name, total: $0.total, hex: $0.color.hexString) } }
