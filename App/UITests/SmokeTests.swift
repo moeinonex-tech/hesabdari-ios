@@ -68,7 +68,14 @@ final class SmokeTests: XCTestCase {
     }
 
     func testRemoveSubcategories() {
-        tap(app.buttons["settings"].firstMatch, "settings")
+        sleep(2)
+        let gear = app.buttons["settings"].firstMatch
+        XCTAssertTrue(gear.waitForExistence(timeout: 8))
+        for _ in 0..<4 where !labelled("صفحه‌ی خانه").exists {
+            gear.tap()
+            _ = labelled("صفحه‌ی خانه").waitForExistence(timeout: 3)
+        }
+        alive("settings")
         let row = labelled("دسته‌ها و زیردسته‌ها")
         for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
         if !row.exists { print("UITREE-BEGIN\n" + app.debugDescription + "\nUITREE-END") }
