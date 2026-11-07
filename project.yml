@@ -34,7 +34,8 @@ targets:
         product: HesabCore
       - package: HesabCore
         product: HesabStore
-    scheme: {}
+    scheme:
+      testTargets: [HesabdariUITests]
     entitlements:
       path: App/Hesabdari.entitlements
       properties:
@@ -74,3 +75,16 @@ targets:
           - Vazirmatn-ExtraBold.ttf
         NSFaceIDUsageDescription: برای باز کردن دفتر حساب با Face ID
         NSRemindersFullAccessUsageDescription: برای افزودن سررسید چک، قسط و قرار به اپ Reminders گوشی
+
+  HesabdariUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - App/UITests
+    dependencies:
+      - target: Hesabdari
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.moein.hesabdari.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Hesabdari

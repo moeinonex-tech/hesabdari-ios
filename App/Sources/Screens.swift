@@ -198,6 +198,7 @@ struct HomeView: View {
                     HStack(spacing: 8) {
                         HeaderIconButton(icon: "magnifyingglass") { Haptics.tap(); showSearch = true }
                         HeaderIconButton(icon: "gearshape.fill") { Haptics.tap(); showSettings = true }
+                            .accessibilityIdentifier("settings")
                     }
                     .padding(.top, 8)
                 }
@@ -1642,6 +1643,7 @@ struct SettingsView: View {
                 NavigationLink { CategoryManagerView(model: model) } label: {
                     SettingsRow(icon: "tag.fill", tint: .orange, title: "دسته‌ها و زیردسته‌ها", detail: "مرور، حذف و جایگزینی")
                 }
+                .accessibilityIdentifier("settings.categories")
             }
 
             Section {

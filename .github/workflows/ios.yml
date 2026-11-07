@@ -36,6 +36,51 @@ jobs:
           grep -E "commission parity:|Executed [0-9]+ tests" "$RUNNER_TEMP/test.log" | tail -4 | while read -r l; do echo "::notice title=HesabCore::$l"; done
           grep -E "error:|failed" "$RUNNER_TEMP/test.log" | grep -v "^Test Suite" | head -15 | while read -r l; do echo "::error title=test::${l:0:900}"; done
 
+  ui-smoke:
+    name: UI smoke test (simulator)
+    needs: core-tests
+    if: github.event_name != 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      BUNDLE_ID: uk.moein.hesabdari.debug
+    steps:
+      - uses: actions/checkout@v5
+      - name: Generate Xcode project (no iCloud entitlement on the simulator)
+        run: |
+          brew install xcodegen
+          python3 - <<'PY'
+          import re
+          s = open('project.yml').read()
+          s = re.sub(r"\n    entitlements:\n(      .*\n)+", "\n", s)
+          open('project.yml', 'w').write(s)
+          PY
+          xcodegen generate
+      - name: Run UI smoke tests
+        run: |
+          set -o pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in sorted(d.items(), reverse=True) if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          echo "::notice title=simulator::$UDID"
+          xcodebuild test -project Hesabdari.xcodeproj -scheme Hesabdari -destination "id=$UDID" \
+            -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= 2>&1 | tee "$RUNNER_TEMP/ui.log"
+      - name: Report UI test failures and crashes
+        if: failure()
+        run: |
+          grep -E "error:|failed|Fatal error|crash|Crash|Thread [0-9]+ Crashed|EXC_|SIGABRT|SIGTRAP|precondition" "$RUNNER_TEMP/ui.log" | grep -v "^Test Suite" | sort -u | head -30 | while read -r l; do echo "::error title=ui::${l:0:900}"; done
+          mkdir -p "$RUNNER_TEMP/crash"
+          cp ~/Library/Logs/DiagnosticReports/Hesabdari* "$RUNNER_TEMP/crash/" 2>/dev/null || true
+          for f in "$RUNNER_TEMP"/crash/*; do [ -f "$f" ] && head -c 6000 "$f" | grep -E "exception|termination|Thread 0|frame|Hesabdari|Swift|reason" | head -40 | while read -r l; do echo "::error title=crashlog::${l:0:900}"; done; done
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-results
+          path: |
+            ${{ runner.temp }}/ui.log
+            ${{ runner.temp }}/crash
+          retention-days: 5
+
   testflight:
     name: Archive and upload to TestFlight
     needs: core-tests

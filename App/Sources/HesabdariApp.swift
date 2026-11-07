@@ -69,6 +69,16 @@ final class AppModel: ObservableObject {
     init() {
         var opened: HesabStore?
         var openError: String?
+        #if DEBUG
+        // UI smoke tests (simulator, Debug builds only): start from a small synthetic state in memory
+        if let json = ProcessInfo.processInfo.environment["UITEST_STATE"], let data = json.data(using: .utf8),
+           let st = try? JSONDecoder().decode([String: JSONValue].self, from: data), let mem = try? HesabStore() {
+            try? mem.save(st)
+            store = mem
+            reload()
+            return
+        }
+        #endif
         do {
             let url = try AppModel.databaseURL()
             opened = try HesabStore(path: url.path)

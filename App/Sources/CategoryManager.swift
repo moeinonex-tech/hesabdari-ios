@@ -196,6 +196,7 @@ struct RemoveCategorySheet: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button(used > 0 ? "جایگزین و حذف" : "حذف", role: .destructive) { run() }
                     .bold()
+                    .accessibilityIdentifier("remove.confirm")
                     .disabled(used > 0 && replacement == nil)
             }
         }
