@@ -38,6 +38,11 @@ final class SmokeTests: XCTestCase {
         app.launch()
     }
 
+    /// any element whose label contains the text (rows merge their texts into one label)
+    private func labelled(_ text: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
     private func alive(_ step: String) {
         XCTAssertEqual(app.state, .runningForeground, "app is not running after: \(step)")
     }
@@ -64,13 +69,14 @@ final class SmokeTests: XCTestCase {
 
     func testRemoveSubcategories() {
         tap(app.buttons["settings"].firstMatch, "settings")
-        let row = app.staticTexts["دسته‌ها و زیردسته‌ها"].firstMatch
+        let row = labelled("دسته‌ها و زیردسته‌ها")
         for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+        if !row.exists { print("UITREE-BEGIN\n" + app.debugDescription + "\nUITREE-END") }
         tap(row, "categories")
-        tap(app.staticTexts["مصالح"].firstMatch, "open مصالح")
+        tap(labelled("مصالح"), "open مصالح")
 
         // used subcategory → must pick a replacement
-        let ahan = app.staticTexts["آهن"].firstMatch
+        let ahan = labelled("آهن")
         XCTAssertTrue(ahan.waitForExistence(timeout: 5))
         ahan.swipeLeft()
         tap(app.buttons["حذف"].firstMatch, "swipe delete آهن")
@@ -78,10 +84,10 @@ final class SmokeTests: XCTestCase {
         tap(app.buttons["remove.confirm"].firstMatch, "confirm replace آهن")
         sleep(2)
         alive("after removing آهن")
-        XCTAssertFalse(app.staticTexts["آهن"].exists)
+        XCTAssertFalse(labelled("آهن").exists)
 
         // unused subcategory → plain delete
-        let gach = app.staticTexts["گچ"].firstMatch
+        let gach = labelled("گچ")
         XCTAssertTrue(gach.waitForExistence(timeout: 5))
         gach.swipeLeft()
         tap(app.buttons["حذف"].firstMatch, "swipe delete گچ")
