@@ -43,13 +43,24 @@ final class SmokeTests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
+    /// screenshot to the Mac host (CI uploads the folder), so a failing step can be seen
+    private func shot(_ name: String) {
+        guard let home = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] else { return }
+        let dir = URL(fileURLWithPath: home).appendingPathComponent("ui-shots")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? XCUIScreen.main.screenshot().pngRepresentation.write(to: dir.appendingPathComponent(name + ".png"))
+    }
+
     private func alive(_ step: String) {
         XCTAssertEqual(app.state, .runningForeground, "app is not running after: \(step)")
     }
 
     private func tap(_ e: XCUIElement, _ step: String, timeout: TimeInterval = 6) {
         XCTAssertTrue(e.waitForExistence(timeout: timeout), "missing: \(step)")
+        shot("before-" + step)
         e.tap()
+        sleep(1)
+        shot("after-" + step)
         alive(step)
     }
 
@@ -76,7 +87,8 @@ final class SmokeTests: XCTestCase {
 
         // used subcategory → must pick a replacement
         let ahan = labelled("آهن")
-        XCTAssertTrue(ahan.waitForExistence(timeout: 5))
+        if !ahan.waitForExistence(timeout: 5) { print("UITREE-BEGIN\n" + app.debugDescription + "\nUITREE-END") }
+        XCTAssertTrue(ahan.exists, "subcategory page did not open")
         ahan.swipeLeft()
         tap(app.buttons["حذف"].firstMatch, "swipe delete آهن")
         tap(app.buttons["سیمان"].firstMatch, "pick replacement")

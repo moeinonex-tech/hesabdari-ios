@@ -68,7 +68,7 @@ jobs:
         if: failure()
         run: |
           grep -E "error:|failed|Fatal error|crash|Crash|Thread [0-9]+ Crashed|EXC_|SIGABRT|SIGTRAP|precondition" "$RUNNER_TEMP/ui.log" | grep -v "^Test Suite" | sort -u | head -30 | while read -r l; do echo "::error title=ui::${l:0:900}"; done
-          sed -n '/UITREE-BEGIN/,/UITREE-END/p' "$RUNNER_TEMP/ui.log" | grep -E "Button|StaticText|Cell|NavigationBar" | head -40 | while read -r l; do echo "::warning title=tree::${l:0:300}"; done
+          sed -n '/UITREE-BEGIN/,/UITREE-END/p' "$RUNNER_TEMP/ui.log" | grep -E "Button|StaticText|Cell|NavigationBar|Sheet|Other, .*label" | head -60 | while read -r l; do echo "::warning title=tree::${l:0:300}"; done
           mkdir -p "$RUNNER_TEMP/crash"
           cp ~/Library/Logs/DiagnosticReports/Hesabdari* "$RUNNER_TEMP/crash/" 2>/dev/null || true
           for f in "$RUNNER_TEMP"/crash/*; do [ -f "$f" ] && head -c 6000 "$f" | grep -E "exception|termination|Thread 0|frame|Hesabdari|Swift|reason" | head -40 | while read -r l; do echo "::error title=crashlog::${l:0:900}"; done; done
@@ -80,6 +80,7 @@ jobs:
           path: |
             ${{ runner.temp }}/ui.log
             ${{ runner.temp }}/crash
+            ~/ui-shots
           retention-days: 5
 
   testflight:
