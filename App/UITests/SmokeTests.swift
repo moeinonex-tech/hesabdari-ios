@@ -64,7 +64,9 @@ final class SmokeTests: XCTestCase {
 
     func testRemoveSubcategories() {
         tap(app.buttons["settings"].firstMatch, "settings")
-        tap(app.descendants(matching: .any)["settings.categories"].firstMatch, "categories")
+        let row = app.staticTexts["دسته‌ها و زیردسته‌ها"].firstMatch
+        for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+        tap(row, "categories")
         tap(app.staticTexts["مصالح"].firstMatch, "open مصالح")
 
         // used subcategory → must pick a replacement

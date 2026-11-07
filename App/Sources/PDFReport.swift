@@ -121,7 +121,7 @@ final class HTMLPDF: NSObject, WKNavigationDelegate {
 
         // the real position of every page box (from the page itself, so nothing is assumed about the layout)
         let raw = (try? await w.callAsyncJavaScript("return window.__pageRects || []", contentWorld: .page)) as? [[Double]] ?? []
-        let rects: [CGRect] = raw.count == pages
+        let rects: [CGRect] = raw.count == pages && raw.allSatisfy({ $0.count >= 4 })
             ? raw.map { CGRect(x: $0[0], y: $0[1], width: $0[2], height: $0[3]) }
             : (0..<pages).map { CGRect(x: 0, y: Self.paper.height * CGFloat($0), width: Self.paper.width, height: Self.paper.height) }
         let out = PDFDocument()
