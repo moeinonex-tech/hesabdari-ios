@@ -68,18 +68,10 @@ final class SmokeTests: XCTestCase {
     }
 
     func testRemoveSubcategories() {
-        sleep(2)
-        let gear = app.buttons["settings"].firstMatch
-        XCTAssertTrue(gear.waitForExistence(timeout: 8))
-        for _ in 0..<4 where !labelled("صفحه‌ی خانه").exists {
-            gear.tap()
-            _ = labelled("صفحه‌ی خانه").waitForExistence(timeout: 3)
-        }
-        alive("settings")
-        let row = labelled("دسته‌ها و زیردسته‌ها")
-        for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
-        if !row.exists { print("UITREE-BEGIN\n" + app.debugDescription + "\nUITREE-END") }
-        tap(row, "categories")
+        // opens straight on Settings › categories (Debug-only launch switch), so nothing else can get in the way
+        app.terminate()
+        app.launchEnvironment["UITEST_OPEN"] = "categories"
+        app.launch()
         tap(labelled("مصالح"), "open مصالح")
 
         // used subcategory → must pick a replacement

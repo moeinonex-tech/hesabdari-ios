@@ -55,6 +55,11 @@ struct RootView: View {
             if p == .active { lock.didBecomeActive(); model.backupToday(); if model.hasData { Notifier.sync(model.state) } }
         }
         .preferredColorScheme(Appearance(rawValue: appearanceRaw)?.scheme)
+        #if DEBUG
+        .sheet(isPresented: .constant(ProcessInfo.processInfo.environment["UITEST_OPEN"] == "categories")) {
+            NavigationStack { CategoryManagerView(model: model) }
+        }
+        #endif
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .plainText, .data]) { result in
             switch result {
             case .success(let url): model.openFile(url)
