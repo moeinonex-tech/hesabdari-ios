@@ -272,9 +272,6 @@ struct PartiesView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button { editing = IdBox(id: "") } label: { Image(systemName: "plus") }
             }
-            ToolbarItem(placement: .primaryAction) {
-                CardPDFButton { await model.partiesPDF() }
-            }
         }
         .sheet(item: $editing) { e in
             NavigationStack { PartyFormView(model: model, party: model.parties.first { $0.id == e.id }) }
