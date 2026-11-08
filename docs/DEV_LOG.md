@@ -1,0 +1,93 @@
+# DEV LOG — every change, oldest first (from git)
+
+- 2026-10-29 — iOS pipeline: HesabCore (Jalali, money, commission approved rules) + parity tests + CI to TestFlight
+- 2026-10-29 — D16: editing a payment amount recomputes that payment and later balances; goldens G01–G22
+- 2026-10-29 — CI: report test counts as annotations; checkout v5
+- 2026-10-30 — Phase 2 step 1: SQLite store (GRDB), backup import with report, export
+- 2026-10-30 — Phase 2 step 2: add/edit/delete ledger rows, commission payment, undo, edit lock
+- 2026-10-30 — Design pass 1: themes (4 palettes, web default), auto light/dark, Vazirmatn, home, ledger, wallet, settings
+- 2026-10-30 — Step 3: Face ID lock and automatic iCloud Drive backups
+- 2026-10-30 — CI: surface archive errors as annotations
+- 2026-10-30 — Personal ledger, income, reminders view, local notifications; iCloud entitlement optional
+- 2026-10-30 — CI: show failing test assertions
+- 2026-10-30 — test: expected id carries the chk- prefix
+- 2026-10-30 — Reminders: add/edit checks, people, installments, appointments; check and nasiyeh pay methods
+- 2026-10-30 — fix: public typealias for public ReminderOps API
+- 2026-10-30 — test: simpler expressions for the type checker
+- 2026-10-30 — Reports: charts, PDF and Excel exports
+- 2026-10-30 — CI: unsigned archive, sign once at export with the cloud distribution certificate
+- 2026-10-30 — Search: web runSearch port and a search tab
+- 2026-10-30 — Cards edit, budgets, quotes, home widgets (0.9.0)
+- 2026-10-30 — Public Quote init
+- 2026-10-30 — Ledgers: add/rename/delete, commission settings, ledger income, tankhah parties and party report
+- 2026-10-30 — Test: missing text field equals web default
+- 2026-10-30 — Fix party form state
+- 2026-10-30 — Reports: trend (monthly/daily/yearly), cash flow, account and commission compare, income vs expense
+- 2026-10-30 — Phone Reminders for checks/installments/appointments; card copy-all and share as text/image
+- 2026-10-30 — Edit-lock password settings, clear learning, factory reset with safety backup, bulk quote import
+- 2026-10-30 — Split bulk quote preview for the type checker
+- 2026-10-30 — Home shortcuts from the web list with editor; typewriter speed (0.10.0)
+- 2026-10-30 — Look: page transitions, home card effects, Liquid Glass amount, background photo, iOS-style widget resize (0.11.0)
+- 2026-10-30 — Home widgets: edit bar with Done/Add, remove badge, drag to move with reflow, config button only in edit mode, size-aware content (0.11.1)
+- 2026-10-30 — Home widgets rebuilt: tested grid geometry (S/M/L), fixed-size clipped cards, steady jiggle, gestures handled once per widget (0.11.2)
+- 2026-10-30 — Public WidgetRect init
+- 2026-10-30 — Widgets: softer steady jiggle with spacing in edit mode, Liquid Glass shortcut tiles, calendar date widget (0.11.3)
+- 2026-10-30 — Category and subcategory breakdown like the web with unique colours; ledger shows 5 rows of this month; default iOS tab switching; clean shortcut tiles (0.11.4)
+- 2026-10-30 — Card effect app-wide (none/scroll), Telegram-style tab slide, privacy cover only with Face ID, collapsible charts with clock sweep (0.11.5)
+- 2026-10-30 — Web-style modern PDF reports (category/subcategory/pay icons, total and info cards); card effect home-only; soft tab fade; ring sweep without fading (0.11.6)
+- 2026-10-30 — Two-part Liquid Glass dock with cross-fading pages, hold menus (cards / ledger switch), search on home; web-structured PDF via WebKit (0.12.0)
+- 2026-10-30 — Fix dock button return
+- 2026-10-30 — Dock rebuilt (position-based touch, slide, hold mini-docks, re-tap scrolls to top, contextual reports); bottom margins; working search field; web learning engine with suggestion chips (0.13.0)
+- 2026-10-31 — Dock: 5 slots incl. cards, icon packs, liquid bridge to reports, 0.28s hold; exact bottom spacing; glass search results; attention widget sized by content with unfold; ring counts (0.14.0)
+- 2026-10-31 — 0.15.0: breathing dock↔reports link, faster ledger hold, standalone category/subcategory PDF
+- 2026-10-31 — 0.16.0: exact A4 pagination for every PDF (3-column breakdown), multi-item invoices and multi-checks like the web app, bank logos everywhere, visible amount field, digit-agnostic edit password, faster ledger hold
+- 2026-10-31 — bank name lookup: closest name first
+- 2026-10-31 — 0.17.0: swipeable segmented controls, tactile count drum with click + haptics, separate category/subcategory PDFs, slim auto-height attention widget, text-only date widget, bulk import from notes with learned categories
+- 2026-10-31 — 0.17.1: segmented control laid out by HStack (was pushed off screen), Telegram-like page swipe, count drum commits on release with index-safe row bindings
+- 2026-10-31 — 0.17.2: page swipe flips without moving the page, faster breathing, double tap on ledger opens the switcher
+- 2026-10-31 — 0.18.0: Telegram-like page swipe with UIKit direction lock, dock tap stops a glide and goes to top at once, drawn line icon pack
+- 2026-10-31 — 0.19.0: movable/removable cards on ledger, personal and reports; floating transactions card (5 rows, inner scroll, unfold, month labels, pay method, invoice tag); page swipe cancels touches underneath
+- 2026-10-31 — fix brace
+- 2026-10-31 — 0.19.1: embed entitlements before export (iCloud was dropped by the unsigned archive), iCloud diagnostics
+- 2026-10-31 — 0.20.0: clamp scroll after page switch, rows card unfolds from its header with PDF (no budget), no all-ledgers Excel, one header button size and one confirm, Tehran today + today button, total commission to date, commission incomes in «مدیریت پیمان ساختمان», commission rows fully editable, amount in rials and words
+- 2026-10-31 — restore payTitle
+- 2026-11-01 — 0.20.1: pages use VStack (LazyVStack kept a stale height after switching to shorter content) and a page switch starts the new part at the top
+- 2026-11-01 — 0.21.0: own Jalali calendar with «today» on top, PDF table header once and strict page edges, no pay legend, commission card = paid only, one ledger-manage button
+- 2026-11-01 — 0.22.0: own PDF page engine (exact A4 page boxes captured one by one, no print engine), phone calendar in a popover with today on top
+- 2026-11-01 — 0.22.1: PDF pages laid out at 1:1 (viewport meta; WebKit used a 980-px layout and scaled), capture the real page boxes; calendar in a full-width sheet
+- 2026-11-01 — 0.22.2: Reminders — refresh the store after permission, fall back to any writable list or create «دفتر حساب»; readable LedgerError text
+- 2026-11-01 — 0.22.3: Reminders confirmation with the due date and every alert time (Iran time)
+- 2026-11-02 — 0.23.0: whole reminder cards answer long press; rows card shows 4 rows with coloured category/subcategory tags and pay-method icons (or a no-method mark)
+- 2026-11-02 — 0.23.1: category tags neutral text with a colour dot
+- 2026-11-02 — 0.24.0: most-used card by default; notes import reads rows in any order, flags every unreadable row, asks the pay method row by row with the two most used methods
+- 2026-11-02 — notes import: an amount with 3-digit groups is not a date
+- 2026-11-03 — 0.24.1: ledger total card shows the net total without commission and the commission paid
+- 2026-11-04 — 0.25.0: settings as a short hub of topics (appearance, home, parties, security, notifications, backup and data), each its own page
+- 2026-11-05 — 0.26.0: dock light line with a gliding arch over the chosen page; reports button with its own lit arc
+- 2026-11-05 — 0.26.1: dock arch stays centred on the end icons (no inward clamp), stroke clipped to the capsule
+- 2026-11-05 — Page entrance animations (5 styles) and floating 3D bank cards
+- 2026-11-05 — Neon entrance style, dock animation setting, matching chart and number animations
+- 2026-11-06 — Cleaner motion: per-style effects only, sharp charts/numbers, neon flicker, sensor-free 3D cards
+- 2026-11-06 — Forest palette (only default + sent palettes), smooth neon, flat cards with depth
+- 2026-11-06 — Neon edge comets in the dock's light language; remove forest palette
+- 2026-11-06 — Quieter neon edge: thinner, half glow, fades in and out, no flash
+- 2026-11-06 — Quieter neon edge: thinner, half glow, fades in and out, no flash
+- 2026-11-06 — Quotes: import from txt/rtf files, one quote per Tehran day, skip in settings
+- 2026-11-06 — Quote text effects synced with page entrance (customisable); name-line quote files
+- 2026-11-06 — Card photo fits the card shape; ten bank card designs
+- 2026-11-06 — Bank card layout: number / IBAN / account rows, larger holder; full-bleed share image
+- 2026-11-07 — Category manager with safe replace; bold embossed card text in shared picture
+- 2026-11-07 — UI smoke test on the simulator (synthetic data) to reproduce crashes
+- 2026-11-07 — UI smoke: find the categories row by its title
+- 2026-11-07 — UI smoke: label-based lookup, dump the tree when an element is missing
+- 2026-11-07 — UI smoke: wait for settings to open
+- 2026-11-07 — UI smoke: open the category manager directly
+- 2026-11-07 — UI smoke: screenshots per step
+- 2026-11-07 — UI smoke: really turn the Face ID lock off in the seeded simulator run
+- 2026-11-07 — UI smoke: RTL swipe direction
+- 2026-11-07 — UI smoke: dump tree when the swipe action is missing
+- 2026-11-07 — UI smoke: show the relevant part of the tree
+- 2026-11-07 — Category manager: no destructive full-swipe, sheet opens after the swipe closes, frozen sheet data, row delete buttons
+- 2026-11-07 — Safe widget-order map; version 0.35.1
+- 2026-11-07 — Breakdown PDFs redesigned: summary + one clean table; subcategories grouped under their categories
+- 2026-11-08 — Handoff: CLAUDE.md, docs/HANDOFF_FA.md, docs/DEV_LOG.md

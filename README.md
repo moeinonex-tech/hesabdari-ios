@@ -1,12 +1,14 @@
 # دفتر حساب — iOS
 
+**Continuing this project? Read [CLAUDE.md](CLAUDE.md) and [docs/HANDOFF_FA.md](docs/HANDOFF_FA.md) first.**
+
 The native SwiftUI port of the web app «دفتر حساب». Builds run in the cloud (GitHub Actions `macos-26`), so no Mac is required. Setup steps are in [docs/SETUP_FA.md](docs/SETUP_FA.md).
 
 | Path | Contents |
 |---|---|
 | `HesabCore/` | Swift package with the domain logic: Jalali calendar, money format, commission engine (approved rules). It has no UI. |
 | `HesabCore/Tests/…/Goldens/` | Copies of the Phase 1 goldens. **They are generated outside this repo, so don't edit them by hand.** |
-| `App/` | SwiftUI app. It is currently only a shell to verify the pipeline. |
+| `App/` | The SwiftUI app (see `docs/HANDOFF_FA.md` for the full map). |
 | `project.yml` | XcodeGen spec. The `.xcodeproj` is generated in CI. |
 | `.github/workflows/ios.yml` | Runs the core tests on every push or PR. Archives and uploads to TestFlight only when `TESTFLIGHT_ENABLED=true`. |
 
