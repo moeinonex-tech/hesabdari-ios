@@ -48,7 +48,7 @@ extension AppModel {
 
     /// pending received (تنخواه) checks that can pay a تنخواه
     var openTankhahChecks: [(id: String, label: String)] {
-        LedgerOps.array(state, "reminderChecks").compactMap { c in
+        (state["reminderChecks"]?.arrayValue ?? []).compactMap { c in
             guard c["status"]?.stringValue == "pending", ReminderOps.isTankhahCheck(state, c), let id = c["id"]?.idString else { return nil }
             let num = c["checkNumber"]?.stringValue ?? ""
             let label = (c["bankName"]?.stringValue ?? "—") + (num.isEmpty ? "" : " — چک " + Money.persianDigits(num))
