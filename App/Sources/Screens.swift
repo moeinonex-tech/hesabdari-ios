@@ -1831,6 +1831,13 @@ struct SettingsView: View {
                 Text(model.lastImportText ?? "قالب فایل همان پشتیبان کامل اپ وب است.").font(AppFont.caption)
             }
             Section {
+                NavigationLink { SectionBackupView(model: model) } label: {
+                    Label("پشتیبان و بازیابی هر بخش جداگانه", systemImage: "square.stack.3d.up")
+                }
+            } footer: {
+                Text("فقط دفتر حساب، فقط شخصی، فقط درآمد، فقط یادآوری‌ها یا فقط کیف کارت — به صورت فایل JSON (برای بازیابی) یا متن (برای خواندن و فرستادن).").font(AppFont.caption)
+            }
+            Section {
                 NavigationLink { DangerZoneView(model: model) } label: {
                     Label("پاک‌سازی (هیستوری یادگیری / همه‌ی اطلاعات)", systemImage: "trash").foregroundStyle(t.danger)
                 }

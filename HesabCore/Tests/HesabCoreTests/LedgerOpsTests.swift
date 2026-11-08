@@ -277,3 +277,23 @@ final class FuzzyAndChecksTests: XCTestCase {
         XCTAssertTrue(cashed["expenses"]!.arrayValue![0]["desc"]!.stringValue!.contains("وصول شد"))
     }
 }
+
+final class SectionBackupTests: XCTestCase {
+    func testRoundTripOnlyTouchesItsSection() throws {
+        let st: [String: JSONValue] = [
+            "incomes": .array([.object(["id": .string("i1"), "toman": .int(5)])]), "incomeCategories": .array([.string("حقوق")]),
+            "expenses": .array([.object(["id": .string("e1"), "toman": .int(9)])]),
+        ]
+        let file = try SectionBackup.build(st, .income, todayText: "۱۸ آبان ۱۴۰۵")
+        // another section's file is refused
+        if case .success = SectionBackup.parse(file, .personal) { XCTFail("wrong section accepted") }
+        guard case .success(let data) = SectionBackup.parse(file, .income) else { return XCTFail("own section refused") }
+        var changed = st
+        changed["incomes"] = .array([])
+        changed["expenses"] = .array([])                         // not part of «درآمد»
+        let restored = SectionBackup.apply(changed, .income, data)
+        XCTAssertEqual(restored["incomes"]?.arrayValue?.count, 1)
+        XCTAssertEqual(restored["expenses"]?.arrayValue?.count, 0)  // untouched
+        XCTAssertEqual(BackupSection.income.summary(st), ["درآمدها: ۱"])
+    }
+}
