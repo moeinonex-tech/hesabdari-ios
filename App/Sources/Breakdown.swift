@@ -160,7 +160,6 @@ struct BreakdownCard: View {
     let slices: [CategorySlice]
     /// PDF of this chart; the Bool asks for the subcategories in the same file (category card only)
     var export: ((Bool) async -> ExportFile?)? = nil
-    var canAddSubs = false
     @State private var open = false
     @State private var share: ExportFile?
     @State private var building = false
@@ -226,11 +225,6 @@ struct BreakdownCard: View {
     @ViewBuilder private var pdfMenu: some View {
         if building {
             ProgressView().controlSize(.small).padding(.horizontal, 6)
-        } else if canAddSubs {
-            Menu {
-                Button { make(false) } label: { Label("PDF فقط دسته‌ها", systemImage: "doc.richtext") }
-                Button { make(true) } label: { Label("PDF دسته‌ها + زیردسته‌ها", systemImage: "doc.on.doc") }
-            } label: { pdfIcon }
         } else {
             Button { make(false) } label: { pdfIcon }.buttonStyle(.plain)
         }

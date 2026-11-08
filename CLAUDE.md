@@ -32,5 +32,5 @@ Read `docs/HANDOFF_FA.md` first (full handoff, Persian). This file is the short,
 - `HesabCore/Sources/HesabCore` — pure Swift domain logic, state is web-shaped JSON (`JSONValue`). All changes to data go
   through `*Ops` functions that return a new state; the app applies them with `AppModel.change(...)` (undo built in).
 - `HesabCore/Sources/HesabStore` — GRDB/SQLite storage of that JSON.
-- `App/Sources` — SwiftUI. Big files: `Screens.swift` (home, ledger, cards, settings hub), `Reports.swift`, `PDFReport.swift`.
+- `App/Sources` — SwiftUI. Screens: `Screens.swift` (root), `HomeScreen.swift`, `LedgerScreen.swift`, `CardsScreen.swift`, `SettingsScreen.swift`; `Reports.swift`, `PDFReport.swift`, `ExtraPDFs.swift`.
 - `App/Report` — `report.css` + `paginate.js` (own A4 page engine). Prototype & preview locally with Playwright (see HANDOFF).

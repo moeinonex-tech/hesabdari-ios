@@ -403,69 +403,6 @@ extension AppModel {
     }
 }
 
-// MARK: - category / subcategory breakdown PDF (ring + ranked bars, same colours as in the app)
-
-extension ReportHTML {
-    struct Slice { let name: String; let total: Int; let hex: String }
-
-    /// ring drawn with stroked circle arcs (exact, vector, prints cleanly)
-    static func donut(_ s: [Slice]) -> String {
-        let total = max(1, s.reduce(0) { $0 + $1.total })
-        let r = 52.0, c = 2 * Double.pi * r, gap = s.count > 1 ? 1.6 : 0
-        var off = 0.0
-        var arcs = ""
-        for x in s {
-            let len = Double(x.total) / Double(total) * c
-            let draw = max(0.6, len - gap)
-            arcs += "<circle r=\"\(r)\" cx=\"75\" cy=\"75\" fill=\"none\" stroke=\"\(x.hex)\" stroke-width=\"22\" stroke-dasharray=\"\(draw) \(c - draw)\" stroke-dashoffset=\"\(-off)\" transform=\"rotate(-90 75 75)\"/>"
-            off += len
-        }
-        return "<svg class=\"bd-donut\" viewBox=\"0 0 150 150\">" + arcs
-            + "<text x=\"75\" y=\"73\" text-anchor=\"middle\" font-size=\"22\" font-weight=\"800\" fill=\"#161822\">" + Money.persianDigits(s.count) + "</text>"
-            + "<text x=\"75\" y=\"91\" text-anchor=\"middle\" font-size=\"10\" fill=\"#585C68\">مورد</text></svg>"
-    }
-
-    static func breakdownSection(title: String, unit: String, slices: [Slice]) -> String {
-        let total = slices.reduce(0) { $0 + $1.total }
-        let mx = max(1, slices.map(\.total).max() ?? 1)
-        func pct(_ v: Int) -> String {
-            let p = total > 0 ? Double(v) / Double(total) * 100 : 0
-            return p > 0 && p < 0.5 ? "زیر ۱٪" : Money.persianDigits(Money.jsRound(p)) + "٪"
-        }
-        var h = "<div class=\"bd-sec\"><div class=\"bd-title\">" + esc(title)
-            + "<small>" + Money.persianDigits(slices.count) + " " + esc(unit) + "</small></div>"
-        // ring + total + the biggest one + colour legend
-        h += "<div class=\"bd-top\">" + donut(slices) + "<div class=\"bd-sum\"><div><div class=\"k\">جمع (تومان)</div><div class=\"v\">"
-            + Money.persianDigits(Money.format(total)) + "</div></div>"
-        if let top = slices.first {
-            h += "<div><div class=\"k\">بیشترین</div><div class=\"best\"><span class=\"sw\" style=\"background:" + top.hex
-                + "\"></span>" + esc(top.name) + " — " + pct(top.total) + "</div></div>"
-        }
-        h += "<div class=\"bd-leg\">"
-        for s in slices.prefix(9) { h += "<span><span class=\"sw\" style=\"background:" + s.hex + "\"></span>" + esc(s.name) + "</span>" }
-        if slices.count > 9 { h += "<span style=\"color:#585C68\">و " + Money.persianDigits(slices.count - 9) + " مورد دیگر</span>" }
-        h += "</div></div></div>"
-        // ranked list; paginate.js puts it in 1–3 columns, numbered top-to-bottom then the next column
-        h += "<div class=\"bd-flow\">"
-        for (i, s) in slices.enumerated() {
-            let w = max(2, Int((Double(s.total) / Double(mx) * 100).rounded()))
-            h += "<div class=\"bd-row\"><div class=\"l1\"><span class=\"rk\">" + Money.persianDigits(i + 1) + "</span><span class=\"sw\" style=\"background:" + s.hex
-                + "\"></span><span class=\"nm\">" + esc(s.name) + "</span></div><div class=\"l2\"><span class=\"am\">" + Money.persianDigits(Money.format(s.total))
-                + "</span><span class=\"pc\">" + pct(s.total) + "</span></div><div class=\"bar\"><div style=\"width:" + String(w)
-                + "%;background:linear-gradient(270deg," + s.hex + "," + s.hex + "aa)\"></div></div></div>"
-        }
-        return h + "</div></div>"
-    }
-
-    static func breakdownPage(title: String, subtitle: String, cats: [Slice], subs: [Slice]?, firstIsSub: Bool = false) -> String {
-        var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=595.28, initial-scale=1, maximum-scale=1, user-scalable=no\"><style>" + css + "</style></head><body>"
-        h += "<div class=\"hdr\"><div><div class=\"title\">" + esc(title) + "</div><div class=\"sub\">" + esc(subtitle) + "</div></div></div>"
-        h += breakdownSection(title: firstIsSub ? "تفکیک زیردسته‌ها" : "تفکیک دسته‌ها", unit: firstIsSub ? "زیردسته" : "دسته", slices: cats)
-        if let subs, !subs.isEmpty { h += breakdownSection(title: "تفکیک زیردسته‌ها", unit: "زیردسته", slices: subs) }
-        return h + "</body></html>"
-    }
-}
-
 // MARK: - breakdown report v2 (for the owner / client): a short summary on top, then ONE clean table.
 // Categories report: one row per category. Subcategories report: every category as a group with its own
 // subcategories under it, so each subcategory is read in the context of its category. Few colours: the five largest
@@ -575,20 +512,6 @@ extension AppModel {
         do {
             return exportFile(name: (withSubs ? "تفکیک زیردسته‌ها - " : "تفکیک دسته‌ها - ") + scopeTitle + " - " + Self.todayTag() + ".pdf",
                               data: try await HTMLPDF.make(html))
-        } catch {
-            errorMessage = "PDF ساخته نشد: " + error.localizedDescription
-            return nil
-        }
-    }
-
-    /// web-style «گزارش دسته‌ها» PDF: ring + ranked bars; optionally the subcategories in the same file.
-    func breakdownPDF(scopeTitle: String, cats: [CategorySlice], subs: [CategorySlice]?, firstIsSub: Bool = false) async -> ExportFile? {
-        let conv = { (s: [CategorySlice]) in s.map { ReportHTML.Slice(name: $0.name, total: $0.total, hex: $0.color.hexString) } }
-        let html = ReportHTML.breakdownPage(title: (firstIsSub ? "تفکیک زیردسته‌ها — " : subs == nil ? "تفکیک دسته‌ها — " : "تفکیک دسته‌ها و زیردسته‌ها — ") + scopeTitle,
-                                            subtitle: "تا تاریخ " + BackupExporter.formatJalali(Self.today) + " — مبالغ به تومان",
-                                            cats: conv(cats), subs: subs.map(conv), firstIsSub: firstIsSub)
-        do {
-            return exportFile(name: (firstIsSub ? "تفکیک زیردسته‌ها - " : "تفکیک دسته‌ها - ") + scopeTitle + " - " + Self.todayTag() + ".pdf", data: try await HTMLPDF.make(html))
         } catch {
             errorMessage = "PDF ساخته نشد: " + error.localizedDescription
             return nil

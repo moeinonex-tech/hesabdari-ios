@@ -31,7 +31,7 @@
   - `HesabStore` — ذخیره‌ی همان JSON در SQLite (GRDB).
 - `HesabCore/Tests` — ۵۸ تست (برابری با وب، کمیسیون، دسته‌ها، جمله‌ها …). `Goldens/` دست‌کاری نشود.
 - `App/Sources` — SwiftUI:
-  - `HesabdariApp.swift` مدل اصلی (`AppModel`)، `Screens.swift` خانه/دفتر/کیف کارت/تنظیمات، `Reports.swift` گزارش‌ها،
+  - `HesabdariApp.swift` مدل اصلی (`AppModel`)، `Screens.swift` (ریشه)، `HomeScreen.swift`، `LedgerScreen.swift`، `CardsScreen.swift`، `SettingsScreen.swift`، `Reports.swift` گزارش‌ها،
     `PersonalAndReminders.swift`, `Dock.swift` (داک و موج نئونی)، `CardDeck.swift` (کارت‌های جابه‌جاشدنی)،
     `ScrollKit.swift` + `Segmented.swift` (سوایپ صفحه‌ها)، `Motion.swift` (انیمیشن ورود، نوار نئونی، اعداد شمارنده)،
     `CardArt.swift` (طرح ۱۰ بانک)، `CategoryManager.swift` (مدیریت دسته‌ها)، `PDFReport.swift` (همه‌ی PDFها).
