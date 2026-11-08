@@ -177,10 +177,15 @@ public enum CategoryOps {
         }
         st[ctx.subKeywordMap] = .object(skm)
 
-        // colour: the replacement keeps its own, or inherits the removed one's
-        if var colors = st["categoryColors"]?.objectValue, let c = colors.removeValue(forKey: old) {
+        // colour: the replacement keeps its own, or inherits the removed one's. Income colours live in their own map
+        // (web categoryColorStore); ledger and personal share one map, so a name the other part still uses keeps its colour.
+        let colorKey = scope == .income ? "categoryColorsIncome" : "categoryColors"
+        if var colors = st[colorKey]?.objectValue, let c = colors[old] {
             if !new.isEmpty && colors[new] == nil { colors[new] = c }
-            st["categoryColors"] = .object(colors)
+            let sharedWith: CategoryScope? = scope == .ledger ? .personal : scope == .personal ? .ledger : nil
+            let stillUsed = sharedWith.map { categories(st, $0).contains(old) } ?? false
+            if !stillUsed { colors.removeValue(forKey: old) }
+            st[colorKey] = .object(colors)
         }
 
         // built-in suggestions (fixed keyword table) must not bring the removed name back

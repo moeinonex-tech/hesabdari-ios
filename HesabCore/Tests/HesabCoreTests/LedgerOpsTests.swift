@@ -200,6 +200,24 @@ final class CategoryOpsTests: XCTestCase {
         XCTAssertFalse(Learning.categoryCandidates(out, .ledger, desc: "تهیه نهار تیم").contains("خوراک"))
     }
 
+    func testColoursFollowTheRightMap() throws {
+        var st = state()
+        st["categoryColors"] = .object(["خوراک": .string("#FF3366")])
+        st["personalCategories"] = .array([.string("خوراک")])          // same name used in the personal part too
+        st["incomeCategories"] = .array([.string("حقوق"), .string("اجاره")])
+        st["incomes"] = .array([.object(["id": .string("i1"), "category": .string("حقوق"), "toman": .int(5)])])
+        st["categoryColorsIncome"] = .object(["حقوق": .string("#22C55E")])
+
+        let a = try CategoryOps.removeCategory(st, .ledger, "خوراک", replaceWith: "غذا")
+        XCTAssertEqual(a["categoryColors"]?["غذا"]?.stringValue, "#FF3366")      // replacement inherits
+        XCTAssertEqual(a["categoryColors"]?["خوراک"]?.stringValue, "#FF3366")    // personal still uses «خوراک»: kept
+
+        let b = try CategoryOps.removeCategory(st, .income, "حقوق", replaceWith: "اجاره")
+        XCTAssertEqual(b["categoryColorsIncome"]?["اجاره"]?.stringValue, "#22C55E")
+        XCTAssertNil(b["categoryColorsIncome"]?["حقوق"])
+        XCTAssertEqual(b["categoryColors"]?["خوراک"]?.stringValue, "#FF3366")    // ledger/personal map untouched
+    }
+
     func testRemoveUnusedAndReplaceSub() throws {
         var st = state()
         st = try CategoryOps.removeSubcategory(st, .ledger, category: "مصالح", "آهن", replaceWith: "سیمان")
