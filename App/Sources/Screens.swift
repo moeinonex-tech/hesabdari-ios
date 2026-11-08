@@ -1203,21 +1203,27 @@ struct LedgerHomeView: View {
             let commission = model.rows(accountId: a.id)
                 .filter { $0.kind == .commission || ($0.kind == .expense && $0.category.trimmingCharacters(in: .whitespaces) == "کمیسیون") }
                 .reduce(0) { $0 + $1.toman }
-            LedgerHero(account: a, budget: model.budget(accountId: a.id), commission: commission, onBudget: { budgetAccount = a.id }) { sheet = .new }
+            LedgerHero(account: a, budget: model.budget(accountId: a.id), commission: commission, onBudget: { budgetAccount = a.id },
+                       budgetPDF: { await model.budgetPDF(accountId: a.id) }) { sheet = .new }
         })
         if a.commissionEnabled || a.percent != 0 {
-            cards.append(DeckCard("commission", "کمیسیون", "percent") { CommissionCard(account: a) { sheet = .settle } })
+            cards.append(DeckCard("commission", "کمیسیون", "percent") {
+                CommissionCard(account: a, pdf: { await model.commissionPDF(accountId: a.id) }) { sheet = .settle }
+            })
         }
         if model.hasTankhah(a.id) {
             cards.append(DeckCard("tankhah", "تنخواه به تفکیک طرف حساب", "person.2") {
-                Button {
-                    Haptics.tap()
-                    showPartyReport = true
-                } label: {
-                    Label("تنخواه به تفکیک طرف حساب", systemImage: "person.2.fill")
-                        .font(AppFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 4)
+                HStack(spacing: 8) {
+                    Button {
+                        Haptics.tap()
+                        showPartyReport = true
+                    } label: {
+                        Label("تنخواه به تفکیک طرف حساب", systemImage: "person.2.fill")
+                            .font(AppFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 4)
+                    }
+                    .buttonStyle(.glass)
+                    CardPDFButton { await model.tankhahPartyPDF(accountId: a.id) }
                 }
-                .buttonStyle(.glass)
             })
         }
         let items = model.statItems("expenses", accountId: a.id)
@@ -1273,6 +1279,7 @@ struct LedgerHero: View {
     /// commission paid out of this ledger (its commission rows); > 0 shows the net total next to the gross one
     var commission: Int = 0
     var onBudget: (() -> Void)? = nil
+    var budgetPDF: (() async -> ExportFile?)? = nil
     let onAdd: () -> Void
     @Environment(\.theme) private var t
 
@@ -1318,8 +1325,12 @@ struct LedgerHero: View {
             if budget > 0 {
                 let pct = min(1, Double(account.expenseTotal) / Double(budget))
                 GradientBar(value: pct, from: t.accent, to: pct >= 0.8 ? t.warning : t.accent2)
-                Text("\(Money.persianDigits(Money.jsRound(pct * 100)))٪ از بودجه · مانده " + Fmt.toman(max(0, budget - account.expenseTotal)))
-                    .font(AppFont.caption).foregroundStyle(t.soft)
+                HStack {
+                    Text("\(Money.persianDigits(Money.jsRound(pct * 100)))٪ از بودجه · مانده " + Fmt.toman(max(0, budget - account.expenseTotal)))
+                        .font(AppFont.caption).foregroundStyle(t.soft)
+                    Spacer()
+                    if let budgetPDF { CardPDFButton(make: budgetPDF) }
+                }
             }
             HStack(spacing: 14) {
                 Label(Fmt.count(account.rows) + " ردیف", systemImage: "list.bullet").font(AppFont.caption)
@@ -1342,6 +1353,7 @@ struct LedgerHero: View {
 
 struct CommissionCard: View {
     let account: AccountImportSummary
+    var pdf: (() async -> ExportFile?)? = nil
     let onSettle: () -> Void
     @Environment(\.theme) private var t
 
@@ -1351,6 +1363,7 @@ struct CommissionCard: View {
                 Text("کمیسیون " + Fmt.percent(account.percent)).font(AppFont.bold(15)).foregroundStyle(t.ink)
                 Spacer()
                 Text("پرداخت‌شده " + Fmt.toman(account.settled)).font(AppFont.caption).foregroundStyle(t.soft)
+                if let pdf { CardPDFButton(make: pdf) }
             }
             Text(account.remaining < 0 ? "بستانکاری" : "مانده‌ی کمیسیون").font(AppFont.regular(13)).foregroundStyle(t.soft)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -1398,6 +1411,8 @@ struct GradientBar: View {
 // MARK: - cards
 
 struct CardsView: View {
+    @State private var cardsPDF: ExportFile?
+    @State private var makingCardsPDF = false
     @ObservedObject var model: AppModel
     @State private var showArchived = false
     @State private var editing: IdBox?
@@ -1427,6 +1442,14 @@ struct CardsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     ScreenHeader(title: "کیف کارت", subtitle: "برای کپی شماره، روی آن بزنید؛ برای ویرایش، نگه دارید")
+                    HeaderIconButton(icon: makingCardsPDF ? "hourglass" : "square.and.arrow.up") {
+                        guard !makingCardsPDF else { return }
+                        Haptics.tap()
+                        makingCardsPDF = true
+                        Task { @MainActor in cardsPDF = await model.cardsPDF(); makingCardsPDF = false }
+                    }
+                    .padding(.top, 8)
+                    .accessibilityLabel("PDF کیف کارت‌ها")
                     HeaderIconButton(icon: "plus") { Haptics.tap(); editing = IdBox(id: "") }
                         .padding(.top, 8)
                 }
@@ -1469,6 +1492,7 @@ struct CardsView: View {
             NavigationStack { CardFormView(model: model, editingId: e.id.isEmpty ? nil : e.id) }
         }
         .sheet(item: $shareFile) { f in ActivityView(items: [f.url]) }
+        .sheet(item: $cardsPDF) { f in ActivityView(items: [f.url]) }
         .confirmationDialog("این کارت حذف شود؟", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
                             titleVisibility: .visible) {
             Button("حذف", role: .destructive) {

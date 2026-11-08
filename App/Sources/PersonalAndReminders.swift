@@ -314,8 +314,12 @@ struct PersonalView: View {
                 if !showIncome && model.personalBudget > 0 {
                     let pct = min(1, Double(total) / Double(model.personalBudget))
                     GradientBar(value: pct, from: t.accent, to: pct >= 0.8 ? t.warning : t.accent2)
-                    Text("\(Money.persianDigits(Money.jsRound(pct * 100)))٪ از بودجه‌ی " + Fmt.toman(model.personalBudget))
-                        .font(AppFont.caption).foregroundStyle(t.soft)
+                    HStack {
+                        Text("\(Money.persianDigits(Money.jsRound(pct * 100)))٪ از بودجه‌ی " + Fmt.toman(model.personalBudget))
+                            .font(AppFont.caption).foregroundStyle(t.soft)
+                        Spacer()
+                        CardPDFButton { await model.budgetPDF(accountId: nil) }
+                    }
                 }
                 Button {
                     sheet = showIncome ? .newIncome : .newExpense
@@ -644,14 +648,23 @@ struct RemindersView: View {
                 }
 
                 HStack(spacing: 12) {
-                    SummaryTile(title: "طلب من", value: model.owedToMe, color: t.success).entrance(0)
-                    SummaryTile(title: "بدهی من", value: model.iOwe, color: t.danger).entrance(1)
+                    SummaryTile(title: "طلب من", value: model.owedToMe, color: t.success,
+                                pdf: { await model.personsPDF(creditors: false) }).entrance(0)
+                    SummaryTile(title: "بدهی من", value: model.iOwe, color: t.danger,
+                                pdf: { await model.personsPDF(creditors: true) }).entrance(1)
                 }
 
                 Segmented(selection: $filter, [(0, "چک‌ها"), (1, "اشخاص"), (2, "قرارها")])
 
                 switch filter {
                 case 0:
+                    if !(pending.isEmpty && done.isEmpty) {
+                        HStack {
+                            Text("چک‌ها").font(AppFont.bold(15)).foregroundStyle(t.ink)
+                            Spacer()
+                            CardPDFButton { await model.remindersPDF(range: nil) }
+                        }
+                    }
                     if pending.isEmpty && done.isEmpty { EmptyNote(text: "چکی ثبت نشده") }
                     ForEach(Array(pending.enumerated()), id: \.element.id) { i, c in checkRow(c).entrance(i + 1) }
                     if !done.isEmpty {
@@ -751,10 +764,15 @@ struct SummaryTile: View {
     let title: String
     let value: Int
     let color: Color
+    var pdf: (() async -> ExportFile?)? = nil
     @Environment(\.theme) private var t
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(AppFont.regular(12)).foregroundStyle(t.soft)
+            HStack {
+                Text(title).font(AppFont.regular(12)).foregroundStyle(t.soft)
+                Spacer(minLength: 0)
+                if let pdf { CardPDFButton(make: pdf).padding(.vertical, -6) }
+            }
             FxNumber(value) { Money.persianDigits(Money.format($0)) }.font(AppFont.heavy(19)).foregroundStyle(color)
                 .minimumScaleFactor(0.6).lineLimit(1)
             Text("تومان").font(AppFont.caption).foregroundStyle(t.soft)

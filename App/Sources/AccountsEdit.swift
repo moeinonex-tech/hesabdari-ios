@@ -272,6 +272,9 @@ struct PartiesView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button { editing = IdBox(id: "") } label: { Image(systemName: "plus") }
             }
+            ToolbarItem(placement: .primaryAction) {
+                CardPDFButton { await model.partiesPDF() }
+            }
         }
         .sheet(item: $editing) { e in
             NavigationStack { PartyFormView(model: model, party: model.parties.first { $0.id == e.id }) }
@@ -340,9 +343,13 @@ struct TankhahPartyReportView: View {
         let name = model.accounts.first { $0.id == accountId }?.name ?? "حساب"
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("جمع کل تنخواه دریافتی").font(AppFont.regular(13)).foregroundStyle(t.soft)
-                    Text(Fmt.toman(rep.total)).font(AppFont.heavy(26)).foregroundStyle(t.accent)
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("جمع کل تنخواه دریافتی").font(AppFont.regular(13)).foregroundStyle(t.soft)
+                        Text(Fmt.toman(rep.total)).font(AppFont.heavy(26)).foregroundStyle(t.accent)
+                    }
+                    Spacer()
+                    CardPDFButton { await model.tankhahPartyPDF(accountId: accountId) }
                 }
                 .glassCard()
                 if rep.groups.isEmpty {
