@@ -248,6 +248,7 @@ struct MoneyTextField: UIViewRepresentable {
         f.textAlignment = .natural
         f.semanticContentAttribute = .forceRightToLeft
         f.placeholder = placeholder
+        f.accessibilityIdentifier = "amount"
         f.adjustsFontSizeToFitWidth = true
         f.minimumFontSize = 14
         f.delegate = context.coordinator

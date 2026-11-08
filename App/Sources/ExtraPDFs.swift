@@ -29,6 +29,7 @@ struct CardPDFButton: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("خروجی PDF")
+                .accessibilityIdentifier("pdf")
             }
         }
         .sheet(item: $share) { f in ActivityView(items: [f.url]) }

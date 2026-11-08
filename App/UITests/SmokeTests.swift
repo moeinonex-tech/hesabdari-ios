@@ -127,4 +127,78 @@ final class SmokeTests: XCTestCase {
         sleep(1)
         alive("swipe sheet open")
     }
+
+    // MARK: - more coverage
+
+    /// diagnostic: does a plain tap on the home ⚙︎ open Settings? (prints GEAR-RESULT lines into the CI log)
+    func testSettingsGearOpens() {
+        let gear = app.buttons["settings"].firstMatch
+        XCTAssertTrue(gear.waitForExistence(timeout: 10))
+        sleep(2)
+        print("GEAR-RESULT exists=\(gear.exists) hittable=\(gear.isHittable) frame=\(gear.frame) enabled=\(gear.isEnabled)")
+        gear.tap()
+        var opened = labelled("صفحه‌ی خانه").waitForExistence(timeout: 4)
+        print("GEAR-RESULT after tap: opened=\(opened)")
+        if !opened {
+            gear.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.15)
+            opened = labelled("صفحه‌ی خانه").waitForExistence(timeout: 4)
+            print("GEAR-RESULT after press: opened=\(opened)")
+        }
+        if !opened {
+            let hits = app.descendants(matching: .any).allElementsBoundByIndex
+                .filter { $0.exists && $0.frame.contains(gear.frame.center) && $0.frame.width < 500 }
+                .prefix(12).map { "\($0.elementType.rawValue):\($0.identifier):\($0.label):\($0.frame)" }
+            print("GEAR-RESULT elements under the gear: " + hits.joined(separator: " | "))
+        }
+        alive("gear")
+    }
+
+    /// a ledger expense typed into the form is saved and shows up in the list
+    func testAddLedgerExpense() {
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        sleep(1)
+        let add = labelled("ثبت هزینه یا تنخواه")
+        for _ in 0..<3 where !(add.exists && add.isHittable) { app.swipeUp() }
+        tap(add, "open form")
+        let desc = app.textFields["شرح"].firstMatch
+        XCTAssertTrue(desc.waitForExistence(timeout: 5), "form did not open")
+        desc.tap(); desc.typeText("UITest cement")
+        let cat = app.textFields["نوع هزینه"].firstMatch
+        cat.tap(); cat.typeText("Materials")
+        let sub = app.textFields["زیردسته"].firstMatch
+        sub.tap(); sub.typeText("Cement")
+        let amount = app.textFields["amount"].firstMatch
+        amount.tap(); amount.typeText("120000")
+        tap(app.buttons["ذخیره"].firstMatch, "save expense")
+        sleep(2)
+        alive("after save")
+        XCTAssertTrue(labelled("UITest cement").waitForExistence(timeout: 5), "the new row is not in the list")
+    }
+
+    /// building a PDF from a card (category breakdown / transactions) works and opens the share sheet
+    func testPDFExportFromLedger() {
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        sleep(2)
+        let pdf = app.buttons.matching(identifier: "pdf").firstMatch
+        for _ in 0..<4 where !(pdf.exists && pdf.isHittable) { app.swipeUp() }
+        tap(pdf, "pdf button")
+        sleep(6)
+        alive("after pdf")
+        XCTAssertFalse(labelled("PDF ساخته نشد").exists, "PDF failed")
+    }
+
+    /// section backup screen: JSON and text copies are made without errors
+    func testSectionBackupExports() {
+        app.terminate()
+        app.launchEnvironment["UITEST_OPEN"] = "backup"
+        app.launch()
+        tap(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "خروجی JSON")).firstMatch, "json export")
+        sleep(2)
+        alive("after json")
+        XCTAssertFalse(labelled("فایل ساخته نشد").exists)
+    }
+}
+
+private extension CGRect {
+    var center: CGPoint { CGPoint(x: midX, y: midY) }
 }

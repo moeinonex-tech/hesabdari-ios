@@ -356,6 +356,8 @@ struct RowsCard<Row: Identifiable, RowView: View>: View {
                                 .frame(width: 32, height: 28).contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("خروجی PDF")
+                        .accessibilityIdentifier("pdf")
                     }
                 }
                 if more {

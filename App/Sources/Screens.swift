@@ -33,6 +33,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var phase
     #if DEBUG
     @State private var uiTestCategories = ProcessInfo.processInfo.environment["UITEST_OPEN"] == "categories"
+    @State private var uiTestBackup = ProcessInfo.processInfo.environment["UITEST_OPEN"] == "backup"
     #endif
 
     var body: some View {
@@ -62,6 +63,9 @@ struct RootView: View {
         #if DEBUG
         .sheet(isPresented: $uiTestCategories) {
             NavigationStack { CategoryManagerView(model: model) }
+        }
+        .sheet(isPresented: $uiTestBackup) {
+            NavigationStack { SectionBackupView(model: model) }
         }
         #endif
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .plainText, .data]) { result in

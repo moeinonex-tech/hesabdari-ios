@@ -227,6 +227,7 @@ struct BreakdownCard: View {
             ProgressView().controlSize(.small).padding(.horizontal, 6)
         } else {
             Button { make(false) } label: { pdfIcon }.buttonStyle(.plain)
+                .accessibilityLabel("خروجی PDF").accessibilityIdentifier("pdf")
         }
     }
 

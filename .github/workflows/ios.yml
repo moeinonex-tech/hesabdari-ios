@@ -64,6 +64,9 @@ jobs:
           xcodebuild test -project Hesabdari.xcodeproj -scheme Hesabdari -destination "id=$UDID" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
             CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= 2>&1 | tee "$RUNNER_TEMP/ui.log"
+      - name: Diagnostics from the UI tests
+        if: always()
+        run: grep -h "GEAR-RESULT" "$RUNNER_TEMP/ui.log" | sort -u | head -10 | while read -r l; do echo "::notice title=diag::${l:0:900}"; done || true
       - name: Report UI test failures and crashes
         if: failure()
         run: |
