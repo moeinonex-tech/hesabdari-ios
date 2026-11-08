@@ -227,3 +227,53 @@ final class CategoryOpsTests: XCTestCase {
         XCTAssertEqual(CategoryOps.categories(st2, .ledger).count, 3)
     }
 }
+
+final class FuzzyAndChecksTests: XCTestCase {
+    func testFuzzyDuplicates() {
+        let list = ["مصالح ساختمانی", "حمل و نقل", "خوراک"]
+        XCTAssertEqual(Fuzzy.matches(list, "مصالح ساختمانى"), ["مصالح ساختمانی"])     // Arabic ى
+        XCTAssertEqual(Fuzzy.matches(list, "مصالح‌ساختمانی"), ["مصالح ساختمانی"])     // half-space
+        XCTAssertEqual(Fuzzy.matches(list, "مصالح ساختمان"), ["مصالح ساختمانی"])      // a typo / letter less
+        XCTAssertEqual(Fuzzy.matches(list, "مصالح ساختمانی"), [])                      // exact → nothing to ask
+        XCTAssertEqual(Fuzzy.matches(list, "بیمه کارگران"), [])                        // really new
+        XCTAssertEqual(Fuzzy.matches(list, "حم"), [])                                  // too short
+    }
+
+    func testDueChecksAndAnswers() throws {
+        let today = JalaliDate(jy: 1405, jm: 8, jd: 18)
+        let st: [String: JSONValue] = ["reminderChecks": .array([
+            .object(["id": .string("a"), "status": .string("pending"), "amount": .int(10), "dueDate": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(18)])]),
+            .object(["id": .string("b"), "status": .string("pending"), "amount": .int(10), "dueDate": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(2)])]),
+            .object(["id": .string("c"), "status": .string("pending"), "amount": .int(10), "dueDate": .object(["jy": .int(1405), "jm": .int(9), "jd": .int(1)])]),
+            .object(["id": .string("d"), "status": .string("cashed"), "amount": .int(10), "dueDate": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(1)])]),
+            .object(["id": .string("e"), "status": .string("pending"), "muted": .bool(true), "amount": .int(10), "dueDate": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(1)])]),
+        ])]
+        XCTAssertEqual(ReminderOps.dueChecksToAsk(st, today: today), ["b", "a"])
+        let no = try ReminderOps.answerNotCollected(st, id: "a")
+        XCTAssertEqual(no["reminderChecks"]?.arrayValue?[0]["collectAnswer"]?.stringValue, "no")
+        XCTAssertEqual(no["reminderChecks"]?.arrayValue?[0]["status"]?.stringValue, "pending")
+    }
+
+    func testTankhahPaidByCheck() throws {
+        var st: [String: JSONValue] = ["expenses": .array([]), "reminderChecks": .array([])]
+        let r = try ReminderOps.addTankhahCheck(st, amount: 5_000_000, party: "کارفرما", bankName: "ملت", checkNumber: "123",
+                                                desc: "", dueDate: JalaliDate(jy: 1405, jm: 9, jd: 1), accountId: "a1")
+        st = r.state
+        var input = ExpenseInput(accountId: "a1", isTankhah: true, desc: "", category: "", subcategory: "", toman: 5_000_000,
+                                 date: JalaliDate(jy: 1405, jm: 8, jd: 18), payMethod: .check, cardId: nil, partyId: "p1")
+        input.checkIds = [r.id]
+        let added = try LedgerOps.addExpense(st, input)
+        let row = added.state["expenses"]!.arrayValue![0]
+        XCTAssertEqual(row["checkId"]?.stringValue, r.id)
+        XCTAssertTrue(ReminderOps.isTankhahCheck(added.state, added.state["reminderChecks"]!.arrayValue![0]))
+        XCTAssertEqual(added.state["expenses"]!.arrayValue!.count, 1)              // the check makes no expense row
+        // editing the تنخواه (same method, no new check chosen) keeps the link
+        input.checkIds = []
+        input.desc = "دریافت از کارفرما"
+        let edited = try LedgerOps.editExpense(added.state, id: added.id, input)
+        XCTAssertEqual(edited["expenses"]!.arrayValue![0]["checkId"]?.stringValue, r.id)
+        // cashing the check writes «وصول شد» on the تنخواه row
+        let cashed = try ReminderOps.setCheckStatus(edited, id: r.id, status: "cashed", today: JalaliDate(jy: 1405, jm: 9, jd: 1))
+        XCTAssertTrue(cashed["expenses"]!.arrayValue![0]["desc"]!.stringValue!.contains("وصول شد"))
+    }
+}

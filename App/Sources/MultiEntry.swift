@@ -157,10 +157,10 @@ struct MultiItemSections: View {
             let sub = safeBinding($items, i, \.subcategory, "")
             Section {
                 TextField("شرح این قلم (اختیاری)", text: desc)
-                SuggestField(title: "نوع هزینه", text: cat, suggestions: categories)
+                SuggestField(title: "نوع هزینه", text: cat, suggestions: categories, dedupe: true)
                 LearnChips(model: model, ctx: ctx, desc: desc.wrappedValue.isEmpty ? mainDesc : desc.wrappedValue,
                            category: cat, subcategory: sub, sub: false)
-                SuggestField(title: "زیردسته", text: sub, suggestions: subcategories(cat.wrappedValue))
+                SuggestField(title: "زیردسته", text: sub, suggestions: subcategories(cat.wrappedValue), dedupe: true)
                 LearnChips(model: model, ctx: ctx, desc: desc.wrappedValue.isEmpty ? mainDesc : desc.wrappedValue,
                            category: cat, subcategory: sub, sub: true)
                 AmountField(title: "مبلغ (تومان)", text: amountBinding({ i < items.count ? items[i].toman : 0 },

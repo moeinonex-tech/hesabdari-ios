@@ -277,13 +277,13 @@ private struct NotesEntryEditor: View {
             set: { entry.toman = Fmt.parseAmount($0) }))
         TextField("شرح", text: $entry.desc)
         HStack {
-            SuggestField(title: "نوع هزینه", text: $entry.category, suggestions: catList)
+            SuggestField(title: "نوع هزینه", text: $entry.category, suggestions: catList, dedupe: true)
             if entry.guessed && !entry.category.isEmpty {
                 Image(systemName: "sparkles").foregroundStyle(t.accent).font(.caption)
             }
         }
         LearnChips(model: model, ctx: ctx, desc: entry.desc, category: $entry.category, subcategory: $entry.subcategory, sub: false)
-        SuggestField(title: "زیردسته", text: $entry.subcategory, suggestions: subList)
+        SuggestField(title: "زیردسته", text: $entry.subcategory, suggestions: subList, dedupe: true)
         LearnChips(model: model, ctx: ctx, desc: entry.desc, category: $entry.category, subcategory: $entry.subcategory, sub: true)
     }
 }

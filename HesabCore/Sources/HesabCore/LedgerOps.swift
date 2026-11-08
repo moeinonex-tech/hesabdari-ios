@@ -46,7 +46,8 @@ public enum PayMethod: String, CaseIterable, Sendable {
     /// Methods offered in the forms. Check and nasiyeh create linked reminder records (ReminderOps).
     /// Tankhah checks and branch details are kept when present on old rows.
     public static func available(forTankhah: Bool) -> [PayMethod] {
-        forTankhah ? [.transfer, .cash] : [.hamrahbank, .pos, .check, .cash, .nasiyeh]
+        // web: for تنخواه «چک» is a plain option (a received check, recorded only — no expense row)
+        forTankhah ? [.transfer, .cash, .check] : [.hamrahbank, .pos, .check, .cash, .nasiyeh]
     }
 
     public static func defaultFor(tankhah: Bool) -> PayMethod { tankhah ? .transfer : .hamrahbank }
@@ -127,6 +128,8 @@ public struct ExpenseInput: Sendable {
     public var items: [ExpenseItem] = []
     /// a commission payment edited without touching its pay method (it had none): leave it without one
     public var keepPayMethod = false
+    /// تنخواه received by check: the check(s) this row is paid with (web formCheckId / formCheckIds)
+    public var checkIds: [String] = []
     public var isMulti: Bool { !isTankhah && items.count > 1 }
 
     public init(accountId: String, isTankhah: Bool, desc: String, category: String, subcategory: String,
@@ -498,7 +501,18 @@ public enum LedgerOps {
     /// web applyPayMethodToExpense (methods available in this version)
     static func applyPayMethod(_ row: inout [String: JSONValue], _ st: inout [String: JSONValue], _ input: ExpenseInput) {
         row["payMethod"] = .string(input.payMethod.rawValue)
+        let prevCheck = row["checkId"], prevChecks = row["checkIds"]
         for k in ["cardId", "bankName", "branchName", "checkId", "checkIds"] { row.removeValue(forKey: k) }
+        if input.isTankhah && input.payMethod == .check {
+            if !input.checkIds.isEmpty {
+                row["checkId"] = .string(input.checkIds[0])
+                row["checkIds"] = .array(input.checkIds.map { .string($0) })
+            } else {
+                // editing a تنخواه that is already paid by check keeps its link
+                if let p = prevCheck { row["checkId"] = p }
+                if let p = prevChecks { row["checkIds"] = p }
+            }
+        }
         if input.payMethod.usesCard, let c = input.cardId, !c.isEmpty {
             row["cardId"] = .string(c)
             if input.payMethod == .hamrahbank {

@@ -27,6 +27,36 @@ extension AppModel {
     func addCheck(_ i: CheckInput) -> Bool { change { try ReminderOps.saveCheck(state, editingId: nil, i, today: Self.today).state } }
     func editCheck(_ id: String, _ i: CheckInput) -> Bool { change { try ReminderOps.saveCheck(state, editingId: id, i, today: Self.today).state } }
     func setCheckStatus(_ id: String, _ status: String) -> Bool { change { try ReminderOps.setCheckStatus(state, id: id, status: status, today: Self.today) } }
+    /// تنخواه received by check: attach an existing received check, or record a new one, then save the row — one step
+    func addTankhahWithCheck(_ input: ExpenseInput, existingCheckId: String?, amount: Int, party: String, bank: String,
+                             number: String, desc: String, due: JalaliDate) -> Bool {
+        change {
+            var st = state
+            var inp = input
+            if let id = existingCheckId {
+                st = try ReminderOps.linkTankhahCheck(st, id: id, accountId: input.accountId)
+                inp.checkIds = [id]
+            } else {
+                let r = try ReminderOps.addTankhahCheck(st, amount: amount, party: party, bankName: bank, checkNumber: number,
+                                                        desc: desc, dueDate: due, accountId: input.accountId)
+                st = r.state
+                inp.checkIds = [r.id]
+            }
+            return try LedgerOps.addExpense(st, inp).state
+        }
+    }
+
+    /// pending received (تنخواه) checks that can pay a تنخواه
+    var openTankhahChecks: [(id: String, label: String)] {
+        LedgerOps.array(state, "reminderChecks").compactMap { c in
+            guard c["status"]?.stringValue == "pending", ReminderOps.isTankhahCheck(state, c), let id = c["id"]?.idString else { return nil }
+            let num = c["checkNumber"]?.stringValue ?? ""
+            let label = (c["bankName"]?.stringValue ?? "—") + (num.isEmpty ? "" : " — چک " + Money.persianDigits(num))
+                + " — " + Fmt.toman(c["amount"]?.intValue ?? 0)
+            return (id, label)
+        }
+    }
+
     func deleteCheck(_ id: String) -> Bool { change({ try ReminderOps.deleteCheck(state, id: id) }, undoMessage: "چک حذف شد") }
 
     func addNasiyehExpense(_ input: ExpenseInput, party: String, due: JalaliDate) -> Bool {
@@ -142,9 +172,9 @@ struct CheckFormView: View {
             }
             if multiCheck { MultiCheckSections(slots: $slots, total: $checkTotal) }
             Section {
-                SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
+                SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories, dedupe: true)
                 LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
-                SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
+                SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category), dedupe: true)
                 LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: true)
                 AccountLinkPicker(model: model, accountId: $accountId)
             } header: {
@@ -375,9 +405,9 @@ struct InstallmentFormView: View {
             }
             if creditor {
                 Section {
-                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
+                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories, dedupe: true)
                     LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
-                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
+                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category), dedupe: true)
                     LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: true)
                     AccountLinkPicker(model: model, accountId: $accountId)
                 } header: {
@@ -511,5 +541,78 @@ struct AppointmentFormView: View {
         }
         Haptics.success()
         dismiss()
+    }
+}
+
+
+// MARK: - «این چک وصول شد؟» when a check's due date has come (web remRunDuePopups)
+
+/// When the app opens (or comes back after a minute or more), each pending check whose due date is today or past is
+/// asked about, one at a time, oldest first. «بله» marks it cashed (its linked row / تنخواه note update as usual);
+/// «خیر» keeps it pending — it is asked again next time. Never shown over the lock screen.
+struct DueCheckPrompt: ViewModifier {
+    @ObservedObject var model: AppModel
+    let blocked: Bool
+    @Environment(\.scenePhase) private var phase
+    @State private var asked = Set<String>()
+    @State private var current: String?
+    @State private var hiddenAt: Date?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { later(1.2) }
+            .onChange(of: blocked) { _, b in if !b { later(0.8) } }
+            .onChange(of: phase) { _, p in
+                if p == .background { hiddenAt = Date() }
+                if p == .active {
+                    if let h = hiddenAt, Date().timeIntervalSince(h) >= 60 { asked = [] }
+                    hiddenAt = nil
+                    later(0.8)
+                }
+            }
+            .alert("سررسید چک", isPresented: Binding(get: { current != nil && !blocked }, set: { _ in })   // cleared by answer()) {
+                Button("بله، وصول شد") { answer(true) }
+                Button("خیر، وصول نشده", role: .cancel) { answer(false) }
+            } message: {
+                Text(question)
+            }
+    }
+
+    private var check: JSONValue? {
+        guard let id = current else { return nil }
+        return (model.state["reminderChecks"]?.arrayValue ?? []).first { $0["id"]?.idString == id }
+    }
+
+    /// web remDuePopupHtml
+    private var question: String {
+        guard let c = check else { return "" }
+        let ident = NotificationPlanner.checkIdent(c)
+        let party = c["party"]?.stringValue ?? ""
+        var q = "آیا چک " + (ident.isEmpty ? "" : ident + " ") + "به مبلغ " + Money.persianDigits(Money.format(c["amount"]?.intValue ?? 0)) + " تومان"
+        if !party.isEmpty { q += " در وجه " + party }
+        q += " در تاریخ " + BackupExporter.formatJalali(ImportAnalyzer.date(c["dueDate"])) + " وصول شد؟"
+        let tankhah = ReminderOps.isTankhahCheck(model.state, c)
+        return q + "\n" + (tankhah ? "چک تنخواه (دریافتی)" : "چک هزینه (پرداختی)")
+    }
+
+    private func later(_ s: Double) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + s) { next() }
+    }
+
+    private func next() {
+        guard current == nil, !blocked else { return }
+        current = ReminderOps.dueChecksToAsk(model.state, today: AppModel.today).first { !asked.contains($0) }
+    }
+
+    private func answer(_ yes: Bool) {
+        guard let id = current else { return }
+        asked.insert(id)
+        if yes {
+            if model.setCheckStatus(id, "cashed") { Haptics.success() }
+        } else {
+            _ = model.change { try ReminderOps.answerNotCollected(model.state, id: id) }
+        }
+        current = nil
+        later(0.5)
     }
 }

@@ -250,6 +250,83 @@ public enum ReminderOps {
         return st
     }
 
+    /// web remAnswerCheckCollected(c, false): «not collected yet» — stays pending, asked again next time the app opens
+    public static func answerNotCollected(_ state: [String: JSONValue], id: String, ids: IdSource = .system) throws -> [String: JSONValue] {
+        var st = state
+        var checks = LedgerOps.array(st, "reminderChecks")
+        guard let i = checks.firstIndex(where: { $0["id"]?.idString == id }), var c = checks[i].objectValue else { throw LedgerError.notFound }
+        let d = ImportAnalyzer.date(c["dueDate"])
+        c["collectAnswer"] = .string("no")
+        c["collectAnswerTs"] = .int(Int64(ids.nowMs()))
+        c["collectAnswerDue"] = .string("\(d.jy)-\(d.jm)-\(d.jd)")
+        checks[i] = .object(c)
+        st["reminderChecks"] = .array(checks)
+        return st
+    }
+
+    /// web remDueChecksToAsk: pending, not muted, due today or earlier — oldest first
+    public static func dueChecksToAsk(_ state: [String: JSONValue], today: JalaliDate) -> [String] {
+        let t = Jalali.j2d(today.jy, today.jm, today.jd)
+        return LedgerOps.array(state, "reminderChecks").compactMap { c -> (String, Int)? in
+            guard c["status"]?.stringValue == "pending", !(c["muted"]?.isTruthy ?? false),
+                  ImportAnalyzer.isValidDate(c["dueDate"]), let id = c["id"]?.idString else { return nil }
+            let d = ImportAnalyzer.date(c["dueDate"])
+            let day = Jalali.j2d(d.jy, d.jm, d.jd)
+            return day <= t ? (id, day) : nil
+        }.sorted { $0.1 < $1.1 }.map(\.0)
+    }
+
+    /// web checkKindOf
+    public static func isTankhahCheck(_ state: [String: JSONValue], _ c: JSONValue) -> Bool {
+        if let k = c["sourceKind"]?.stringValue {
+            if k == "tankhah" { return true }
+            if k == "expense" || k == "personal" { return false }
+        }
+        if c["accountId"]?.idString != nil || c["linkedExpenseId"]?.idString != nil { return false }
+        if c["tankhahAccountId"]?.idString != nil || c["tankhahExpenseId"]?.idString != nil { return true }
+        let id = c["id"]?.idString ?? ""
+        return LedgerOps.array(state, "expenses").contains { e in
+            e["type"]?.stringValue == "tankhah"
+                && (e["checkId"]?.idString == id || (e["checkIds"]?.arrayValue ?? []).contains { $0.idString == id })
+        }
+    }
+
+    /// web tankhahCheckModal save: a RECEIVED check for a تنخواه — only a record of this project; no expense row,
+    /// no effect on totals. Returns the new check id (the تنخواه row then points to it).
+    public static func addTankhahCheck(_ state: [String: JSONValue], amount: Int, party: String, bankName: String,
+                                       checkNumber: String, desc: String, dueDate: JalaliDate, accountId: String,
+                                       ids: IdSource = .system) throws -> (state: [String: JSONValue], id: String) {
+        guard amount > 0 else { throw LedgerError.invalid(["مبلغ چک"]) }
+        var st = state
+        let now = ids.nowMs()
+        let c: Obj = [
+            "id": .string(ids.make("c", now).dropLast(1).description), "amount": .int(Int64(amount)),
+            "party": .string(party), "bankName": .string(bankName), "checkNumber": .string(checkNumber),
+            "description": .string(desc), "category": .string(""), "dueDate": LedgerOps.date(dueDate),
+            "status": .string("pending"), "statusChangedTs": .null, "calendarAdded": .bool(false), "calendarEventId": .null,
+            "calendarSeq": .int(0), "accountId": .null, "linkedExpenseId": .null, "muted": .bool(false),
+            "alertShown3d": .bool(false), "tankhahAccountId": .string(accountId),
+            // web mcStampCheck(check, mc, 'receive', 'tankhah')
+            "direction": .string("receive"), "sourceKind": .string("tankhah"), "createdTs": .int(Int64(now)),
+            "groupId": .null, "groupIndex": .int(1), "groupCount": .int(1), "groupTotal": .null,
+        ]
+        var checks = LedgerOps.array(st, "reminderChecks")
+        checks.append(.object(c))
+        st["reminderChecks"] = .array(checks)
+        return (st, c["id"]?.idString ?? "")
+    }
+
+    /// web openTankhahCheckPickModal: an existing received check is attached to this project's تنخواه
+    public static func linkTankhahCheck(_ state: [String: JSONValue], id: String, accountId: String) throws -> [String: JSONValue] {
+        var st = state
+        var checks = LedgerOps.array(st, "reminderChecks")
+        guard let i = checks.firstIndex(where: { $0["id"]?.idString == id }), var c = checks[i].objectValue else { throw LedgerError.notFound }
+        c["tankhahAccountId"] = .string(accountId)
+        checks[i] = .object(c)
+        st["reminderChecks"] = .array(checks)
+        return st
+    }
+
     /// web commitCheckRowDelete: the check, its linked row (either list) and references from tankhah rows.
     public static func deleteCheck(_ state: [String: JSONValue], id: String) throws -> [String: JSONValue] {
         var st = state

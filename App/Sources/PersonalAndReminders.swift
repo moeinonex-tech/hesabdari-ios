@@ -432,9 +432,9 @@ struct PersonalFormView: View {
                 TextField("شرح", text: $desc)
                 if !makesCheck { CountRow(title: "تعداد اقلام", count: itemCountBinding, max: MultiItem.maxCount) }
                 if !isMulti {
-                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.personalCategories)
+                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.personalCategories, dedupe: true)
                     LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: false)
-                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.personalSubcategories(of: category))
+                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.personalSubcategories(of: category), dedupe: true)
                     LearnChips(model: model, ctx: .personal, desc: desc, category: $category, subcategory: $subcategory, sub: true)
                 }
             }
@@ -575,9 +575,9 @@ struct IncomeFormView: View {
         Form {
             Section {
                 TextField("شرح", text: $desc)
-                SuggestField(title: "نوع درآمد", text: $category, suggestions: model.incomeCategories)
+                SuggestField(title: "نوع درآمد", text: $category, suggestions: model.incomeCategories, dedupe: true)
                 LearnChips(model: model, ctx: .income, desc: desc, category: $category, subcategory: $subcategory, sub: false)
-                SuggestField(title: "زیردسته (اختیاری)", text: $subcategory, suggestions: model.incomeSubcategories(of: category))
+                SuggestField(title: "زیردسته (اختیاری)", text: $subcategory, suggestions: model.incomeSubcategories(of: category), dedupe: true)
                 LearnChips(model: model, ctx: .income, desc: desc, category: $category, subcategory: $subcategory, sub: true)
             }
             Section {

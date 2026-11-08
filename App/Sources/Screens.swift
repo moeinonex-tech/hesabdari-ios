@@ -57,6 +57,7 @@ struct RootView: View {
             if p == .background { lock.didEnterBackground() }
             if p == .active { lock.didBecomeActive(); model.backupToday(); if model.hasData { Notifier.sync(model.state) } }
         }
+        .modifier(DueCheckPrompt(model: model, blocked: lock.locked || !model.hasData))
         .preferredColorScheme(Appearance(rawValue: appearanceRaw)?.scheme)
         #if DEBUG
         .sheet(isPresented: $uiTestCategories) {

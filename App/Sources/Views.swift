@@ -293,10 +293,18 @@ struct SuggestField: View {
     let title: String
     @Binding var text: String
     let suggestions: [String]
+    /// category / subcategory fields: a typed value that is almost an existing one asks «منظورتان X است؟» (web
+    /// confirmFuzzyDuplicate). The owner decides: pick the existing one, or keep the new name exactly as typed.
+    var dedupe = false
+    @FocusState private var focused: Bool
+    @State private var similar: [String] = []
+    @State private var checked = ""
 
     var body: some View {
         HStack {
             TextField(title, text: $text)
+                .focused($focused)
+                .onSubmit { checkSimilar() }
             if !suggestions.isEmpty {
                 Menu {
                     ForEach(suggestions, id: \.self) { s in
@@ -307,6 +315,24 @@ struct SuggestField: View {
                 }
             }
         }
+        .onChange(of: focused) { _, f in if !f { checkSimilar() } }
+        .confirmationDialog("عبارت مشابه پیدا شد", isPresented: Binding(get: { !similar.isEmpty }, set: { if !$0 { similar = [] } }),
+                            titleVisibility: .visible) {
+            ForEach(similar, id: \.self) { s in
+                Button(similar.count == 1 ? "بله، «\(s)»" : s) { text = s; checked = s }
+            }
+            Button("خیر، مورد جدید است", role: .cancel) {}
+        } message: {
+            Text(similar.count == 1 ? "منظورتان «\(similar.first ?? "")» است؟" : "کدام‌یک منظور شماست؟")
+        }
+    }
+
+    private func checkSimilar() {
+        guard dedupe else { return }
+        let v = text.trimmingCharacters(in: .whitespaces)
+        guard !v.isEmpty, v != checked else { return }
+        checked = v
+        similar = Fuzzy.matches(suggestions, v)
     }
 }
 
@@ -337,12 +363,20 @@ struct ExpenseFormView: View {
     @State private var slots: [CheckSlot] = []
     @State private var checkTotal = ""
     @State private var loadedPay: PayMethod?
+    // تنخواه received by check
+    @State private var tkCheckId: String?        // nil = record a new check
+    @State private var tkAmount = ""
+    @State private var tkBank = ""
+    @State private var tkNumber = ""
+    @State private var tkDesc = ""
+    @State private var tkDue = AppModel.today
 
     private var isCommission: Bool { editing?.kind == .commission }
     private var isMulti: Bool { itemCount > 1 && !isTankhah && !isCommission && !makesCheck }
     private var multiCheck: Bool { makesCheck && checkCount > 1 }
     private var makesCheck: Bool { editing == nil && !isTankhah && payMethod == .check }
     private var makesNasiyeh: Bool { editing == nil && !isTankhah && payMethod == .nasiyeh }
+    private var tankhahByCheck: Bool { editing == nil && isTankhah && payMethod == .check }
 
     var body: some View {
         Form {
@@ -360,8 +394,8 @@ struct ExpenseFormView: View {
                 // a commission payment: every field is editable
                 Section {
                     TextField("شرح", text: $desc, axis: .vertical).lineLimit(1...4)
-                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
-                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
+                    SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories, dedupe: true)
+                    SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category), dedupe: true)
                 } footer: {
                     Text("این ردیف پرداخت کمیسیون است. با تغییر مبلغ، مانده‌ی این پرداخت و پرداخت‌های بعدی دوباره حساب می‌شود و متن مانده‌ها به‌روز می‌شود.")
                 }
@@ -379,9 +413,9 @@ struct ExpenseFormView: View {
                     TextField("شرح", text: $desc)
                     if !makesCheck { CountRow(title: "تعداد اقلام", count: itemCountBinding, max: MultiItem.maxCount) }
                     if !isMulti {
-                        SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories)
+                        SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories, dedupe: true)
                         LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: false)
-                        SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category))
+                        SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category), dedupe: true)
                         LearnChips(model: model, ctx: .ledger, desc: desc, category: $category, subcategory: $subcategory, sub: true)
                     }
                 }
@@ -424,6 +458,28 @@ struct ExpenseFormView: View {
                         Text("چک در «یادآوری‌ها» ثبت می‌شود و یک ردیف «در انتظار وصول» در همین دفتر می‌سازد. وقتی وصول شد، از یادآوری‌ها علامتش بزنید.")
                     }
                     if multiCheck { MultiCheckSections(slots: $slots, total: $checkTotal) }
+                }
+                if tankhahByCheck {
+                    let open = model.openTankhahChecks
+                    Section {
+                        if !open.isEmpty {
+                            Picker("چک", selection: $tkCheckId) {
+                                Text("ثبت چک جدید").tag(String?.none)
+                                ForEach(open, id: \.id) { c in Text(c.label).tag(String?.some(c.id)) }
+                            }
+                        }
+                        if tkCheckId == nil {
+                            TextField("شماره چک", text: $tkNumber).keyboardType(.numberPad)
+                            AmountField(title: "مبلغ چک (تومان) — خالی = همان مبلغ تنخواه", text: $tkAmount)
+                            BankNameField(title: "نام بانک", text: $tkBank)
+                            JalaliDateField(title: "تاریخ سررسید چک", date: $tkDue)
+                            TextField("توضیحات چک (اختیاری)", text: $tkDesc)
+                        }
+                    } header: {
+                        Text("چک تنخواه (دریافتی)")
+                    } footer: {
+                        Text("چک فقط به‌عنوان رکورد این پروژه در «یادآوری‌ها» ثبت می‌شود؛ ردیف هزینه نمی‌سازد و روی جمع‌ها اثر ندارد. وقتی وصول شد، کنار همین تنخواه «وصول شد» نوشته می‌شود.")
+                    }
                 }
                 if makesNasiyeh {
                     Section {
@@ -526,6 +582,11 @@ struct ExpenseFormView: View {
                                            subcategory: subcategory, dueDate: date, accountId: accountId))
         } else if makesNasiyeh {
             ok = model.addNasiyehExpense(input, party: linkParty, due: nasiyehDue)
+        } else if tankhahByCheck {
+            let checkAmount = Fmt.parseAmount(tkAmount) > 0 ? Fmt.parseAmount(tkAmount) : input.toman
+            let party = model.tankhahParties.first { $0.id == partyId }?.label ?? ""
+            ok = model.addTankhahWithCheck(input, existingCheckId: tkCheckId, amount: checkAmount, party: party, bank: tkBank,
+                                           number: tkNumber, desc: tkDesc, due: tkDue)
         } else {
             ok = editing.map { model.edit(rowId: $0.rowId, input) } ?? model.add(input)
         }
