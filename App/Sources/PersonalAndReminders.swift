@@ -32,6 +32,7 @@ struct CheckVM: Identifiable {
     let pay: Bool               // true = paid by me (pay), false = received
     let ident: String
     let bank: String
+    var reminderId: String? = nil      // set once it was added to the phone's Reminders
 }
 
 struct PersonVM: Identifiable {
@@ -50,6 +51,7 @@ struct InstallmentVM: Identifiable {
     let daysLeft: Int
     let paid: Bool
     let desc: String
+    var reminderId: String? = nil
 }
 
 struct AppointmentVM: Identifiable {
@@ -60,6 +62,7 @@ struct AppointmentVM: Identifiable {
     let time: String
     let place: String
     let done: Bool
+    var reminderId: String? = nil
 }
 
 extension AppModel {
@@ -121,6 +124,13 @@ extension AppModel {
         return Jalali.j2d(d.jy, d.jm, d.jd) - Jalali.j2d(t.jy, t.jm, t.jd)
     }
 
+    /// the Reminders item id of a check / appointment / installment that was added to the phone's Reminders
+    static func reminderId(_ o: JSONValue) -> String? {
+        guard o["calendarAdded"]?.isTruthy == true else { return nil }
+        let id = o["calendarEventId"]?.stringValue ?? ""
+        return id.isEmpty ? "" : id
+    }
+
     var checks: [CheckVM] {
         (state["reminderChecks"]?.arrayValue ?? []).map { c in
             let due = ImportAnalyzer.date(c["dueDate"])
@@ -128,7 +138,8 @@ extension AppModel {
                            amount: c["amount"]?.intValue ?? 0, due: due, daysLeft: daysFromToday(due),
                            status: c["status"]?.stringValue ?? "pending",
                            pay: (c["direction"]?.stringValue ?? "pay") != "receive",
-                           ident: NotificationPlanner.checkIdent(c), bank: c["bankName"]?.stringValue ?? "")
+                           ident: NotificationPlanner.checkIdent(c), bank: c["bankName"]?.stringValue ?? "",
+                           reminderId: Self.reminderId(c))
         }.sorted { $0.daysLeft < $1.daysLeft }
     }
 
@@ -138,7 +149,7 @@ extension AppModel {
                 let due = ImportAnalyzer.date(i["dueDate"])
                 return InstallmentVM(id: i["id"]?.idString ?? UUID().uuidString, amount: i["amount"]?.intValue ?? 0, due: due,
                                      daysLeft: daysFromToday(due), paid: i["paid"]?.isTruthy ?? false,
-                                     desc: i["description"]?.stringValue ?? "")
+                                     desc: i["description"]?.stringValue ?? "", reminderId: Self.reminderId(i))
             }.sorted { $0.daysLeft < $1.daysLeft }
             return PersonVM(id: p["id"]?.idString ?? UUID().uuidString, name: p["name"]?.stringValue ?? "",
                             creditor: p["type"]?.stringValue == "creditor", installments: ins)
@@ -150,7 +161,8 @@ extension AppModel {
             let d = ImportAnalyzer.date(a["date"])
             return AppointmentVM(id: a["id"]?.idString ?? UUID().uuidString, title: a["title"]?.stringValue ?? "قرار", date: d,
                                  daysLeft: daysFromToday(d), time: a["time"]?.stringValue ?? "",
-                                 place: a["location"]?["label"]?.stringValue ?? "", done: a["done"]?.isTruthy ?? false)
+                                 place: a["location"]?["label"]?.stringValue ?? "", done: a["done"]?.isTruthy ?? false,
+                                 reminderId: Self.reminderId(a))
         }.sorted { $0.daysLeft < $1.daysLeft }
     }
 
@@ -671,7 +683,7 @@ struct RemindersView: View {
                                     Label(a.done ? "انجام‌نشده" : "انجام شد", systemImage: "checkmark.circle")
                                 }
                                 Button { Task { await model.addAppointmentToPhoneReminders(a.id) } } label: {
-                                    Label("افزودن به Reminders گوشی", systemImage: "checklist")
+                                    Label(a.reminderId == nil ? "افزودن به Reminders گوشی" : "به‌روزرسانی در Reminders گوشی", systemImage: "checklist")
                                 }
                                 Button(role: .destructive) { _ = model.deleteAppointment(a.id) } label: { Label("حذف", systemImage: "trash") }
                             }
@@ -720,7 +732,7 @@ struct RemindersView: View {
                     Button { _ = model.setCheckStatus(c.id, "bounced") } label: { Label("برگشت خورد", systemImage: "xmark.octagon") }
                 }
                 Button { Task { await model.addCheckToPhoneReminders(c.id) } } label: {
-                    Label("افزودن به Reminders گوشی", systemImage: "checklist")
+                    Label(c.reminderId == nil ? "افزودن به Reminders گوشی" : "به‌روزرسانی در Reminders گوشی", systemImage: "checklist")
                 }
                 Button(role: .destructive) { _ = model.deleteCheck(c.id) } label: { Label("حذف", systemImage: "trash") }
             }
@@ -801,6 +813,7 @@ struct CheckCard: View {
                 Text(statusText).foregroundStyle(statusColor)
             }
             .font(AppFont.caption).foregroundStyle(t.soft)
+            if let rid = check.reminderId { RemindersMark(id: rid) }
         }
         .glassCard()
     }
@@ -833,6 +846,8 @@ struct PersonCard: View {
                     .foregroundStyle(person.creditor ? t.danger : t.success)
                 Text(person.name).font(AppFont.bold(15)).foregroundStyle(t.ink)
                 Spacer()
+                let added = person.installments.compactMap(\.reminderId)
+                if !added.isEmpty { RemindersMark(id: added[0], compact: true) }
                 Text(person.creditor ? "طلبکار" : "بدهکار").font(AppFont.caption).foregroundStyle(t.soft)
             }
             if person.total > 0 {
@@ -846,6 +861,7 @@ struct PersonCard: View {
                     Image(systemName: i.paid ? "checkmark.circle.fill" : "circle").foregroundStyle(i.paid ? t.success : t.soft)
                     Text(Fmt.toman(i.amount)).font(AppFont.medium(13)).foregroundStyle(t.ink)
                     Text(BackupExporter.formatJalali(i.due)).font(AppFont.caption).foregroundStyle(t.soft)
+                    if let rid = i.reminderId { RemindersMark(id: rid, compact: true) }
                     Spacer()
                     DueBadge(days: i.daysLeft, resolved: i.paid)
                 }
@@ -874,6 +890,7 @@ struct AppointmentCard: View {
                     if !apt.place.isEmpty { Label(apt.place, systemImage: "mappin") }
                 }
                 .font(AppFont.caption).foregroundStyle(t.soft)
+                if let rid = apt.reminderId { RemindersMark(id: rid) }
             }
             Spacer()
             DueBadge(days: apt.daysLeft, resolved: apt.done)
@@ -888,5 +905,34 @@ extension View {
     func wholeCardTouch(corner: CGFloat = 24) -> some View {
         self.contentShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
             .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: corner, style: .continuous))
+    }
+}
+
+/// «در Reminders» mark on a card whose item was added to the phone's Reminders app. If the app may read Reminders
+/// and the item has since been deleted there, the mark disappears (nothing is asked from the user to check this).
+struct RemindersMark: View {
+    let id: String
+    var compact = false
+    @State private var gone = false
+    @Environment(\.theme) private var t
+
+    var body: some View {
+        Group {
+            if !gone {
+                if compact {
+                    Image(systemName: "checklist.checked")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(t.accent)
+                        .accessibilityLabel("در Reminders گوشی")
+                } else {
+                    Label("در Reminders گوشی", systemImage: "checklist.checked")
+                        .font(AppFont.medium(11.5))
+                        .foregroundStyle(t.accent)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(t.accent.opacity(0.12)))
+                }
+            }
+        }
+        .task(id: id) { gone = PhoneReminders.wasDeleted(id) }
     }
 }

@@ -20,6 +20,12 @@ enum PhoneReminders {
         } catch { return false }
     }
 
+    /// true only when we may read Reminders and the item is no longer there (removed in the Reminders app)
+    static func wasDeleted(_ id: String) -> Bool {
+        guard !id.isEmpty, EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return false }
+        return store.calendarItem(withIdentifier: id) == nil
+    }
+
     /// the list new items go to: the phone's default Reminders list, else any list that can be written to,
     /// else a new «دفتر حساب» list (iCloud if there is one, otherwise on the phone)
     static func targetList() throws -> EKCalendar {
@@ -150,14 +156,33 @@ extension AppModel {
         let title = "قسط " + name + (desc.isEmpty ? "" : " — " + desc)
         do {
             let due = ImportAnalyzer.date(i["dueDate"])
-            _ = try PhoneReminders.save(existingId: nil, title: title, notes: "مبلغ: " + Money.format(i["amount"]?.intValue ?? 0) + " تومان",
+            // remembered on the installment (like checks), so the card shows it and adding again updates the same item
+            let rid = try PhoneReminders.save(existingId: i["calendarEventId"]?.stringValue, title: title, notes: "مبلغ: " + Money.format(i["amount"]?.intValue ?? 0) + " تومان",
                                         due: due, alarmOffsets: [-(9 * 3600)])
+            markInstallmentAdded(personId: personId, id: id, eventId: rid)
             Haptics.success()
             infoMessage = "قسط به Reminders گوشی اضافه شد ✓\nسررسید: " + PhoneReminders.longDate(due) + "\nیادآوری:\n" + PhoneReminders.alertsText(due, [-(9 * 3600)])
         } catch { errorMessage = "افزودن به Reminders نشد: " + error.localizedDescription }
     }
 
     static let remindersDenied = "اجازه‌ی دسترسی به Reminders داده نشده. از Settings › دفتر حساب › Reminders روشنش کنید."
+
+    private func markInstallmentAdded(personId: String, id: String, eventId: String) {
+        _ = change {
+            var st = state
+            var persons = st["reminderPersons"]?.arrayValue ?? []
+            guard let pi = persons.firstIndex(where: { $0["id"]?.idString == personId }), var p = persons[pi].objectValue,
+                  var ins = p["installments"]?.arrayValue,
+                  let ii = ins.firstIndex(where: { $0["id"]?.idString == id }), var o = ins[ii].objectValue else { throw LedgerError.notFound }
+            o["calendarAdded"] = .bool(true)
+            o["calendarEventId"] = .string(eventId)
+            ins[ii] = .object(o)
+            p["installments"] = .array(ins)
+            persons[pi] = .object(p)
+            st["reminderPersons"] = .array(persons)
+            return st
+        }
+    }
 
     private func markCalendarAdded(listKey: String, id: String, eventId: String) {
         _ = change {

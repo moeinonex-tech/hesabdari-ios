@@ -300,6 +300,7 @@ struct PersonDetailView: View {
                                     Text(Fmt.toman(i.amount)).font(AppFont.bold(15)).foregroundStyle(t.ink)
                                     Text((i.desc.isEmpty ? "" : i.desc + " · ") + BackupExporter.formatJalali(i.due))
                                         .font(AppFont.caption).foregroundStyle(t.soft)
+                                    if let rid = i.reminderId { RemindersMark(id: rid) }
                                 }
                                 Spacer()
                                 DueBadge(days: i.daysLeft, resolved: i.paid)
@@ -312,7 +313,7 @@ struct PersonDetailView: View {
                                     Label(i.paid ? "پرداخت‌نشده" : "پرداخت شد", systemImage: "checkmark.circle")
                                 }
                                 Button { Task { await model.addInstallmentToPhoneReminders(personId: personId, id: i.id) } } label: {
-                                    Label("افزودن به Reminders گوشی", systemImage: "checklist")
+                                    Label(i.reminderId == nil ? "افزودن به Reminders گوشی" : "به‌روزرسانی در Reminders گوشی", systemImage: "checklist")
                                 }
                                 Button(role: .destructive) { _ = model.deleteInstallment(personId: personId, id: i.id) } label: {
                                     Label("حذف", systemImage: "trash")
