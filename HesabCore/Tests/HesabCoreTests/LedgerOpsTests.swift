@@ -297,3 +297,35 @@ final class SectionBackupTests: XCTestCase {
         XCTAssertEqual(BackupSection.income.summary(st), ["درآمدها: ۱"])
     }
 }
+
+final class ScopedSearchTests: XCTestCase {
+    let st: [String: JSONValue] = [
+        "accounts": .array([.object(["id": .string("a1"), "name": .string("کوچه وصال")]), .object(["id": .string("a2"), "name": .string("پروژه دو")])]),
+        "tankhahParties": .array([.object(["id": .string("tp"), "name": .string("کارفرما")])]),
+        "expenses": .array([
+            .object(["id": .string("e1"), "accountId": .string("a1"), "desc": .string("خرید سيمان"), "category": .string("مصالح"),
+                     "toman": .int(1_200_000), "date": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(1)])]),
+            .object(["id": .string("e2"), "accountId": .string("a2"), "desc": .string("سیمان تیپ ۲"), "category": .string("مصالح"),
+                     "toman": .int(900_000), "date": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(5)])]),
+            .object(["id": .string("e3"), "accountId": .string("a1"), "type": .string("tankhah"), "partyId": .string("tp"),
+                     "toman": .int(50_000_000), "date": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(2)])]),
+        ]),
+        "personalExpenses": .array([.object(["id": .string("p1"), "desc": .string("سیمان باغچه"), "toman": .int(10_000),
+                                             "date": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(3)])])]),
+    ]
+
+    func testScopesNeverMix() {
+        // «کلی»: every ledger is its own group, then personal
+        let all = SearchEngine.find(st, query: "سیمان", scope: .all)
+        XCTAssertEqual(all.map(\.recordId), ["e1", "e2", "p1"])                          // ي == ی
+        XCTAssertEqual(Set(all.map(\.group)).count, 3)
+        // one ledger only
+        XCTAssertEqual(SearchEngine.find(st, query: "سیمان", scope: .ledgers(accountId: "a2")).map(\.recordId), ["e2"])
+        // personal only
+        XCTAssertEqual(SearchEngine.find(st, query: "سیمان", scope: .personal).map(\.recordId), ["p1"])
+        // several words, any order; an amount; a tankhah found by its party
+        XCTAssertEqual(SearchEngine.find(st, query: "مصالح سیمان", scope: .all).count, 2)
+        XCTAssertEqual(SearchEngine.find(st, query: "۹۰۰,۰۰۰", scope: .all).map(\.recordId), ["e2"])
+        XCTAssertEqual(SearchEngine.find(st, query: "کارفرما", scope: .ledgers(accountId: nil)).first?.isTankhah, true)
+    }
+}

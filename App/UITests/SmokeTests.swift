@@ -131,6 +131,28 @@ final class SmokeTests: XCTestCase {
     // MARK: - more coverage
 
     /// diagnostic: does a plain tap on the home ⚙︎ open Settings? (prints GEAR-RESULT lines into the CI log)
+    /// home search: scopes keep ledgers / personal apart, the ledger filter works, nothing crashes
+    func testScopedSearch() {
+        let btn = app.buttons["search"].firstMatch
+        XCTAssertTrue(btn.waitForExistence(timeout: 10)); sleep(2)
+        tap(btn, "open search")
+        let field = app.textFields["search.field"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 6))
+        tap(app.buttons["search.scope.all"].firstMatch, "scope all")
+        field.tap(); field.typeText("مصالح")
+        sleep(1)
+        XCTAssertTrue(labelled("سیمان تیپ دو").waitForExistence(timeout: 4), "ledger row found")
+        XCTAssertTrue(labelled("پروژه آزمایشی").exists, "grouped under its ledger")
+        tap(app.buttons["search.scope.personal"].firstMatch, "scope personal")
+        XCTAssertFalse(labelled("سیمان تیپ دو").exists, "ledger row hidden in personal scope")
+        tap(app.buttons["search.scope.ledgers"].firstMatch, "scope ledgers")
+        tap(app.buttons["search.ledger.a1"].firstMatch, "one ledger")
+        XCTAssertTrue(labelled("میلگرد").waitForExistence(timeout: 4))
+        tap(app.buttons["search.scope.reminders"].firstMatch, "scope reminders")
+        tap(app.buttons["search.scope.all"].firstMatch, "scope all again")
+        alive("search")
+    }
+
     func testSettingsGearOpens() {
         let gear = app.buttons["settings"].firstMatch
         XCTAssertTrue(gear.waitForExistence(timeout: 10))

@@ -49,6 +49,7 @@ struct HomeView: View {
                     ScreenHeader(title: "خانه", subtitle: "نمای کلی و امروز")
                     HStack(spacing: 8) {
                         HeaderIconButton(icon: "magnifyingglass") { Haptics.tap(); showSearch = true }
+                            .accessibilityIdentifier("search")
                         HeaderIconButton(icon: "gearshape.fill") { Haptics.tap(); showSettings = true }
                             .accessibilityIdentifier("settings")
                     }
