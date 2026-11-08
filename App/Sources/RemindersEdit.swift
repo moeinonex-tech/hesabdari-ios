@@ -570,7 +570,7 @@ struct DueCheckPrompt: ViewModifier {
                     later(0.8)
                 }
             }
-            .alert("سررسید چک", isPresented: Binding(get: { current != nil && !blocked }, set: { _ in })   // cleared by answer()) {
+            .alert("سررسید چک", isPresented: Binding(get: { current != nil && !blocked }, set: { _ in })) {   // cleared by answer()
                 Button("بله، وصول شد") { answer(true) }
                 Button("خیر، وصول نشده", role: .cancel) { answer(false) }
             } message: {
