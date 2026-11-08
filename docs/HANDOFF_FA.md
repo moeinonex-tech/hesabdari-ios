@@ -42,7 +42,8 @@
 ## ۴. ساخت و انتشار (CI)
 فایل: `.github/workflows/ios.yml` — با هر push روی `main`:
 1. **HesabCore parity tests** — `swift test`.
-2. **UI smoke test** — ساخت Debug برای شبیه‌ساز آیفون و اجرای `SmokeTests` (همه‌ی صفحه‌ها + حذف/جایگزینی دسته‌ها).
+2. **UI smoke test** — ساخت Debug برای شبیه‌ساز آیفون و اجرای `SmokeTests`: همه‌ی صفحه‌ها، حذف/جایگزینی دسته‌ها، باز شدن تنظیمات با ⚙︎،
+   ثبت یک هزینه از فرم، ساخت PDF از کارت، و خروجی پشتیبان بخشی.
 3. **Archive and upload to TestFlight** — آرشیو بدون امضا ← افزودن entitlements (iCloud) ← امضای ابری با کلید API ← آپلود.
 
 Secrets لازم (Settings → Secrets and variables → Actions):
@@ -97,7 +98,6 @@ Variables: `TESTFLIGHT_ENABLED=true`, `BUNDLE_ID` (همان Bundle ID اپ)، `I
 
 ## ۸. کارهای باز / نکته‌های بررسی‌نشده روی گوشی
 - خروجی PDF جدید دسته/زیردسته با داده‌ی واقعی هنوز روی گوشی دیده نشده.
-- در شبیه‌ساز، ضربه‌ی خودکار روی دکمه‌ی تنظیمات خانه واکنش نداشت (علت پیدا نشد؛ روی گوشی گزارش مشکلی نشده).
 - لوگوهای بانک ۱۴۴ پیکسلی‌اند؛ اگر نسخه‌ی باکیفیت‌تر برسد، در `App/Assets.xcassets/BankLogos` جایگزین شود.
 - رتبه‌بندی «۱۰ بانک بزرگ» تقریبی است.
 
