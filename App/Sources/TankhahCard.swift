@@ -285,18 +285,23 @@ extension ReportHTML {
         h += "<div class=\"cx-kpis\"><div class=\"cx-kpi\"><div class=\"k\">جمع کل تنخواه دریافتی (تومان)</div><div class=\"v main tk\">" + amt(total) + "</div></div>"
         h += "<div class=\"cx-kpi\"><div class=\"k\">طرف حساب / ردیف</div><div class=\"v\">" + Money.persianDigits(gs.count)
             + " <small>/ " + Money.persianDigits(rows) + "</small></div></div>"
-        h += "<div class=\"cx-kpi\"><div class=\"k\">بیشترین سهم</div><div class=\"v nm\">" + esc(top.name) + " — " + pct(top.total, total) + "</div></div></div>"
+        let single = gs.count == 1
+        h += single
+            ? "<div class=\"cx-kpi\"><div class=\"k\">طرف حساب</div><div class=\"v nm\">" + esc(top.name) + "</div></div></div>"
+            : "<div class=\"cx-kpi\"><div class=\"k\">بیشترین سهم</div><div class=\"v nm\">" + esc(top.name) + " — " + pct(top.total, total) + "</div></div></div>"
 
-        // the split: one bar, then one row per party (the rows are the legend of the bar)
-        h += "<div class=\"cx-mix tkmix\"><div class=\"t\">سهم هر طرف حساب از کل تنخواه</div><div class=\"cx-strip\">"
-        for (i, g) in gs.enumerated() where g.total > 0 { h += "<i style=\"width:" + w(g.total, total) + "%;background:" + colors[i] + "\"></i>" }
-        h += "</div></div>"
-        let mx = max(1, gs.map(\.total).max() ?? 1)
-        h += "<div class=\"cx-th head\"><span></span><span>طرف حساب</span><span>سهم از کل</span><span class=\"r\">مبلغ (تومان)</span><span class=\"r\">درصد</span></div>"
-        for (i, g) in gs.enumerated() {
-            h += "<div class=\"cx-row\"><span class=\"cx-dot\" style=\"background:" + colors[i] + "\"></span><span class=\"nm\">" + esc(g.name)
-                + " <span class=\"cnt\">" + Money.persianDigits(g.rows.count) + " مورد</span></span><div class=\"cx-bar\"><i style=\"width:" + w(g.total, mx)
-                + "%;background:" + colors[i] + "\"></i></div><span class=\"am\">" + amt(g.total) + "</span><span class=\"pc\">" + pct(g.total, total) + "</span></div>"
+        // the split (only when there is something to split): one bar, then one row per party (the rows are the legend of the bar)
+        if !single {
+            h += "<div class=\"cx-mix tkmix\"><div class=\"t\">سهم هر طرف حساب از کل تنخواه</div><div class=\"cx-strip\">"
+            for (i, g) in gs.enumerated() where g.total > 0 { h += "<i style=\"width:" + w(g.total, total) + "%;background:" + colors[i] + "\"></i>" }
+            h += "</div></div>"
+            let mx = max(1, gs.map(\.total).max() ?? 1)
+            h += "<div class=\"cx-th head\"><span></span><span>طرف حساب</span><span>سهم از کل</span><span class=\"r\">مبلغ (تومان)</span><span class=\"r\">درصد</span></div>"
+            for (i, g) in gs.enumerated() {
+                h += "<div class=\"cx-row\"><span class=\"cx-dot\" style=\"background:" + colors[i] + "\"></span><span class=\"nm\">" + esc(g.name)
+                    + " <span class=\"cnt\">" + Money.persianDigits(g.rows.count) + " مورد</span></span><div class=\"cx-bar\"><i style=\"width:" + w(g.total, mx)
+                    + "%;background:" + colors[i] + "\"></i></div><span class=\"am\">" + amt(g.total) + "</span><span class=\"pc\">" + pct(g.total, total) + "</span></div>"
+            }
         }
 
         // details: one column header for the whole list, then each party as a coloured band with its rows
