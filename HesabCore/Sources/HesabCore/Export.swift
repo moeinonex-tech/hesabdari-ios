@@ -7,11 +7,14 @@ import Foundation
 public enum ExportCell: Equatable, Sendable {
     case text(String)
     case number(Int)
+    /// Excel only: the total lines under the last row (bold label, bold real numbers)
+    case bold(String)
+    case boldNumber(Int)
 
     public var display: String {
         switch self {
-        case .text(let s): return s
-        case .number(let n): return Money.persianDigits(Money.format(n))
+        case .text(let s), .bold(let s): return s
+        case .number(let n), .boldNumber(let n): return Money.persianDigits(Money.format(n))
         }
     }
 }
@@ -132,6 +135,37 @@ public enum ExportBuilder {
         return rows
     }
 
+    /// Excel: the total line (always the last row, right under the last record) becomes a bold label with the toman and
+    /// rial totals as real numbers in the toman / rial columns; `extra` adds more total lines under it in the same columns.
+    public static func excel(_ rows: [[ExportCell]], extra: [(String, Int)] = []) -> [[ExportCell]] {
+        guard rows.count >= 1, let last = rows.last,
+              let li = last.firstIndex(where: { if case .text(let t) = $0 { return !t.isEmpty }; return false }),
+              li + 2 < last.count else { return rows }
+        func value(_ c: ExportCell) -> Int? {
+            guard case .text(let t) = c else { return nil }
+            return Int(SearchEngine.latinDigits(t).filter(\.isNumber))
+        }
+        guard let toman = value(last[li + 1]), let rial = value(last[li + 2]) else { return rows }
+        func line(_ label: String, _ n: Int, _ r: Int) -> [ExportCell] {
+            var row = last
+            row[li] = .bold(label); row[li + 1] = .boldNumber(n); row[li + 2] = .boldNumber(r)
+            return row
+        }
+        guard case .text(let label) = last[li] else { return rows }
+        var out = Array(rows.dropLast())
+        out.append(line(label, toman, rial))
+        for (l, n) in extra { out.append(line(l, n, n * 10)) }
+        return out
+    }
+
+    /// tankhah received in a ledger (same rows as the ledger export), shown as its own total line in Excel
+    public static func tankhahTotal(_ st: [String: JSONValue], accountId: String, range: DateRange?, includeLinked: Bool = true) -> Int {
+        var list = (st["expenses"]?.arrayValue ?? []).filter { $0["accountId"]?.idString == accountId && $0["type"]?.stringValue == "tankhah" }
+        list = filter(list, range)
+        if !includeLinked { list = list.filter { $0["linked"] == nil || ($0["linked"]?.isNull ?? false) } }
+        return list.reduce(0) { $0 + ImportAnalyzer.toman($1) }
+    }
+
     /// web sanitizeSheetName
     public static func sheetName(_ name: String) -> String {
         let bad = Set("\\/?*[]:")
@@ -171,7 +205,7 @@ public enum XLSXWriter {
         wb += "</sheets></workbook>"
         files.append(("xl/workbook.xml", Data(wb.utf8)))
         files.append(("xl/_rels/workbook.xml.rels", Data(rels.utf8)))
-        files.append(("xl/styles.xml", Data(#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="0"/><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>"#.utf8)))
+        files.append(("xl/styles.xml", Data(#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="0"/><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="3" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/></cellXfs></styleSheet>"#.utf8)))
         return Zip.store(files)
     }
 
@@ -188,6 +222,8 @@ public enum XLSXWriter {
                 let ref = column(ci) + String(ri + 1)
                 switch c {
                 case .number(let n): x += #"<c r="\#(ref)" s="2"><v>\#(n)</v></c>"#
+                case .boldNumber(let n): x += #"<c r="\#(ref)" s="3"><v>\#(n)</v></c>"#
+                case .bold(let s): x += #"<c r="\#(ref)" t="inlineStr" s="1"><is><t xml:space="preserve">\#(esc(s))</t></is></c>"#
                 case .text(let s):
                     if s.isEmpty { continue }
                     x += #"<c r="\#(ref)" t="inlineStr"\#(ri == 0 ? #" s="1""# : "")><is><t xml:space="preserve">\#(esc(s))</t></is></c>"#

@@ -151,7 +151,9 @@ extension AppModel {
     func ledgerExcel(accountIds: [String], range: DateRange?) -> ExportFile? {
         let sheets = accountIds.compactMap { id -> (name: String, rows: [[ExportCell]])? in
             guard let a = accounts.first(where: { $0.id == id }) else { return nil }
-            return (a.name, ExportBuilder.ledger(state, accountId: id, range: range))
+            let tk = ExportBuilder.tankhahTotal(state, accountId: id, range: range)
+            return (a.name, ExportBuilder.excel(ExportBuilder.ledger(state, accountId: id, range: range),
+                                                extra: tk > 0 ? [("جمع کل تنخواه دریافتی", tk)] : []))
         }
         let name = accountIds.count == 1 ? (accounts.first { $0.id == accountIds[0] }?.name ?? "دفتر") : "همه‌ی دفترها"
         return exportFile(name: "دفتر حساب - " + name + " - " + Self.todayTag() + ".xlsx", data: XLSXWriter.make(sheets: sheets))
@@ -159,16 +161,16 @@ extension AppModel {
 
     func personalExcel(range: DateRange?) -> ExportFile? {
         exportFile(name: "هزینه‌های شخصی - " + Self.todayTag() + ".xlsx",
-                   data: XLSXWriter.make(sheets: [("هزینه‌های شخصی", ExportBuilder.personal(state, range: range))]))
+                   data: XLSXWriter.make(sheets: [("هزینه‌های شخصی", ExportBuilder.excel(ExportBuilder.personal(state, range: range)))]))
     }
     func incomeExcel(range: DateRange?) -> ExportFile? {
         exportFile(name: "درآمد - " + Self.todayTag() + ".xlsx",
-                   data: XLSXWriter.make(sheets: [("درآمد", ExportBuilder.income(state, range: range))]))
+                   data: XLSXWriter.make(sheets: [("درآمد", ExportBuilder.excel(ExportBuilder.income(state, range: range)))]))
     }
     func remindersExcel(range: DateRange?) -> ExportFile? {
         exportFile(name: "یادآوری‌ها - " + Self.todayTag() + ".xlsx",
-                   data: XLSXWriter.make(sheets: [("چک‌ها", ExportBuilder.checks(state, range: range)),
-                                                  ("اشخاص", ExportBuilder.persons(state, range: range))]))
+                   data: XLSXWriter.make(sheets: [("چک‌ها", ExportBuilder.excel(ExportBuilder.checks(state, range: range))),
+                                                  ("اشخاص", ExportBuilder.excel(ExportBuilder.persons(state, range: range)))]))
     }
 
     /// Monthly totals for the last 12 Jalali months (for charts).
