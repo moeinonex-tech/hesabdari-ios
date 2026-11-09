@@ -130,3 +130,13 @@ body.paged { width: 595.28px; margin: 0; padding: 0; background: #E9EEF5; positi
 .cx-row.sub .nm { font-weight: 400; }
 .cx-row.last { border-bottom: none; }
 .cx-note { font-size: 8px; color: var(--ink-soft); margin-top: 10px; }
+/* ---------- tankhah by party: the same summary as the breakdown report, then every row under its party ---------- */
+.cx-kpi .v.main.tk { color: var(--tankhah); }
+.cx-row .cnt { font-weight: 500; font-size: 8px; color: var(--ink-soft); margin-right: 4px; }
+.tkmix { margin-bottom: 8px; }
+.head.tk-cols { position: relative; margin-top: 30px; }
+.head.tk-cols::before { content: "ریز تنخواه‌ها به تفکیک طرف حساب"; position: absolute; right: 0; top: -22px;
+                        font-size: 11px; font-weight: 800; color: var(--ink); }
+.cx-grp.tk-band { margin-top: 8px; margin-bottom: 5px; padding: 7px 8px; column-gap: 7px;
+                  grid-template-columns: 12px minmax(0, 1fr) 40px 76px; }
+.head.tk-cols + .cx-grp.tk-band { margin-top: 2px; }

@@ -14,8 +14,11 @@ final class SmokeTests: XCTestCase {
       "expenses": [
         {"id": "e1", "accountId": "a1", "desc": "سیمان تیپ دو", "category": "مصالح", "subcategory": "سیمان", "toman": 900000, "date": {"jy": 1405, "jm": 8, "jd": 10}, "ts": 1},
         {"id": "e2", "accountId": "a1", "desc": "میلگرد", "category": "مصالح", "subcategory": "آهن", "toman": 2500000, "date": {"jy": 1405, "jm": 8, "jd": 12}, "ts": 2},
-        {"id": "e3", "accountId": "a1", "desc": "نهار کارگران", "category": "خوراک", "subcategory": "نهار", "toman": 300000, "date": {"jy": 1405, "jm": 8, "jd": 14}, "ts": 3}
+        {"id": "e3", "accountId": "a1", "desc": "نهار کارگران", "category": "خوراک", "subcategory": "نهار", "toman": 300000, "date": {"jy": 1405, "jm": 8, "jd": 14}, "ts": 3},
+        {"id": "e4", "accountId": "a1", "type": "tankhah", "partyId": "tp1", "desc": "تنخواه هفتگی", "payMethod": "cash", "toman": 5000000, "date": {"jy": 1405, "jm": 8, "jd": 2}, "ts": 6},
+        {"id": "e5", "accountId": "a1", "type": "tankhah", "partyId": "tp2", "desc": "", "payMethod": "transfer", "toman": 2000000, "date": {"jy": 1405, "jm": 8, "jd": 3}, "ts": 7}
       ],
+      "tankhahParties": [{"id": "tp1", "type": "person", "name": "کارفرما آزمایشی"}, {"id": "tp2", "type": "person", "name": "طرف دوم"}],
       "personalExpenses": [
         {"id": "p1", "desc": "قبض برق", "category": "خانه", "subcategory": "قبض", "toman": 150000, "date": {"jy": 1405, "jm": 8, "jd": 11}, "ts": 4}
       ],
@@ -151,6 +154,22 @@ final class SmokeTests: XCTestCase {
         tap(app.buttons["search.scope.reminders"].firstMatch, "scope reminders")
         tap(app.buttons["search.scope.all"].firstMatch, "scope all again")
         alive("search")
+    }
+
+    /// tankhah by party card: unfolds, a party opens its rows, the PDF is built
+    func testTankhahPartyCard() {
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        sleep(2)
+        let card = app.descendants(matching: .any).matching(identifier: "tankhah.card").firstMatch
+        for _ in 0..<4 where !(card.exists && card.isHittable) { app.swipeUp() }
+        tap(card, "unfold tankhah card")
+        let party = app.buttons["tankhah.party.کارفرما آزمایشی"].firstMatch
+        tap(party, "open party")
+        XCTAssertTrue(labelled("تنخواه هفتگی").waitForExistence(timeout: 4), "party rows shown")
+        tap(app.buttons.matching(identifier: "tankhah.pdf").firstMatch, "tankhah pdf")
+        sleep(6)
+        alive("after tankhah pdf")
+        XCTAssertFalse(labelled("PDF ساخته نشد").exists, "PDF failed")
     }
 
     func testSettingsGearOpens() {

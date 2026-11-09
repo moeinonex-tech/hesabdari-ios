@@ -298,17 +298,7 @@ struct LedgerHomeView: View {
         }
         if model.hasTankhah(a.id) {
             cards.append(DeckCard("tankhah", "تنخواه به تفکیک طرف حساب", "person.2") {
-                HStack(spacing: 8) {
-                    Button {
-                        Haptics.tap()
-                        showPartyReport = true
-                    } label: {
-                        Label("تنخواه به تفکیک طرف حساب", systemImage: "person.2.fill")
-                            .font(AppFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 4)
-                    }
-                    .buttonStyle(.glass)
-                    CardPDFButton { await model.tankhahPartyPDF(accountId: a.id) }
-                }
+                TankhahPartyCard(model: model, accountId: a.id) { showPartyReport = true }
             })
         }
         let items = model.statItems("expenses", accountId: a.id)

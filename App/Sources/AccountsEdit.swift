@@ -352,16 +352,17 @@ struct TankhahPartyReportView: View {
                 if rep.groups.isEmpty {
                     Text("هنوز تنخواهی برای این پروژه ثبت نشده.").foregroundStyle(t.soft).padding()
                 }
-                ForEach(rep.groups, id: \.name) { g in
+                let colors = TankhahPalette.hexes(rep.groups.map(\.name)).map(TankhahPalette.color)
+                ForEach(Array(rep.groups.enumerated()), id: \.element.name) { gi, g in
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: g.type == "company" ? "building.2.fill" : (g.type == nil ? "questionmark.circle" : "person.fill"))
-                                .foregroundStyle(t.accent)
+                                .foregroundStyle(colors[gi])
                             Text(g.name).font(AppFont.bold(16)).foregroundStyle(t.ink)
                             Spacer()
                             Text(Fmt.toman(g.total)).font(AppFont.bold(14)).foregroundStyle(t.ink)
                         }
-                        GradientBar(value: rep.total > 0 ? Double(g.total) / Double(rep.total) : 0, from: t.accent, to: t.accent2)
+                        GradientBar(value: rep.total > 0 ? Double(g.total) / Double(rep.total) : 0, from: colors[gi].opacity(0.6), to: colors[gi])
                         ForEach(Array(g.rows.enumerated()), id: \.offset) { _, r in
                             let d = ImportAnalyzer.date(r["date"])
                             HStack {

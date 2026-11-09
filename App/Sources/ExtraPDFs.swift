@@ -6,6 +6,7 @@ import HesabCore
 
 /// the same small share/PDF icon the other cards use; builds the file and opens the share sheet
 struct CardPDFButton: View {
+    var id = "pdf"
     let make: () async -> ExportFile?
     @State private var building = false
     @State private var share: ExportFile?
@@ -29,7 +30,7 @@ struct CardPDFButton: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("خروجی PDF")
-                .accessibilityIdentifier("pdf")
+                .accessibilityIdentifier(id)
             }
         }
         .sheet(item: $share) { f in ActivityView(items: [f.url]) }
@@ -46,33 +47,13 @@ extension AppModel {
     private func alt(_ i: Int) -> String { i % 2 == 0 ? " alt" : "" }
     private func date(_ v: JSONValue?) -> String { Self.pdfDate(ImportAnalyzer.date(v)) }
 
-    /// web exportTankhahPartyPdf: every تنخواه of this ledger, grouped by who paid it
+    /// every تنخواه of this ledger: totals and a split bar per party (one colour each, as in the ledger card), then the rows by party
     func tankhahPartyPDF(accountId: String) async -> ExportFile? {
         let rep = AccountOps.tankhahPartyReport(state, accountId: accountId)
         let name = accounts.first { $0.id == accountId }?.name ?? "حساب"
-        let cols: [ReportHTML.Column] = [.init(cls: "c-num", title: "#"), .init(cls: "c-date", title: "تاریخ"),
-                                         .init(cls: "c-cat", title: "طرف حساب"), .init(cls: "c-sub", title: "روش دریافت"),
-                                         .init(cls: "c-desc", title: "توضیحات"), .init(cls: "c-amt", title: "مبلغ (تومان)")]
-        var rows: [(cells: [String], cls: String)] = []
-        var i = 0
-        for g in rep.groups {
-            for r in g.rows {
-                let how: String
-                switch r["payMethod"]?.stringValue {
-                case "transfer": how = "حواله"
-                case "check": how = "چک"
-                default: how = "نقدی"
-                }
-                rows.append(([Money.persianDigits(i + 1), date(r["date"]), ReportHTML.esc(g.name), how,
-                              ReportHTML.esc(r["desc"]?.stringValue ?? ""), pdfMoney(ImportAnalyzer.toman(.object(r)))], alt(i)))
-                i += 1
-            }
-        }
-        let card = ReportHTML.Card(title: "جمع هر طرف حساب — مبالغ به تومان",
-                                   values: rep.groups.map { ($0.name, pdfMoney($0.total), false) })
-        let html = ReportHTML.page(title: "گزارش تنخواه به تفکیک طرف حساب — «" + name + "»", subtitle: pdfSub("تنخواه دریافتی"),
-                                   legend: [], columns: cols, rows: rows, empty: "هنوز تنخواهی برای این پروژه ثبت نشده",
-                                   totalLabel: "جمع کل تنخواه دریافتی (تومان)", total: rep.total, cards: rep.groups.isEmpty ? [] : [card])
+        let st = state
+        let html = ReportHTML.tankhahReport(account: name, date: BackupExporter.formatJalali(Self.today), groups: rep.groups, total: rep.total,
+                                            method: { TankhahPalette.method($0, state: st) }, rowDate: { Self.pdfDate(ImportAnalyzer.date($0)) })
         return await pdfRender(html, "تنخواه به تفکیک طرف حساب - " + name)
     }
 
