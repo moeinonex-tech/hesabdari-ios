@@ -45,6 +45,7 @@ struct LedgerRowLine: View {
                 }
                 .lineLimit(1)
                 HStack(spacing: 6) {
+                    Text("#" + Money.persianDigits(row.number)).monospacedDigit()
                     Text(row.date)
                     PayGlyph(method: row.payMethod)
                     if row.isLinked { Image(systemName: "link").font(.system(size: 10)) }
@@ -332,6 +333,9 @@ struct LedgerHomeView: View {
                                pdf: { await model.commissionPDF(accountId: a.id) }) { sheet = .settle }
             })
         }
+        cards.append(DeckCard("rangeSum", "جمع ردیف‌ها (ماشین حساب)", "plus.forwardslash.minus") {
+            RangeSumCard(model: model, accountId: a.id)
+        })
         if model.hasTankhah(a.id) {
             cards.append(DeckCard("tankhah", "تنخواه به تفکیک طرف حساب", "person.2") {
                 TankhahPartyCard(model: model, accountId: a.id) { showPartyReport = true }

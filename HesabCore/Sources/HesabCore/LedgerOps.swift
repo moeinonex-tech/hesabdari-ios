@@ -555,3 +555,61 @@ public enum LedgerOps {
         }
     }
 }
+
+// MARK: - row range calculator (ledger card «جمع ردیف‌ها»)
+
+/// Sum of a ledger between two row numbers (the numbers shown in the ledger list: date, entry time, entry order;
+/// تنخواه rows are numbered too). Only adds up what is there — no commission is calculated.
+public struct RowRangeSum: Equatable, Sendable {
+    public var from: Int
+    public var to: Int
+    public var rowCount: Int
+    /// ordinary expense rows (and invoices), without rewards, commission payments and تنخواه
+    public var expenses: Int
+    public var expenseCount: Int
+    public var rewards: Int
+    public var rewardCount: Int
+    public var commissionPaid: Int
+    public var commissionCount: Int
+    public var tankhah: Int
+    public var tankhahCount: Int
+    public var firstDesc: String
+    public var lastDesc: String
+}
+
+extension LedgerOps {
+    /// number of rows of a ledger (the last row number)
+    public static func rowCount(_ state: [String: JSONValue], accountId: String) -> Int {
+        array(state, "expenses").filter { $0["accountId"]?.idString == accountId }.count
+    }
+
+    public static func rangeSum(_ state: [String: JSONValue], accountId: String, from: Int, to: Int) -> RowRangeSum {
+        let mine = array(state, "expenses").filter { $0["accountId"]?.idString == accountId }
+        let sorted = mine.enumerated().sorted { a, b in
+            let da = ImportAnalyzer.date(a.element["date"]), db = ImportAnalyzer.date(b.element["date"])
+            if da != db { return da < db }
+            let ta = a.element["ts"]?.intValue ?? 0, tb = b.element["ts"]?.intValue ?? 0
+            if ta != tb { return ta < tb }
+            return a.offset < b.offset
+        }.map(\.element)
+        let lo = max(1, min(from, to)), hi = min(sorted.count, max(from, to))
+        var r = RowRangeSum(from: lo, to: hi, rowCount: 0, expenses: 0, expenseCount: 0, rewards: 0, rewardCount: 0,
+                            commissionPaid: 0, commissionCount: 0, tankhah: 0, tankhahCount: 0, firstDesc: "", lastDesc: "")
+        guard lo <= hi else { return r }
+        let slice = sorted[(lo - 1)...(hi - 1)]
+        for e in slice {
+            let t = ImportAnalyzer.toman(e)
+            if e["type"]?.stringValue == "tankhah" { r.tankhah += t; r.tankhahCount += 1 }
+            else if e["commissionSettlementId"]?.idString != nil { r.commissionPaid += t; r.commissionCount += 1 }
+            else if e["reward"]?.isTruthy ?? false { r.rewards += t; r.rewardCount += 1 }
+            else { r.expenses += t; r.expenseCount += 1 }
+        }
+        r.rowCount = slice.count
+        func d(_ e: JSONValue?) -> String {
+            let s = (e?["desc"]?.stringValue ?? "").trimmingCharacters(in: .whitespaces)
+            return s.isEmpty ? (e?["type"]?.stringValue == "tankhah" ? "تنخواه" : "—") : s
+        }
+        r.firstDesc = d(slice.first); r.lastDesc = d(slice.last)
+        return r
+    }
+}

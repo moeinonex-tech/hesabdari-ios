@@ -463,3 +463,28 @@ final class NotesTelegramPasteTests: XCTestCase {
         XCTAssertEqual(NotesImport.stripChatHeader("جلسه با کارفرما [ساعت 10:30]"), "جلسه با کارفرما [ساعت 10:30]")
     }
 }
+
+final class RowRangeSumTests: XCTestCase {
+    func testRangeSumByLedgerNumbers() {
+        func row(_ id: String, _ d: Int, _ t: Int, _ extra: [String: JSONValue] = [:]) -> JSONValue {
+            .object(["id": .string(id), "accountId": .string("a"), "desc": .string(id), "toman": .int(Int64(t)),
+                     "date": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(Int64(d))]), "ts": .int(Int64(d))].merging(extra) { _, b in b })
+        }
+        let st: [String: JSONValue] = ["expenses": .array([
+            row("e1", 1, 100), row("t1", 2, 5_000, ["type": .string("tankhah")]), row("e2", 3, 200),
+            row("r1", 4, 1_000, ["reward": .bool(true)]), row("c1", 5, 30, ["commissionSettlementId": .string("s")]),
+            row("e3", 6, 400), row("x", 7, 9_999, ["accountId": .string("other")]),
+        ])]
+        XCTAssertEqual(LedgerOps.rowCount(st, accountId: "a"), 6)
+        let s = LedgerOps.rangeSum(st, accountId: "a", from: 2, to: 6)
+        XCTAssertEqual(s.rowCount, 5)
+        XCTAssertEqual(s.expenses, 600)          // e2 + e3
+        XCTAssertEqual(s.rewards, 1_000)
+        XCTAssertEqual(s.commissionPaid, 30)
+        XCTAssertEqual(s.tankhah, 5_000)
+        XCTAssertEqual(s.firstDesc, "t1"); XCTAssertEqual(s.lastDesc, "e3")
+        // reversed and out of range are clamped
+        let w = LedgerOps.rangeSum(st, accountId: "a", from: 99, to: 3)
+        XCTAssertEqual(w.from, 3); XCTAssertEqual(w.to, 6); XCTAssertEqual(w.expenses, 600)
+    }
+}

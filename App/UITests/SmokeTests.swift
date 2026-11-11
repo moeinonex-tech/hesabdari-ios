@@ -205,6 +205,21 @@ final class SmokeTests: XCTestCase {
         })
     }
 
+    /// ledger card «جمع ردیف‌ها»: rows 4–6 = 2,500,000 + reward 4,000,000 + 300,000 (تنخواه rows 1–2 never in the sum)
+    func testRangeSumCard() {
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        sleep(2)
+        let total = app.staticTexts["range.total"].firstMatch
+        for _ in 0..<5 where !(total.exists && total.isHittable) { app.swipeUp() }
+        XCTAssertTrue(total.waitForExistence(timeout: 5), "range card on the ledger page")
+        XCTAssertTrue((total.label).contains("۷.۷۰۰.۰۰۰"), "all rows: \(total.label)")
+        let plus = app.buttons["range.from.plus"].firstMatch
+        for _ in 0..<3 { tap(plus, "from +1") }
+        sleep(1)
+        XCTAssertTrue(app.staticTexts["range.total"].firstMatch.label.contains("۶.۸۰۰.۰۰۰"), "rows 4–6: \(app.staticTexts["range.total"].firstMatch.label)")
+        alive("range card")
+    }
+
     func testSettingsGearOpens() {
         let gear = app.buttons["settings"].firstMatch
         XCTAssertTrue(gear.waitForExistence(timeout: 10))
