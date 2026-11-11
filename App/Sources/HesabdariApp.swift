@@ -35,7 +35,7 @@ struct LedgerRowVM: Identifiable {
     let cardId: String?
     let partyId: String?
     var itemCount = 0
-    enum Kind { case expense, tankhah, commission }
+    enum Kind { case expense, tankhah, commission, reward }
 }
 
 struct Choice: Identifiable, Hashable {
@@ -215,7 +215,7 @@ final class AppModel: ObservableObject {
         return sorted.enumerated().map { i, e in
             let d = ImportAnalyzer.date(e["date"])
             let kind: LedgerRowVM.Kind = e["commissionSettlementId"]?.idString != nil ? .commission
-                : (e["type"]?.stringValue == "tankhah" ? .tankhah : .expense)
+                : (e["type"]?.stringValue == "tankhah" ? .tankhah : ((e["reward"]?.isTruthy ?? false) ? .reward : .expense))
             let rid = e["id"]?.idString ?? ""
             return LedgerRowVM(id: rid + "#\(i)", rowId: rid, number: i + 1,
                                desc: e["desc"]?.stringValue ?? "", dateValue: d,
@@ -270,8 +270,8 @@ final class AppModel: ObservableObject {
     func add(_ input: ExpenseInput) -> Bool { run { try LedgerOps.addExpense(state, input).state } }
     func edit(rowId: String, _ input: ExpenseInput) -> Bool { run { try LedgerOps.editExpense(state, id: rowId, input) } }
     func delete(rowId: String) -> Bool { run({ try LedgerOps.deleteExpense(state, id: rowId) }, undoMessage: "حذف شد") }
-    func settle(accountId: String, amount: Int, date: JalaliDate) -> Bool {
-        run { try LedgerOps.settleCommission(state, accountId: accountId, amount: amount, date: date).state }
+    func settle(accountId: String, amount: Int, date: JalaliDate, upTo: String? = nil) -> Bool {
+        run { try LedgerOps.settleCommission(state, accountId: accountId, amount: amount, date: date, upTo: upTo).state }
     }
 
     func performUndo() {
@@ -281,8 +281,8 @@ final class AppModel: ObservableObject {
     }
 
     /// What the commission balance would be after a payment (preview only, nothing is saved).
-    func previewRemaining(accountId: String, amount: Int, date: JalaliDate) -> Int? {
-        guard amount > 0, let r = try? LedgerOps.settleCommission(state, accountId: accountId, amount: amount, date: date),
+    func previewRemaining(accountId: String, amount: Int, date: JalaliDate, upTo: String? = nil) -> Int? {
+        guard amount > 0, let r = try? LedgerOps.settleCommission(state, accountId: accountId, amount: amount, date: date, upTo: upTo),
               let a = r.state["accounts"]?.arrayValue?.first(where: { $0["id"]?.idString == accountId }) else { return nil }
         return ImportAnalyzer.accountSummary(a, expenses: r.state["expenses"]?.arrayValue ?? []).remaining
     }

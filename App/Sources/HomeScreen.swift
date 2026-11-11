@@ -505,9 +505,10 @@ struct HomeView: View {
 
     private func activityRow(_ item: RecentItem, compact: Bool) -> some View {
         let r = item.row
-        let dot: Color = r.kind == .commission ? .purple : (r.kind == .tankhah ? t.success : (model.categoryColor(r.category) ?? t.accent))
+        let dot: Color = r.kind == .commission ? .purple : (r.kind == .tankhah ? t.success
+            : (r.kind == .reward ? t.reward : (model.categoryColor(r.category) ?? t.accent)))
         let amount = Text(Money.persianDigits(Money.format(r.toman))).font(AppFont.bold(compact ? 12 : 14))
-            .foregroundStyle(r.kind == .tankhah ? t.success : t.ink).lineLimit(1).minimumScaleFactor(0.7)
+            .foregroundStyle(r.kind == .tankhah ? t.success : (r.kind == .reward ? t.reward : t.ink)).lineLimit(1).minimumScaleFactor(0.7)
         return HStack(spacing: 8) {
             Circle().fill(dot).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 2) {
@@ -519,6 +520,7 @@ struct HomeView: View {
                         if !item.account.isEmpty { Text(item.account) }
                         Text(r.date)
                         if r.kind == .tankhah { Text("تنخواه").foregroundStyle(t.success) }
+                        if r.kind == .reward { Text("پاداش").foregroundStyle(t.reward) }
                     }
                     .font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
                 }

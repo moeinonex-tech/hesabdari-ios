@@ -344,6 +344,7 @@ struct ExpenseFormView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var isTankhah = false
+    @State private var isReward = false
     @State private var desc = ""
     @State private var category = ""
     @State private var subcategory = ""
@@ -373,22 +374,30 @@ struct ExpenseFormView: View {
     @State private var tkDue = AppModel.today
 
     private var isCommission: Bool { editing?.kind == .commission }
-    private var isMulti: Bool { itemCount > 1 && !isTankhah && !isCommission && !makesCheck }
+    private var isMulti: Bool { itemCount > 1 && !isTankhah && !isReward && !isCommission && !makesCheck }
     private var multiCheck: Bool { makesCheck && checkCount > 1 }
-    private var makesCheck: Bool { editing == nil && !isTankhah && payMethod == .check }
-    private var makesNasiyeh: Bool { editing == nil && !isTankhah && payMethod == .nasiyeh }
+    private var makesCheck: Bool { editing == nil && !isTankhah && !isReward && payMethod == .check }
+    private var makesNasiyeh: Bool { editing == nil && !isTankhah && !isReward && payMethod == .nasiyeh }
+    /// 0 هزینه · 1 تنخواه · 2 پاداش
+    private var kindBinding: Binding<Int> {
+        Binding(get: { isTankhah ? 1 : (isReward ? 2 : 0) }, set: { k in
+            let wasTankhah = isTankhah
+            isTankhah = k == 1
+            isReward = k == 2
+            if wasTankhah != isTankhah { payMethod = PayMethod.defaultFor(tankhah: isTankhah) }
+            if isReward, payMethod == .check || payMethod == .nasiyeh { payMethod = PayMethod.defaultFor(tankhah: false) }
+        })
+    }
     private var tankhahByCheck: Bool { editing == nil && isTankhah && payMethod == .check }
 
     var body: some View {
         Form {
-            if editing == nil && !isTankhah {
+            if editing == nil && !isTankhah && !isReward {
                 NotesImportLink(model: model, ledgerAccountId: accountId) { dismiss() }
             }
             if editing == nil {
-                Segmented(selection: $isTankhah, [(false, "هزینه"), (true, "تنخواه")])
-                .onChange(of: isTankhah) { _, t in
-                    payMethod = PayMethod.defaultFor(tankhah: t)
-                }
+                Segmented(selection: kindBinding, [(0, "هزینه"), (1, "تنخواه"), (2, "پاداش")])
+                    .accessibilityIdentifier("ledger.kind")
             }
 
             if isCommission {
@@ -399,6 +408,17 @@ struct ExpenseFormView: View {
                     SuggestField(title: "زیردسته", text: $subcategory, suggestions: model.subcategories(of: category), dedupe: true)
                 } footer: {
                     Text("این ردیف پرداخت کمیسیون است. با تغییر مبلغ، مانده‌ی این پرداخت و پرداخت‌های بعدی دوباره حساب می‌شود و متن مانده‌ها به‌روز می‌شود.")
+                }
+            } else if isReward {
+                Section {
+                    TextField("شرح (اختیاری)", text: $desc)
+                    if editing != nil {
+                        Toggle("پاداش (بدون کمیسیون)", isOn: $isReward)
+                    }
+                } header: {
+                    Label("پاداش کارفرما", systemImage: "gift.fill")
+                } footer: {
+                    Text("پاداشی که کارفرما جدا از کمیسیون درصدی به شما می‌دهد. در دفتر مثل یک هزینه ثبت می‌شود، با کادر سبز روشن، ولی هیچ‌وقت کمیسیون از آن حساب نمی‌شود.")
                 }
             } else if isTankhah {
                 Section("طرف حساب") {
@@ -412,6 +432,9 @@ struct ExpenseFormView: View {
             } else {
                 Section {
                     TextField("شرح", text: $desc)
+                    if editing != nil && !isMulti {
+                        Toggle("پاداش (بدون کمیسیون)", isOn: $isReward)
+                    }
                     if !makesCheck { CountRow(title: "تعداد اقلام", count: itemCountBinding, max: MultiItem.maxCount) }
                     if !isMulti {
                         SuggestField(title: "نوع هزینه", text: $category, suggestions: model.ledgerCategories, dedupe: true)
@@ -507,7 +530,7 @@ struct ExpenseFormView: View {
     /// New rows: every method (check / nasiyeh create linked reminders). Edits keep the row's own method selectable.
     private var methods: [PayMethod] {
         var list = PayMethod.available(forTankhah: isTankhah)
-        if editing != nil { list.removeAll { $0 == .check || $0 == .nasiyeh } }
+        if editing != nil || isReward { list.removeAll { $0 == .check || $0 == .nasiyeh } }
         if let m = editing?.payMethod.flatMap(PayMethod.init(rawValue:)), !list.contains(m) { list.append(m) }
         return list
     }
@@ -517,6 +540,7 @@ struct ExpenseFormView: View {
         loaded = true
         if let r = editing {
             isTankhah = r.kind == .tankhah
+            isReward = r.kind == .reward
             desc = r.desc; category = r.category; subcategory = r.subcategory
             amount = Money.persianDigits(Money.format(r.toman))
             date = r.dateValue
@@ -569,6 +593,7 @@ struct ExpenseFormView: View {
                                  subcategory: subcategory, toman: Fmt.parseAmount(amount), date: date,
                                  payMethod: payMethod, cardId: payMethod.usesCard ? cardId : nil,
                                  partyId: isTankhah ? partyId : nil)
+        input.isReward = isReward && !isTankhah && !isCommission
         if isMulti { input.items = items; input.toman = items.reduce(0) { $0 + $1.toman } }
         // a commission payment that never had a pay method keeps none unless one is chosen now
         if isCommission && editing?.payMethod == nil && payMethod == loadedPay { input.keepPayMethod = true }
@@ -595,13 +620,26 @@ struct ExpenseFormView: View {
     }
 }
 
+/// Commission payment. The open rows (only the ones after the last payment) are listed with what the commission
+/// would be up to each of them; a gauge (or a tap on a row) picks the last row this payment covers. The rows after it
+/// stay open, and the live commission shown in the app always counts every open row.
 struct SettleView: View {
     @ObservedObject var model: AppModel
     let accountId: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.theme) private var t
     @State private var amount = ""
+    @State private var autoAmount = ""
     @State private var date = AppModel.today
     @State private var loaded = false
+    @State private var cut = 0
+    @State private var open: [OpenRow] = []
+
+    private var balance: Int { model.accounts.first { $0.id == accountId }?.balance ?? 0 }
+    private var chosen: OpenRow? { open.indices.contains(cut) ? open[cut] : nil }
+    private var due: Int { (chosen?.cumulativeCommission ?? 0) + balance }
+    private var isAll: Bool { cut >= open.count - 1 }
+    private var upTo: String? { isAll ? nil : chosen?.key }
 
     var body: some View {
         let account = model.accounts.first { $0.id == accountId }
@@ -609,28 +647,44 @@ struct SettleView: View {
         Form {
             if let a = account {
                 Section {
-                    LabeledContent("کمیسیون تا امروز", value: Fmt.toman(a.accrued))
+                    LabeledContent("کمیسیون همه‌ی ردیف‌های باز", value: Fmt.toman(a.accrued))
                     if a.balance != 0 {
-                        LabeledContent(a.balance > 0 ? "بدهی قبلی" : "بستانکاری قبلی", value: Fmt.toman(a.balance))
+                        LabeledContent(a.balance > 0 ? "بدهی قبلی" : "بستانکاری قبلی", value: Fmt.toman(abs(a.balance)))
                     }
-                    LabeledContent("قابل پرداخت", value: Fmt.balance(a.remaining)).bold()
+                    LabeledContent("کل قابل پرداخت", value: Fmt.balance(a.remaining)).bold()
+                } footer: {
+                    if let f = open.first, let l = open.last {
+                        Text("ردیف‌های باز: " + (f.num == l.num ? "ردیف " + Money.persianDigits(f.num)
+                             : "ردیف " + Money.persianDigits(f.num) + " تا " + Money.persianDigits(l.num))
+                             + " (" + Money.persianDigits(open.count) + " ردیف). پاداش‌ها و تنخواه‌ها کمیسیون ندارند.")
+                    }
                 }
             }
+
+            if !open.isEmpty { gauge }
+
             Section {
                 AmountField(title: "مبلغ پرداخت (تومان)", text: $amount)
                 JalaliDateField(title: "تاریخ", date: $date)
             }
-            if let after = model.previewRemaining(accountId: accountId, amount: n, date: date) {
+            if let after = model.previewRemaining(accountId: accountId, amount: n, date: date, upTo: upTo) {
                 Section {
-                    if after == 0 {
-                        Label("تسویه کامل", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
-                    } else if after > 0 {
-                        Label("بعد از این پرداخت " + Fmt.toman(after) + " بدهی می‌ماند و به کمیسیون بعدی اضافه می‌شود",
+                    if !isAll, let c = chosen {
+                        Label("ردیف‌های بعد از " + Money.persianDigits(c.num) + " باز می‌مانند و کمیسیونشان بعداً حساب می‌شود",
+                              systemImage: "arrow.down.to.line").foregroundStyle(t.soft)
+                    }
+                    // this payment against what is due up to the chosen row (the debt / credit carries to the next payment)
+                    if n == due {
+                        Label("این مرحله تسویه کامل می‌شود", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
+                    } else if n < due {
+                        Label(Fmt.toman(due - n) + " از این مرحله بدهی می‌ماند و به کمیسیون بعدی اضافه می‌شود",
                               systemImage: "exclamationmark.circle").foregroundStyle(.orange)
                     } else {
-                        Label(Fmt.toman(after) + " اضافه پرداخت می‌شود و از کمیسیون بعدی کم می‌شود",
+                        Label(Fmt.toman(n - due) + " اضافه پرداخت می‌شود و از کمیسیون بعدی کم می‌شود",
                               systemImage: "arrow.uturn.down.circle").foregroundStyle(.blue)
                     }
+                    LabeledContent(after < 0 ? "بستانکاری بعد از پرداخت" : "مانده‌ی کمیسیون بعد از پرداخت", value: Fmt.toman(abs(after)))
+                        .font(AppFont.medium(14))
                 } footer: {
                     Text("یک ردیف «پرداخت کمیسیون» در دفتر و یک ردیف «دریافت کمیسیون» در درآمدها ثبت می‌شود.")
                 }
@@ -642,17 +696,112 @@ struct SettleView: View {
             ToolbarItem(placement: .cancellationAction) { Button("انصراف") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("ثبت پرداخت") {
-                    if model.settle(accountId: accountId, amount: n, date: date) { dismiss() }
+                    if model.settle(accountId: accountId, amount: n, date: date, upTo: upTo) { Haptics.success(); dismiss() }
                 }
                 .bold()
                 .disabled(n <= 0)
+                .accessibilityIdentifier("settle.save")
             }
         }
         .onAppear {
             guard !loaded else { return }
             loaded = true
-            if let a = account, a.remaining > 0 { amount = Money.persianDigits(Money.format(a.remaining)) }
+            open = LedgerOps.openCommissionRows(model.state, accountId: accountId)
+            cut = max(0, open.count - 1)
+            setAuto()
         }
+    }
+
+    /// the amount follows the chosen row until it is typed by hand
+    private func setAuto() {
+        let v = due > 0 ? Money.persianDigits(Money.format(due)) : ""
+        if amount.isEmpty || amount == autoAmount { amount = v }
+        autoAmount = v
+    }
+
+    private var gauge: some View {
+        Section {
+            if let c = chosen, let first = open.first {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(isAll ? "همه‌ی ردیف‌های باز" : "تا ردیف " + Money.persianDigits(c.num))
+                            .font(AppFont.bold(16)).foregroundStyle(t.ink)
+                        Spacer()
+                        Text("ردیف " + Money.persianDigits(first.num) + (c.num == first.num ? "" : " تا " + Money.persianDigits(c.num))
+                             + " · " + Money.persianDigits(cut + 1) + " ردیف")
+                            .font(AppFont.caption).foregroundStyle(t.soft)
+                    }
+                    HStack(spacing: 10) {
+                        figure("جمع هزینه‌ها", c.cumulativeBase, t.ink)
+                        figure("کمیسیون", c.cumulativeCommission, t.accent)
+                        figure("قابل پرداخت", max(0, due), t.accent2)
+                    }
+                    if open.count > 1 {
+                        Slider(value: Binding(get: { Double(cut) }, set: { v in
+                            let k = Int(v.rounded())
+                            if k != cut { cut = k; Haptics.tap(); setAuto() }
+                        }), in: 0...Double(open.count - 1), step: 1)
+                        .tint(t.accent)
+                        .accessibilityIdentifier("settle.gauge")
+                        HStack {
+                            Text("ردیف " + Money.persianDigits(first.num))
+                            Spacer()
+                            Text("ردیف " + Money.persianDigits(open.last?.num ?? 0))
+                        }
+                        .font(AppFont.caption).foregroundStyle(t.soft)
+                    }
+                    if balance != 0 {
+                        Text((balance > 0 ? "قابل پرداخت شامل بدهی قبلی " : "قابل پرداخت با کسر بستانکاری قبلی ") + Fmt.toman(abs(balance)) + " است.")
+                            .font(AppFont.caption).foregroundStyle(t.soft)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            ForEach(Array(open.enumerated()), id: \.element.key) { i, r in
+                Button {
+                    Haptics.tap()
+                    withAnimation(.snappy) { cut = i; setAuto() }
+                } label: {
+                    HStack(spacing: 10) {
+                        Text(Money.persianDigits(r.num))
+                            .font(AppFont.bold(12)).foregroundStyle(i <= cut ? t.onAccent : t.soft)
+                            .frame(minWidth: 30, minHeight: 24)
+                            .background(i <= cut ? AnyShapeStyle(t.accent) : AnyShapeStyle(t.soft.opacity(0.15)),
+                                        in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(r.desc.isEmpty ? "—" : r.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(1)
+                            Text(Money.persianDigits("\(r.date.jy)/\(r.date.jm)/\(r.date.jd)") + " · " + Money.persianDigits(Money.format(r.toman)))
+                                .font(AppFont.caption).foregroundStyle(t.soft).lineLimit(1)
+                        }
+                        Spacer(minLength: 6)
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(Money.persianDigits(Money.format(r.cumulativeCommission + balance)))
+                                .font(AppFont.bold(13)).foregroundStyle(i == cut ? t.accent : t.ink)
+                            Text("تا اینجا").font(AppFont.caption).foregroundStyle(t.soft)
+                        }
+                        Image(systemName: i == cut ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(i == cut ? t.accent : t.soft.opacity(0.5))
+                    }
+                    .opacity(i <= cut ? 1 : 0.5)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settle.row." + String(r.num))
+            }
+        } header: {
+            Text("تا کدام ردیف تسویه می‌کنید؟")
+        } footer: {
+            Text("گیج را بکشید یا روی یک ردیف بزنید. عدد سمت چپ هر ردیف، مبلغ قابل پرداخت اگر تا همان ردیف تسویه کنید. کمیسیون زنده‌ی دفتر همیشه همه‌ی ردیف‌های باز را حساب می‌کند.")
+        }
+    }
+
+    private func figure(_ title: String, _ v: Int, _ c: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(AppFont.caption).foregroundStyle(t.soft)
+            Text(Money.persianDigits(Money.format(abs(v)))).font(AppFont.bold(15)).foregroundStyle(c)
+                .lineLimit(1).minimumScaleFactor(0.6).contentTransition(.numericText(value: Double(v)))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

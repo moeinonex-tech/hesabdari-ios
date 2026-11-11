@@ -31,7 +31,10 @@ enum Palette: String, CaseIterable, Identifiable {
         let danger: Color
         let success: Color
         let warning: Color
+        /// پاداش rows: a lime green, clearly apart from the emerald of تنخواه
+        var reward: Color { dark ? .hex(0xA8DC4E) : .hex(0x5E9A0E) }
         let onAccent: Color
+        var dark = false
     }
 
     func colors(_ scheme: ColorScheme) -> Colors {
@@ -41,7 +44,7 @@ enum Palette: String, CaseIterable, Identifiable {
             return dark
                 ? Colors(accent: .hex(0x3E9BFF), accent2: .hex(0x39DCC4), paper: .hex(0x08090C), card: .hex(0x1B1C22),
                          ink: .hex(0xF3F4F7), soft: .hex(0x9BA0AC), danger: .hex(0xFF5C78), success: .hex(0x33D188),
-                         warning: .hex(0xFFB020), onAccent: .hex(0x08090C))
+                         warning: .hex(0xFFB020), onAccent: .hex(0x08090C), dark: true)
                 : Colors(accent: .hex(0x0A7CFF), accent2: .hex(0x22B8A6), paper: .hex(0xEDEFF3), card: .hex(0xF5F7FA),
                          ink: .hex(0x161822), soft: .hex(0x585C68), danger: .hex(0xF0435F), success: .hex(0x1FAE74),
                          warning: .hex(0xC77700), onAccent: .white)

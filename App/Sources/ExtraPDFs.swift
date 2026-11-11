@@ -57,28 +57,75 @@ extension AppModel {
         return await pdfRender(html, "تنخواه به تفکیک طرف حساب - " + name)
     }
 
-    /// web exportCommissionLedgerReportPdf: the commission of a ledger and every payment of it
+    /// Commission of a ledger: where it stands, every payment (what it covered, what was due, what was paid, the balance
+    /// after it), then the rows still open with what would be due if a payment covered up to each of them.
     func commissionPDF(accountId: String) async -> ExportFile? {
         guard let a = accounts.first(where: { $0.id == accountId }) else { return nil }
-        let sets = (accountRecord(accountId)?["commissionSettlements"]?.arrayValue ?? []).enumerated().sorted { x, y in
-            let dx = ImportAnalyzer.date(x.element["date"]), dy = ImportAnalyzer.date(y.element["date"])
-            return dx != dy ? dx < dy : x.offset < y.offset
-        }.map(\.element)
-        let cols: [ReportHTML.Column] = [.init(cls: "c-num", title: "#"), .init(cls: "c-date", title: "تاریخ"),
-                                         .init(cls: "c-desc", title: "شرح"), .init(cls: "c-amt", title: "مبلغ پرداخت (تومان)")]
-        let rows = sets.enumerated().map { i, s -> (cells: [String], cls: String) in
-            let desc = s["desc"]?.stringValue ?? s["description"]?.stringValue ?? "پرداخت کمیسیون"
-            return ([Money.persianDigits(i + 1), date(s["date"]), ReportHTML.esc(desc), pdfMoney(ImportAnalyzer.toman(s))], alt(i))
+        let expenses = (state["expenses"]?.arrayValue ?? []).filter { $0["accountId"]?.idString == accountId }
+        let rowOf = Dictionary(expenses.compactMap { e in e["commissionSettlementId"]?.idString.map { ($0, e) } }) { x, _ in x }
+        // payments in the order they were made; one without its ledger row no longer counts (as in the app)
+        let sets = (accountRecord(accountId)?["commissionSettlements"]?.arrayValue ?? []).enumerated()
+            .filter { rowOf[$0.element["id"]?.idString ?? ""] != nil }
+            .sorted { x, y in
+                let tx = x.element["ts"]?.intValue ?? 0, ty = y.element["ts"]?.intValue ?? 0
+                return tx != ty ? tx < ty : x.offset < y.offset
+            }.map(\.element)
+        let open = LedgerOps.openCommissionRows(state, accountId: accountId)
+        let rewards = expenses.filter { $0["reward"]?.isTruthy ?? false }.reduce(0) { $0 + ImportAnalyzer.toman($1) }
+        let paid = sets.reduce(0) { $0 + ImportAnalyzer.toman($1) }
+        let esc = ReportHTML.esc
+
+        var h = "<!doctype html><html lang=\"fa\" dir=\"rtl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=595.28, initial-scale=1, maximum-scale=1, user-scalable=no\"><style>"
+            + ReportHTML.css + "</style></head><body>"
+        h += "<div class=\"hdr\"><div><div class=\"title\">گزارش کمیسیون — «" + esc(a.name) + "»</div><div class=\"sub\">"
+            + esc(pdfSub("کمیسیون " + Fmt.percent(a.percent) + " و پرداخت‌ها")) + " — مبالغ به تومان</div></div></div>"
+        func kpi(_ k: String, _ v: String, _ cls: String = "") -> String {
+            "<div class=\"cx-kpi\"><div class=\"k\">" + k + "</div><div class=\"v" + cls + "\">" + v + "</div></div>"
         }
-        var values: [(String, String, Bool)] = [("جمع هزینه‌های پروژه", pdfMoney(a.expenseTotal), false),
-                                                ("کمیسیون (" + Fmt.percent(a.percent) + ")", pdfMoney(a.accrued), false),
-                                                ("پرداخت‌شده", pdfMoney(a.settled), false)]
-        if a.balance != 0 { values.append((a.balance > 0 ? "بدهی قبلی" : "بستانکاری قبلی", pdfMoney(abs(a.balance)), false)) }
-        values.append((a.remaining < 0 ? "بستانکاری" : "مانده‌ی کمیسیون", pdfMoney(abs(a.remaining)), a.remaining > 0))
-        let html = ReportHTML.page(title: "گزارش کمیسیون — «" + a.name + "»", subtitle: pdfSub("کمیسیون و پرداخت‌ها"), legend: [],
-                                   columns: cols, rows: rows, empty: "هنوز پرداختی برای کمیسیون ثبت نشده",
-                                   totalLabel: "جمع پرداخت‌های کمیسیون (تومان)", total: sets.reduce(0) { $0 + ImportAnalyzer.toman($1) },
-                                   cards: [.init(title: "وضعیت کمیسیون — مبالغ به تومان", values: values)])
-        return await pdfRender(html, "کمیسیون - " + a.name)
+        h += "<div class=\"cx-kpis\">" + kpi(a.remaining < 0 ? "بستانکاری" : "مانده‌ی کمیسیون (قابل پرداخت)", pdfMoney(abs(a.remaining)), " main")
+            + kpi("کمیسیون ردیف‌های باز (" + Fmt.percent(a.percent) + ")", pdfMoney(a.accrued))
+            + kpi("پرداخت‌شده", pdfMoney(paid)) + "</div>"
+        h += "<div class=\"cx-kpis cm-sub\">" + kpi("جمع هزینه‌های پروژه", pdfMoney(a.expenseTotal))
+            + kpi("پاداش‌ها (بدون کمیسیون)", pdfMoney(rewards))
+            + kpi(a.balance < 0 ? "بستانکاری قبلی" : "بدهی قبلی", pdfMoney(abs(a.balance))) + "</div>"
+
+        // 1) payments
+        h += "<div class=\"head sec\" data-t=\"پرداخت‌های کمیسیون\"><div class=\"c-num\">#</div><div class=\"c-date\">تاریخ</div>"
+            + "<div class=\"c-desc\">شرح (ردیف‌هایی که پوشش داده)</div><div class=\"c-amt\">کمیسیون این مرحله</div>"
+            + "<div class=\"c-amt\">پرداخت</div><div class=\"c-amt\">مانده بعد از آن</div></div>"
+        if sets.isEmpty { h += "<div class=\"empty\">هنوز پرداختی برای کمیسیون ثبت نشده</div>" }
+        for (i, st) in sets.enumerated() {
+            let sid = st["id"]?.idString ?? ""
+            let desc = rowOf[sid]?["desc"]?.stringValue ?? "پرداخت کمیسیون"
+            let partial = !(st["coveredExpenseIds"]?.arrayValue ?? []).isEmpty
+            let ba = st["balanceAfter"]?.intValue
+            let baText = ba.map { $0 == 0 ? "تسویه" : ($0 > 0 ? pdfMoney($0) + " بدهی" : pdfMoney(-$0) + " بستانکار") } ?? "—"
+            h += "<div class=\"row" + alt(i) + "\"><div class=\"c-num\">" + Money.persianDigits(i + 1) + "</div><div class=\"c-date\">" + date(st["date"])
+                + "</div><div class=\"c-desc\">" + esc(desc) + (partial ? " <span class=\"cm-tag\">تسویه‌ی بخشی</span>" : "")
+                + "</div><div class=\"c-amt\">" + pdfMoney(st["calculatedAmount"]?.intValue ?? 0) + "</div><div class=\"c-amt\">"
+                + pdfMoney(ImportAnalyzer.toman(st)) + "</div><div class=\"c-amt" + ((ba ?? 0) > 0 ? " neg" : "") + "\">" + baText + "</div></div>"
+        }
+        if !sets.isEmpty {
+            h += "<div class=\"total\"><div class=\"lbl\">جمع پرداخت‌های کمیسیون (تومان)</div><div class=\"amt\">" + pdfMoney(paid) + "</div></div>"
+        }
+
+        // 2) open rows: what a payment up to each row would be
+        h += "<div class=\"head sec\" data-t=\"ردیف‌های تسویه‌نشده — قابل پرداخت اگر تا همان ردیف تسویه شود\"><div class=\"c-num wide\">ردیف</div>"
+            + "<div class=\"c-date\">تاریخ</div><div class=\"c-desc\">شرح</div><div class=\"c-amt\">مبلغ هزینه</div>"
+            + "<div class=\"c-amt\">جمع تا این ردیف</div><div class=\"c-amt\">قابل پرداخت تا اینجا</div></div>"
+        if open.isEmpty { h += "<div class=\"empty\">همه‌ی ردیف‌ها تسویه شده‌اند</div>" }
+        for (i, r) in open.enumerated() {
+            h += "<div class=\"row" + alt(i) + "\"><div class=\"c-num wide\">" + Money.persianDigits(r.num) + "</div><div class=\"c-date\">"
+                + Self.pdfDate(r.date) + "</div><div class=\"c-desc\">" + esc(r.desc.isEmpty ? "—" : r.desc) + "</div><div class=\"c-amt\">"
+                + pdfMoney(r.toman) + "</div><div class=\"c-amt soft\">" + pdfMoney(r.cumulativeBase) + "</div><div class=\"c-amt\">"
+                + pdfMoney(r.cumulativeCommission + a.balance) + "</div></div>"
+        }
+        if !open.isEmpty {
+            let note = a.balance == 0 ? "" : (a.balance > 0 ? " (شامل بدهی قبلی " : " (با کسر بستانکاری قبلی ") + pdfMoney(abs(a.balance)) + ")"
+            h += "<div class=\"total\"><div class=\"lbl\">قابل پرداخت برای همه‌ی ردیف‌های باز" + note + "</div><div class=\"amt\">"
+                + pdfMoney(a.remaining) + "</div></div>"
+        }
+        h += "<div class=\"cm-foot\">پاداش‌ها، تنخواه‌ها و خود پرداخت‌های کمیسیون در پایه‌ی کمیسیون حساب نمی‌شوند.</div>"
+        return await pdfRender(h + "</body></html>", "کمیسیون - " + a.name)
     }
 }

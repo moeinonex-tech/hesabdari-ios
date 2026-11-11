@@ -283,7 +283,9 @@ extension AppModel {
         var used: [(String, String)] = []
         let rows = records.enumerated().map { i, e -> (cells: [String], cls: String) in
             let tankhah = e["type"]?.stringValue == "tankhah"
-            var cells = [Money.persianDigits(i + 1), Self.pdfDate(ImportAnalyzer.date(e["date"])), tankhah ? "تنخواه" : catHTML(e, "category")]
+            let reward = !tankhah && (e["reward"]?.isTruthy ?? false)
+            var cells = [Money.persianDigits(i + 1), Self.pdfDate(ImportAnalyzer.date(e["date"])),
+                         tankhah ? "تنخواه" : (reward ? "<span class=\"rw-tag\">پاداش</span>" : catHTML(e, "category"))]
             if hasSub { cells.append(catHTML(e, "subcategory")) }
             if showPay {
                 if let p = Self.payMethod(e) {
@@ -291,9 +293,9 @@ extension AppModel {
                     cells.append("<span class=\"ic\">" + (ReportHTML.icons[p.icon] ?? "") + "</span><span class=\"pay-label\">" + p.label + "</span>")
                 } else { cells.append("") }
             }
-            cells.append(descHTML(e))
+            cells.append(descHTML(e) + (reward ? " <span class=\"rw-note\">بدون کمیسیون</span>" : ""))
             cells.append(Money.persianDigits(Money.format(ImportAnalyzer.toman(e))))
-            return (cells, tankhah ? " tk" : (i % 2 == 0 ? " alt" : ""))
+            return (cells, tankhah ? " tk" : (reward ? " rw" : (i % 2 == 0 ? " alt" : "")))
         }
         // legend in a fixed order, only what this report uses
         let order = ["پوز", "کارت", "نقدی", "همراه‌بانک", "حواله", "شعبه بانک", "چک", "نسیه"]
@@ -340,9 +342,11 @@ extension AppModel {
             let settled = (accountRecord(accountId)?["commissionSettlements"]?.arrayValue ?? [])
                 .filter { s in range.map { $0.contains(ImportAnalyzer.date(s["date"])) } ?? true }
                 .reduce(0) { $0 + ImportAnalyzer.toman($1) }
-            cards.append(.init(title: "کمیسیون (" + Money.persianDigits(pct) + "٪) — مبالغ به تومان",
-                               values: [("کمیسیون", money(a.accrued), false), ("پرداخت‌شده", money(settled), false),
-                                        ("باقی‌مانده", money(a.remaining), a.remaining < 0)]))
+            var values: [(String, String, Bool)] = [("کمیسیون", money(a.accrued), false), ("پرداخت‌شده", money(settled), false),
+                                                    ("باقی‌مانده", money(a.remaining), a.remaining < 0)]
+            let rewards = list.filter { $0["reward"]?.isTruthy ?? false }.reduce(0) { $0 + ImportAnalyzer.toman($1) }
+            if rewards > 0 { values.append(("پاداش (بدون کمیسیون)", money(rewards), false)) }
+            cards.append(.init(title: "کمیسیون (" + Money.persianDigits(pct) + "٪) — مبالغ به تومان", values: values))
         }
         let b = budget(accountId: accountId)
         if withBudget && b > 0 { cards.append(budgetCard(budget: b, spent: a.expenseTotal)) }

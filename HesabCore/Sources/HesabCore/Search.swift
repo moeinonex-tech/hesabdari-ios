@@ -158,7 +158,7 @@ public enum SearchEngine {
                     let d = ImportAnalyzer.date(e["date"])
                     let title = nonEmpty(e["desc"]) ?? (tankhah && !party.isEmpty ? "تنخواه از " + party : nil) ?? nonEmpty(e["category"]) ?? "(بدون توضیح)"
                     let sub = [dateText(d), tankhah ? party : cat(e)].filter { !$0.isEmpty }.joined(separator: " · ")
-                    out.append(SearchResult(kind: .expense, recordId: s(e["id"]), accountId: aid, tag: tankhah ? "تنخواه" : "هزینه",
+                    out.append(SearchResult(kind: .expense, recordId: s(e["id"]), accountId: aid, tag: tankhah ? "تنخواه" : ((e["reward"]?.isTruthy ?? false) ? "پاداش" : "هزینه"),
                                             title: title, sub: sub, amount: amount, group: "دفتر «" + name + "»", groupOrder: 10 + ai,
                                             date: d, isTankhah: tankhah))
                 }

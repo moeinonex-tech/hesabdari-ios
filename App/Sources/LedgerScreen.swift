@@ -16,7 +16,15 @@ struct LedgerRowLine: View {
         if detailed { detailedBody } else { compactBody }
     }
 
-    private var dot: Color { row.kind == .commission ? Color.purple : (row.kind == .tankhah ? t.success : (color ?? t.accent)) }
+    private var dot: Color {
+        switch row.kind {
+        case .commission: return .purple
+        case .tankhah: return t.success
+        case .reward: return t.reward
+        case .expense: return color ?? t.accent
+        }
+    }
+    private var amountColor: Color { row.kind == .tankhah ? t.success : (row.kind == .reward ? t.reward : t.ink) }
 
     private var detailedBody: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -26,6 +34,9 @@ struct LedgerRowLine: View {
                 HStack(spacing: 5) {
                     if row.kind == .tankhah {
                         CategoryTag(text: "تنخواه", color: t.success)
+                    } else if row.kind == .reward {
+                        CategoryTag(text: "پاداش", color: t.reward)
+                        CategoryTag(text: "بدون کمیسیون", color: t.reward, light: true)
                     } else {
                         if !row.category.isEmpty { CategoryTag(text: row.category, color: dot) }
                         if !row.subcategory.isEmpty { CategoryTag(text: row.subcategory, color: dot, light: true) }
@@ -43,17 +54,18 @@ struct LedgerRowLine: View {
             Spacer(minLength: 8)
             Text(Money.persianDigits(Money.format(row.toman)))
                 .font(AppFont.bold(14))
-                .foregroundStyle(row.kind == .tankhah ? t.success : t.ink)
+                .foregroundStyle(amountColor)
                 .padding(.top, 1)
         }
         .padding(.vertical, 6)
+        .rewardFrame(row.kind == .reward)
         .contentShape(Rectangle())
     }
 
     private var compactBody: some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(row.kind == .commission ? Color.purple : (row.kind == .tankhah ? t.success : (color ?? t.accent)))
+                .fill(dot)
                 .frame(width: 10, height: 10)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.desc.isEmpty ? "—" : row.desc).font(AppFont.medium(14)).foregroundStyle(t.ink).lineLimit(1)
@@ -64,6 +76,7 @@ struct LedgerRowLine: View {
                     Text(row.date)
                     if let p = payTitle(row.payMethod) { Text("· " + p) }
                     if row.kind == .tankhah { Text("تنخواه").foregroundStyle(t.success) }
+                    if row.kind == .reward { Text("پاداش · بدون کمیسیون").foregroundStyle(t.reward) }
                     if row.isLinked { Image(systemName: "link") }
                 }
                 .font(AppFont.caption)
@@ -73,11 +86,33 @@ struct LedgerRowLine: View {
             Spacer(minLength: 8)
             Text(Money.persianDigits(Money.format(row.toman)))
                 .font(AppFont.bold(14))
-                .foregroundStyle(row.kind == .tankhah ? t.success : t.ink)
+                .foregroundStyle(amountColor)
         }
         .padding(.vertical, 6)
+        .rewardFrame(row.kind == .reward)
         .contentShape(Rectangle())
     }
+}
+
+/// a پاداش row sits in its own lime-green frame, everywhere a ledger row is listed
+private struct RewardFrame: ViewModifier {
+    let on: Bool
+    @Environment(\.theme) private var t
+    func body(content: Content) -> some View {
+        if on {
+            content
+                .padding(.horizontal, 8)
+                .background(t.reward.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(t.reward.opacity(0.55), lineWidth: 1.2))
+                .padding(.vertical, 2)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func rewardFrame(_ on: Bool) -> some View { modifier(RewardFrame(on: on)) }
 }
 
 // MARK: - ledger
@@ -293,7 +328,8 @@ struct LedgerHomeView: View {
         })
         if a.commissionEnabled || a.percent != 0 {
             cards.append(DeckCard("commission", "کمیسیون", "percent") {
-                CommissionCard(account: a, pdf: { await model.commissionPDF(accountId: a.id) }) { sheet = .settle }
+                CommissionCard(account: a, open: LedgerOps.openCommissionRows(model.state, accountId: a.id),
+                               pdf: { await model.commissionPDF(accountId: a.id) }) { sheet = .settle }
             })
         }
         if model.hasTankhah(a.id) {
@@ -423,6 +459,7 @@ struct LedgerHero: View {
 
 struct CommissionCard: View {
     let account: AccountImportSummary
+    var open: [OpenRow] = []
     var pdf: (() async -> ExportFile?)? = nil
     let onSettle: () -> Void
     @Environment(\.theme) private var t
@@ -444,7 +481,13 @@ struct CommissionCard: View {
                 Text("تومان").font(AppFont.regular(13)).foregroundStyle(t.soft)
             }
             if account.balance != 0 {
-                Text((account.balance > 0 ? "شامل بدهی قبلی " : "با کسر بستانکاری قبلی ") + Fmt.toman(account.balance))
+                Text((account.balance > 0 ? "شامل بدهی قبلی " : "با کسر بستانکاری قبلی ") + Fmt.toman(abs(account.balance)))
+                    .font(AppFont.caption).foregroundStyle(t.soft)
+            }
+            if let f = open.first, let l = open.last {
+                Label((f.num == l.num ? "ردیف " + Money.persianDigits(f.num) : "ردیف‌های " + Money.persianDigits(f.num) + " تا " + Money.persianDigits(l.num))
+                      + " · " + Money.persianDigits(open.count) + " ردیف باز · جمع " + Fmt.toman(l.cumulativeBase),
+                      systemImage: "list.number")
                     .font(AppFont.caption).foregroundStyle(t.soft)
             }
             Button(action: onSettle) {

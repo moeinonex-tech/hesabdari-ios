@@ -290,13 +290,14 @@ public enum ImportAnalyzer {
                       desc: e["desc"]?.stringValue ?? "", toman: toman(e), date: date(e["date"]),
                       ts: e["ts"]?.intValue ?? 0, subcategory: e["subcategory"]?.stringValue,
                       commission: e["commissionSettlementId"]?.idString,
-                      linked: e["linked"].map { _ in "linked" })
+                      linked: e["linked"].map { _ in "linked" }, reward: e["reward"]?.isTruthy ?? false)
         }
         let settlements: [Settlement] = (account["commissionSettlements"]?.arrayValue ?? []).map { s in
             Settlement(key: s["id"]?.idString ?? "", toman: toman(s), date: date(s["date"]), ts: s["ts"]?.intValue ?? 0,
                        calculatedAmount: s["calculatedAmount"]?.intValue ?? 0,
                        remainingForStage: s["remainingForStage"]?.intValue ?? 0,
-                       isFull: s["isFull"]?.isTruthy ?? false, balanceAfter: s["balanceAfter"]?.intValue)
+                       isFull: s["isFull"]?.isTruthy ?? false, balanceAfter: s["balanceAfter"]?.intValue,
+                       covered: s["coveredExpenseIds"]?.arrayValue.map { $0.compactMap(\.idString) })
         }
         return CommissionLedger(accountId: accId, accountName: account["name"]?.stringValue ?? "",
                                 percent: account["commissionPercent"]?.doubleValue ?? 0, rows: rows, settlements: settlements)

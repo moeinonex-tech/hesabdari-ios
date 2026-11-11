@@ -14,6 +14,13 @@ import Foundation
 // and every later one; calculatedAmount is kept.
 //
 // The golden reference is phase1/expected/commission_corrected.json.
+//
+// Added 2026-11 (owner's request):
+// (3) Reward rows (پاداش, `reward: true`): the employer's bonus to the contractor. A ledger expense like any
+//     other, but never part of the commission base.
+// (4) Partial payment: a payment may cover only the open rows up to a chosen row (e.g. 26–40 of 26–50).
+//     Such a settlement stores the ids it covers (`covered`); the rows after it stay open. A payment that covers
+//     every open row keeps rule (1) (covered = nil), so nothing changes for the usual full payment.
 
 public struct LedgerRow: Codable, Equatable, Sendable {
     public var key: String
@@ -25,11 +32,12 @@ public struct LedgerRow: Codable, Equatable, Sendable {
     public var subcategory: String?
     public var commission: String?     // settlement key when this row is a commission payment
     public var linked: String?         // e.g. "check:pending"
+    public var reward: Bool            // پاداش: never in the commission base
 
     public init(key: String, type: String = "expense", desc: String, toman: Int, date: JalaliDate, ts: Int,
-                subcategory: String? = nil, commission: String? = nil, linked: String? = nil) {
+                subcategory: String? = nil, commission: String? = nil, linked: String? = nil, reward: Bool = false) {
         self.key = key; self.type = type; self.desc = desc; self.toman = toman; self.date = date; self.ts = ts
-        self.subcategory = subcategory; self.commission = commission; self.linked = linked
+        self.subcategory = subcategory; self.commission = commission; self.linked = linked; self.reward = reward
     }
 }
 
@@ -42,12 +50,14 @@ public struct Settlement: Codable, Equatable, Sendable {
     public var remainingForStage: Int
     public var isFull: Bool
     public var balanceAfter: Int?
+    /// partial payment: the expense rows it covers (nil = rule (1), everything entered before it)
+    public var covered: [String]?
 
     public init(key: String, toman: Int, date: JalaliDate, ts: Int, calculatedAmount: Int,
-                remainingForStage: Int, isFull: Bool, balanceAfter: Int? = nil) {
+                remainingForStage: Int, isFull: Bool, balanceAfter: Int? = nil, covered: [String]? = nil) {
         self.key = key; self.toman = toman; self.date = date; self.ts = ts
         self.calculatedAmount = calculatedAmount; self.remainingForStage = remainingForStage
-        self.isFull = isFull; self.balanceAfter = balanceAfter
+        self.isFull = isFull; self.balanceAfter = balanceAfter; self.covered = covered
     }
 }
 
@@ -65,6 +75,17 @@ public struct CommissionIncome: Codable, Equatable, Sendable {
 public struct StageRow: Equatable, Sendable {
     public var num: Int
     public var desc: String
+}
+
+/// an expense row still waiting for its commission (in ledger order)
+public struct OpenRow: Equatable, Sendable {
+    public var key: String
+    public var num: Int                // the row number shown in the ledger
+    public var desc: String
+    public var date: JalaliDate
+    public var toman: Int
+    public var cumulativeBase: Int     // this row and every open row before it
+    public var cumulativeCommission: Int
 }
 
 public struct Stage: Equatable, Sendable {
@@ -92,6 +113,9 @@ public struct CommissionLedger: Sendable {
     public var accountId: String
     public var accountName: String
     public var percent: Double
+    /// number rows like the ledger list (every row, تنخواه included). Off = the web numbering (without تنخواه),
+    /// kept for the parity goldens.
+    public var visibleNumbers = false
     public private(set) var rows: [LedgerRow] = []
     public private(set) var settlements: [Settlement] = []
     public private(set) var incomes: [CommissionIncome] = []
@@ -120,25 +144,60 @@ public struct CommissionLedger: Sendable {
             .map(\.element)
     }
 
-    public func stage() -> Stage {
-        let sorted = sortedBaseRows
+    /// row number of each row: the ledger list order (date, entry time, then entry position)
+    private func numbers(_ base: [LedgerRow]) -> [String: Int] {
+        var out: [String: Int] = [:]
+        let list: [LedgerRow] = visibleNumbers
+            ? rows.enumerated().sorted { a, b in
+                if a.element.date != b.element.date { return a.element.date < b.element.date }
+                if a.element.ts != b.element.ts { return a.element.ts < b.element.ts }
+                return a.offset < b.offset
+            }.map(\.element)
+            : base
+        for (i, r) in list.enumerated() where out[r.key] == nil { out[r.key] = i + 1 }
+        return out
+    }
+
+    /// settlements that still have their commission row, by key (first one wins, as before)
+    private var liveSettlements: [String: Settlement] {
         var byKey: [String: Settlement] = [:]
         for s in settlements where byKey[s.key] == nil { byKey[s.key] = s }
-        // a settlement counts only while its own commission row exists
-        let coverTs = sorted.compactMap { r in r.commission.flatMap { byKey[$0] }?.ts }.max() ?? Int.min
-        var base = 0, past = 0
-        var last: StageRow?
-        for (i, r) in sorted.enumerated() {
-            if let c = r.commission {
-                past += byKey[c]?.remainingForStage ?? 0
-                continue
-            }
-            if r.ts > coverTs {
-                base += r.toman
-                last = StageRow(num: i + 1, desc: r.desc)
-            }
+        let live = Set(rows.compactMap(\.commission))
+        return byKey.filter { live.contains($0.key) }
+    }
+
+    /// open (not yet covered) expense rows in ledger order — rewards, تنخواه and payments are never open
+    private func openBaseRows() -> [LedgerRow] {
+        let live = liveSettlements
+        // rule (1): a full payment covers every row entered before it
+        let coverTs = live.values.filter { $0.covered == nil }.map(\.ts).max() ?? Int.min
+        // rule (4): a partial payment covers exactly its own rows
+        let explicit = Set(live.values.flatMap { $0.covered ?? [] })
+        return sortedBaseRows.filter { r in
+            r.commission == nil && !r.reward && r.ts > coverTs && !explicit.contains(r.key)
         }
-        return Stage(openBase: base, nextRowNumber: sorted.count + 1, lastRow: last, pastShortfall: past)
+    }
+
+    public func stage() -> Stage {
+        let sorted = sortedBaseRows
+        let live = liveSettlements
+        let nums = numbers(sorted)
+        var past = 0
+        for r in sorted { if let c = r.commission { past += live[c]?.remainingForStage ?? 0 } }
+        let open = openBaseRows()
+        let last = open.last.map { StageRow(num: nums[$0.key] ?? 0, desc: $0.desc) }
+        return Stage(openBase: open.reduce(0) { $0 + $1.toman }, nextRowNumber: sorted.count + 1, lastRow: last, pastShortfall: past)
+    }
+
+    /// The open rows with the running base and commission — what a payment up to that row would cover.
+    public func openRows() -> [OpenRow] {
+        let nums = numbers(sortedBaseRows)
+        var base = 0
+        return openBaseRows().map { r in
+            base += r.toman
+            return OpenRow(key: r.key, num: nums[r.key] ?? 0, desc: r.desc, date: r.date, toman: r.toman,
+                           cumulativeBase: base, cumulativeCommission: accrued(for: base))
+        }
     }
 
     public func accrued(for openBase: Int) -> Int {
@@ -158,18 +217,24 @@ public struct CommissionLedger: Sendable {
     // MARK: operations
 
     public mutating func addExpense(key: String, desc: String, toman: Int, date: JalaliDate,
-                                    subcategory: String? = "عمومی", type: String = "expense", linked: String? = nil) {
+                                    subcategory: String? = "عمومی", type: String = "expense", linked: String? = nil,
+                                    reward: Bool = false) {
         rows.append(LedgerRow(key: key, type: type, desc: desc, toman: toman, date: date, ts: nextTs(),
-                              subcategory: subcategory, linked: linked))
+                              subcategory: subcategory, linked: linked, reward: reward))
     }
 
-    /// Records a commission payment and returns the settlement.
+    /// Records a commission payment and returns the settlement. `upTo`: the last open row this payment covers
+    /// (nil, or the last open row = every open row, the usual full payment).
     @discardableResult
-    public mutating func settle(key: String, amount: Int, date: JalaliDate, ts explicitTs: Int? = nil) -> Settlement {
+    public mutating func settle(key: String, amount: Int, date: JalaliDate, ts explicitTs: Int? = nil, upTo: String? = nil) -> Settlement {
         let ts = explicitTs ?? nextTs()
         clock = max(clock, ts)
         let st = stage()
-        let calc = accrued(for: st.openBase)
+        let open = openRows()
+        let cut = upTo.flatMap { k in open.firstIndex { $0.key == k } }
+        let partial = cut.map { $0 < open.count - 1 } ?? false
+        let chosen = partial ? Array(open[...cut!]) : open
+        let calc = partial ? accrued(for: chosen.last?.cumulativeBase ?? 0) : accrued(for: st.openBase)
         let before = st.pastShortfall
         let due = calc + before
         let balanceAfter = due - amount
@@ -177,7 +242,12 @@ public struct CommissionLedger: Sendable {
         let rem = balanceAfter - before
 
         let descBase: String
-        if let lr = st.lastRow {
+        if partial, let first = chosen.first, let last = chosen.last {
+            let lastDesc = last.desc.isEmpty ? "—" : last.desc
+            descBase = first.key == last.key
+                ? "پرداخت کمیسیون ردیف هزینه \"\(Money.persianDigits(last.num))\" (\(lastDesc))"
+                : "پرداخت کمیسیون ردیف‌های هزینه \"\(Money.persianDigits(first.num))\" تا \"\(Money.persianDigits(last.num))\" (\(lastDesc))"
+        } else if let lr = st.lastRow {
             let rowNum = Money.persianDigits(lr.num)
             let rowDesc = lr.desc.isEmpty ? "—" : lr.desc
             descBase = "پرداخت کمیسیون تا ردیف هزینه \"\(rowNum)\" (\(rowDesc))"
@@ -188,7 +258,8 @@ public struct CommissionLedger: Sendable {
         let desc = Self.balanceText(descBase, balanceAfter)
 
         let s = Settlement(key: key, toman: amount, date: date, ts: ts, calculatedAmount: calc,
-                           remainingForStage: rem, isFull: isFull, balanceAfter: balanceAfter)
+                           remainingForStage: rem, isFull: isFull, balanceAfter: balanceAfter,
+                           covered: partial ? chosen.map(\.key) : nil)
         settlements.append(s)
         rows.append(LedgerRow(key: key, desc: desc, toman: amount, date: date, ts: ts, subcategory: nil, commission: key))
         incomes.append(CommissionIncome(settlement: key, desc: "دریافت کمیسیون از \(accountName)", toman: amount, date: date,

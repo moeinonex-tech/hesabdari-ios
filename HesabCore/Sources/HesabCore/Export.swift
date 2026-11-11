@@ -61,7 +61,7 @@ public enum ExportBuilder {
         for e in s {
             let t = ImportAnalyzer.toman(e)
             let linked = (e["linked"].map { !$0.isNull } ?? false) ? "🔗 " : ""
-            rows.append([.text(dateText(ImportAnalyzer.date(e["date"]))), .text(e["type"]?.stringValue == "tankhah" ? "تنخواه" : "هزینه"),
+            rows.append([.text(dateText(ImportAnalyzer.date(e["date"]))), .text(e["type"]?.stringValue == "tankhah" ? "تنخواه" : ((e["reward"]?.isTruthy ?? false) ? "پاداش (بدون کمیسیون)" : "هزینه")),
                          .text(e["category"]?.stringValue ?? ""), .text(linked + (e["desc"]?.stringValue ?? "")), .number(t), .number(t * 10)])
         }
         let sum = s.filter { $0["type"]?.stringValue != "tankhah" }.reduce(0) { $0 + ImportAnalyzer.toman($1) }

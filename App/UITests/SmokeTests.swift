@@ -5,7 +5,7 @@ import XCTest
 final class SmokeTests: XCTestCase {
     static let fixture = """
     {
-      "accounts": [{"id": "a1", "name": "پروژه آزمایشی", "commissionPercent": 0}],
+      "accounts": [{"id": "a1", "name": "پروژه آزمایشی", "commissionPercent": 10, "commissionEnabled": true, "commissionSettlements": []}],
       "ledgerCategories": ["مصالح", "خوراک", "کمیسیون"],
       "ledgerSubcategories": {"مصالح": ["سیمان", "آهن", "گچ"], "خوراک": ["نهار"]},
       "personalCategories": ["خانه"],
@@ -15,6 +15,7 @@ final class SmokeTests: XCTestCase {
         {"id": "e1", "accountId": "a1", "desc": "سیمان تیپ دو", "category": "مصالح", "subcategory": "سیمان", "toman": 900000, "date": {"jy": 1405, "jm": 8, "jd": 10}, "ts": 1},
         {"id": "e2", "accountId": "a1", "desc": "میلگرد", "category": "مصالح", "subcategory": "آهن", "toman": 2500000, "date": {"jy": 1405, "jm": 8, "jd": 12}, "ts": 2},
         {"id": "e3", "accountId": "a1", "desc": "نهار کارگران", "category": "خوراک", "subcategory": "نهار", "toman": 300000, "date": {"jy": 1405, "jm": 8, "jd": 14}, "ts": 3},
+        {"id": "e6", "accountId": "a1", "desc": "پاداش ویژه", "category": "پاداش", "reward": true, "payMethod": "cash", "toman": 4000000, "date": {"jy": 1405, "jm": 8, "jd": 13}, "ts": 8},
         {"id": "e4", "accountId": "a1", "type": "tankhah", "partyId": "tp1", "desc": "تنخواه هفتگی", "payMethod": "cash", "toman": 5000000, "date": {"jy": 1405, "jm": 8, "jd": 2}, "ts": 6},
         {"id": "e5", "accountId": "a1", "type": "tankhah", "partyId": "tp2", "desc": "", "payMethod": "transfer", "toman": 2000000, "date": {"jy": 1405, "jm": 8, "jd": 3}, "ts": 7}
       ],
@@ -170,6 +171,37 @@ final class SmokeTests: XCTestCase {
         sleep(6)
         alive("after tankhah pdf")
         XCTAssertFalse(labelled("PDF ساخته نشد").exists, "PDF failed")
+    }
+
+    /// a reward row is listed (no commission), and a commission payment can stop at a chosen row
+    func testRewardAndPartialCommission() {
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        sleep(2)
+        let pay = app.buttons["پرداخت کمیسیون"].firstMatch
+        for _ in 0..<4 where !(pay.exists && pay.isHittable) { app.swipeUp() }
+        tap(pay, "open settle")
+        // open rows: 3 (سیمان), 4 (میلگرد), 6 (نهار) — 5 is the reward, never open
+        XCTAssertTrue(app.buttons["settle.row.3"].waitForExistence(timeout: 5), "open rows listed")
+        XCTAssertFalse(app.buttons["settle.row.5"].exists, "the reward row must not be open for commission")
+        tap(app.buttons["settle.row.4"].firstMatch, "stop at row 4")
+        let amount = app.textFields["amount"].firstMatch
+        XCTAssertTrue(amount.waitForExistence(timeout: 3))
+        XCTAssertTrue(SearchEngine_latin(amount.value as? String ?? "").contains("340000"), "amount follows the chosen row: \(amount.value ?? "")")
+        tap(app.buttons["settle.save"].firstMatch, "save payment")
+        sleep(2)
+        alive("after partial payment")
+        // the live commission now counts only row 6
+        tap(app.buttons["پرداخت کمیسیون"].firstMatch, "reopen settle")
+        XCTAssertTrue(app.buttons["settle.row.6"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["settle.row.3"].exists, "covered rows are gone")
+    }
+
+    private func SearchEngine_latin(_ s: String) -> String {
+        let map: [Character: Character] = ["۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9"]
+        return String(s.compactMap { c -> Character? in
+            if let d = map[c] { return d }
+            return c.isNumber ? c : nil
+        })
     }
 
     func testSettingsGearOpens() {

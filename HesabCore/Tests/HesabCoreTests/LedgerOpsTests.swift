@@ -45,7 +45,7 @@ final class LedgerOpsTests: XCTestCase {
         XCTAssertEqual(s2["isFull"]?.boolValue, false)
         XCTAssertEqual(s2["id"]?.stringValue, "s1770000000000abcd")
         XCTAssertEqual(row(st, settlement: r1.settlementId)?["desc"]?.stringValue,
-                       "پرداخت کمیسیون تا ردیف هزینه \"۵\" (چک آهن) — مبلغ ۵۷.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است")
+                       "پرداخت کمیسیون تا ردیف هزینه \"۶\" (چک آهن) — مبلغ ۵۷.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است")
         XCTAssertEqual(row(st, settlement: r1.settlementId)?["category"]?.stringValue, "کمیسیون")
         XCTAssertEqual(s2["expenseId"]?.idString, row(st, settlement: r1.settlementId)?["id"]?.idString)
         let inc = st["incomes"]!.arrayValue!.last!
@@ -71,7 +71,7 @@ final class LedgerOpsTests: XCTestCase {
         XCTAssertEqual(s3["remainingForStage"]?.intValue, -250_000)
         XCTAssertEqual(s3["isFull"]?.boolValue, true)
         XCTAssertEqual(row(st, settlement: r2.settlementId)?["desc"]?.stringValue,
-                       "پرداخت کمیسیون تا ردیف هزینه \"۶\" (سیمان اضافه) تسویه کامل — مبلغ ۱۹۳.۰۰۰ اضافه پرداخت، از کمیسیون بعدی کم می‌شود")
+                       "پرداخت کمیسیون تا ردیف هزینه \"۷\" (سیمان اضافه) تسویه کامل — مبلغ ۱۹۳.۰۰۰ اضافه پرداخت، از کمیسیون بعدی کم می‌شود")
         XCTAssertEqual(summary(st).remaining, -193_000)
         // web formula (sum of remainingForStage) gives the same balance
         XCTAssertEqual(settlements(st).reduce(0) { $0 + ($1["remainingForStage"]?.intValue ?? 0) }, -193_000)
@@ -90,9 +90,9 @@ final class LedgerOpsTests: XCTestCase {
         XCTAssertEqual(e3["calculatedAmount"]?.intValue, 50_000, "calculatedAmount is kept (D16)")
         XCTAssertEqual(summary(st).remaining, -143_000)
         XCTAssertEqual(row(st, settlement: r1.settlementId)?["desc"]?.stringValue,
-                       "پرداخت کمیسیون تا ردیف هزینه \"۵\" (چک آهن) — مبلغ ۱۰۷.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است")
+                       "پرداخت کمیسیون تا ردیف هزینه \"۶\" (چک آهن) — مبلغ ۱۰۷.۰۰۰ از تسویه این مرحله از کمیسیون باقی مانده است")
         XCTAssertEqual(row(st, settlement: r2.settlementId)?["desc"]?.stringValue,
-                       "پرداخت کمیسیون تا ردیف هزینه \"۶\" (سیمان اضافه) تسویه کامل — مبلغ ۱۴۳.۰۰۰ اضافه پرداخت، از کمیسیون بعدی کم می‌شود")
+                       "پرداخت کمیسیون تا ردیف هزینه \"۷\" (سیمان اضافه) تسویه کامل — مبلغ ۱۴۳.۰۰۰ اضافه پرداخت، از کمیسیون بعدی کم می‌شود")
         XCTAssertEqual(st["incomes"]!.arrayValue!.first { $0["commissionSettlementId"]?.idString == r1.settlementId }?["toman"]?.intValue, 100_000)
 
         // 4) delete the overpayment row: settlement and income go too; the 500,000 expense is open again
@@ -327,5 +327,97 @@ final class ScopedSearchTests: XCTestCase {
         XCTAssertEqual(SearchEngine.find(st, query: "مصالح سیمان", scope: .all).count, 2)
         XCTAssertEqual(SearchEngine.find(st, query: "۹۰۰,۰۰۰", scope: .all).map(\.recordId), ["e2"])
         XCTAssertEqual(SearchEngine.find(st, query: "کارفرما", scope: .ledgers(accountId: nil)).first?.isTankhah, true)
+    }
+}
+
+/// Owner's request 2026-11: reward rows never carry commission; a payment can cover the open rows only up to a chosen row.
+final class RewardAndPartialCommissionTests: XCTestCase {
+    private let J = { (d: Int) in JalaliDate(jy: 1405, jm: 8, jd: d) }
+
+    private func ledger() -> CommissionLedger {
+        var L = CommissionLedger(accountId: "a", accountName: "پروژه", percent: 10)
+        L.visibleNumbers = true
+        L.addExpense(key: "e1", desc: "یک", toman: 1_000_000, date: J(1))
+        L.addExpense(key: "t1", desc: "تنخواه", toman: 9_000_000, date: J(2), type: "tankhah")
+        L.addExpense(key: "e2", desc: "دو", toman: 2_000_000, date: J(3))
+        L.addExpense(key: "r1", desc: "پاداش", toman: 5_000_000, date: J(4), reward: true)
+        L.addExpense(key: "e3", desc: "سه", toman: 3_000_000, date: J(5))
+        L.addExpense(key: "e4", desc: "چهار", toman: 4_000_000, date: J(6))
+        return L
+    }
+
+    func testRewardNeverInCommission() {
+        let L = ledger()
+        XCTAssertEqual(L.summary().openBase, 10_000_000)             // 1+2+3+4, no reward, no tankhah
+        XCTAssertEqual(L.summary().accrued, 1_000_000)
+        XCTAssertEqual(L.summary().ledgerTotal, 15_000_000)          // still an expense of the ledger
+        XCTAssertFalse(L.openRows().contains { $0.key == "r1" })
+    }
+
+    func testPartialPaymentLeavesLaterRowsOpen() {
+        var L = ledger()
+        let open = L.openRows()
+        XCTAssertEqual(open.map(\.num), [1, 3, 5, 6])                // ledger numbers (تنخواه and reward counted)
+        XCTAssertEqual(open.map(\.cumulativeCommission), [100_000, 300_000, 600_000, 1_000_000])
+        // pay up to row 5 («سه»): 600,000
+        let s = L.settle(key: "s1", amount: 600_000, date: J(7), upTo: "e3")
+        XCTAssertEqual(s.calculatedAmount, 600_000)
+        XCTAssertEqual(s.covered, ["e1", "e2", "e3"])
+        XCTAssertEqual(s.balanceAfter, 0)
+        XCTAssertEqual(L.rows.last?.desc, "پرداخت کمیسیون ردیف‌های هزینه \"۱\" تا \"۵\" (سه) تسویه کامل")
+        // the live commission now shows only row 6
+        XCTAssertEqual(L.summary().openBase, 4_000_000)
+        XCTAssertEqual(L.summary().remaining, 400_000)
+        XCTAssertEqual(L.openRows().map(\.key), ["e4"])
+        // a new row entered later is open too; a full payment then covers everything
+        L.addExpense(key: "e5", desc: "پنج", toman: 1_000_000, date: J(2))
+        XCTAssertEqual(L.summary().openBase, 5_000_000)
+        let f = L.settle(key: "s2", amount: 500_000, date: J(8))
+        XCTAssertNil(f.covered)
+        XCTAssertEqual(f.calculatedAmount, 500_000)
+        XCTAssertEqual(L.summary().openBase, 0)
+        XCTAssertEqual(L.summary().remaining, 0)
+    }
+
+    func testPartialWithDebtCarriesBalance() {
+        var L = ledger()
+        L.settle(key: "s1", amount: 200_000, date: J(7), upTo: "e2")      // due 300,000 → debt 100,000
+        XCTAssertEqual(L.summary().pastShortfall, 100_000)
+        XCTAssertEqual(L.summary().remaining, 700_000 + 100_000)       // rows 5 & 6 + debt
+        // deleting the payment reopens its rows
+        let row = L.rows.first { $0.commission == "s1" }!
+        L.delete(key: row.key)
+        XCTAssertEqual(L.summary().openBase, 10_000_000)
+        XCTAssertEqual(L.summary().pastShortfall, 0)
+    }
+
+    func testOpsRewardRowAndPartialSettle() throws {
+        var st: [String: JSONValue] = [
+            "accounts": .array([.object(["id": .string("a"), "name": .string("پروژه"), "commissionPercent": .int(10),
+                                         "commissionEnabled": .bool(true), "commissionSettlements": .array([])])]),
+            "expenses": .array([]), "incomes": .array([]),
+        ]
+        var n = 1_780_000_000_000
+        func ids() -> IdSource { n += 1000; let v = n; return IdSource(nowMs: { v }, random5: { "abcde" }) }
+        func add(_ desc: String, _ t: Int, reward: Bool = false) throws {
+            var i = ExpenseInput(accountId: "a", isTankhah: false, desc: desc, category: reward ? "" : "مصالح", subcategory: reward ? "" : "سیمان",
+                                 toman: t, date: JalaliDate(jy: 1405, jm: 8, jd: 1), payMethod: .cash, cardId: nil, partyId: nil)
+            i.isReward = reward
+            st = try LedgerOps.addExpense(st, i, ids: ids()).state
+        }
+        try add("الف", 1_000_000); try add("", 3_000_000, reward: true); try add("ب", 2_000_000)
+        let rw = st["expenses"]!.arrayValue![1]
+        XCTAssertEqual(rw["reward"]?.boolValue, true)
+        XCTAssertEqual(rw["category"]?.stringValue, "پاداش")
+        XCTAssertEqual(rw["desc"]?.stringValue, "پاداش کارفرما")
+        let open = LedgerOps.openCommissionRows(st, accountId: "a")
+        XCTAssertEqual(open.map(\.num), [1, 3])
+        let r = try LedgerOps.settleCommission(st, accountId: "a", amount: 100_000, date: JalaliDate(jy: 1405, jm: 8, jd: 2),
+                                               upTo: open[0].key, ids: ids())
+        let s = r.state["accounts"]!.arrayValue![0]["commissionSettlements"]!.arrayValue![0]
+        XCTAssertEqual(s["coveredExpenseIds"]?.arrayValue?.compactMap(\.idString), [open[0].key])
+        XCTAssertEqual(LedgerOps.openCommissionRows(r.state, accountId: "a").map(\.num), [3])
+        let a = r.state["accounts"]!.arrayValue![0]
+        XCTAssertEqual(ImportAnalyzer.accountSummary(a, expenses: r.state["expenses"]!.arrayValue!).remaining, 200_000)
     }
 }

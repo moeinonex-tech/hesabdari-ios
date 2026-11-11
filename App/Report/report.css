@@ -43,6 +43,11 @@ body { font-family: 'Vazirmatn', -apple-system, sans-serif; direction: rtl; colo
        break-inside: avoid; page-break-inside: avoid; }
 .row.alt { background: var(--glass-alt); }
 .row.tk { background: rgba(20,122,83,0.09); border-color: rgba(20,122,83,0.45); }
+/* پاداش: lime green, clearly apart from the emerald of تنخواه */
+.row.rw { background: rgba(124,181,24,0.13); border: 1.3px solid rgba(94,154,14,0.75); }
+.rw-tag { display: inline-block; padding: 1px 6px; border-radius: 6px; background: #5E9A0E; color: #fff; font-weight: 700; font-size: 8.5px; }
+.rw-note { display: inline-block; margin-right: 4px; padding: 0 5px; border-radius: 5px; border: 1px solid rgba(94,154,14,0.7);
+           color: #4A7A0B; font-size: 7.5px; font-weight: 700; }
 .c-num { width: 16px; flex-shrink: 0; color: var(--ink-soft); font-size: 8.5px; text-align: center; }
 .c-date { width: 54px; flex-shrink: 0; color: var(--ink-soft); font-size: 9px; white-space: nowrap; direction: ltr; text-align: right; unicode-bidi: isolate; }
 .c-cat { width: 66px; flex-shrink: 0; color: var(--brass-deep); font-weight: 500; overflow-wrap: break-word; }
@@ -140,3 +145,13 @@ body.paged { width: 595.28px; margin: 0; padding: 0; background: #E9EEF5; positi
 .cx-grp.tk-band { margin-top: 8px; margin-bottom: 5px; padding: 7px 8px; column-gap: 7px;
                   grid-template-columns: 12px minmax(0, 1fr) 40px 76px; }
 .head.tk-cols + .cx-grp.tk-band { margin-top: 2px; }
+/* ---------- commission report ---------- */
+.cx-kpis.cm-sub { margin-top: 0; }
+.cx-kpis.cm-sub .cx-kpi .v { font-size: 12.5px; }
+.head.sec { position: relative; margin-top: 30px; }
+.head.sec::before { content: attr(data-t); position: absolute; right: 0; top: -22px; font-size: 11px; font-weight: 800; color: var(--ink); }
+.c-amt.neg { color: var(--maroon); }
+.c-amt.soft { color: var(--ink-soft); font-weight: 500; }
+.cm-tag { display: inline-block; padding: 0 5px; border-radius: 5px; background: rgba(47,93,138,0.12); color: #2F5D8A; font-size: 7.5px; font-weight: 700; }
+.cm-foot { margin-top: 10px; font-size: 8px; color: var(--ink-soft); }
+.c-num.wide { width: 26px; }

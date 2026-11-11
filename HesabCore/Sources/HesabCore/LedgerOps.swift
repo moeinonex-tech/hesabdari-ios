@@ -130,7 +130,10 @@ public struct ExpenseInput: Sendable {
     public var keepPayMethod = false
     /// تنخواه received by check: the check(s) this row is paid with (web formCheckId / formCheckIds)
     public var checkIds: [String] = []
-    public var isMulti: Bool { !isTankhah && items.count > 1 }
+    /// پاداش: the employer's bonus to the contractor — a ledger expense that never enters the commission base
+    public var isReward = false
+    public var isMulti: Bool { !isTankhah && !isReward && items.count > 1 }
+    public static let rewardCategory = "پاداش"
 
     public init(accountId: String, isTankhah: Bool, desc: String, category: String, subcategory: String,
                 toman: Int, date: JalaliDate, payMethod: PayMethod, cardId: String?, partyId: String?) {
@@ -145,6 +148,8 @@ public struct ExpenseInput: Sendable {
         var m: [String] = []
         if isTankhah {
             if (partyId ?? "").isEmpty { m.append("طرف حساب") }
+        } else if isReward {
+            // only the amount: the category is «پاداش», the description is optional
         } else {
             if desc.trimmingCharacters(in: .whitespaces).isEmpty { m.append("شرح") }
             if category.trimmingCharacters(in: .whitespaces).isEmpty { m.append("نوع هزینه") }
@@ -225,7 +230,10 @@ public enum LedgerOps {
         let missing = input.missingFields
         guard missing.isEmpty else { throw LedgerError.invalid(missing) }
         var st = state
-        if !input.isTankhah { learn(&st, input) }
+        var input = input
+        if input.isReward { input = rewardShape(input) }
+        if !input.isTankhah && !input.isReward { learn(&st, input) }
+        if input.isReward { addCategoryIfNew(&st, list: "ledgerCategories", ExpenseInput.rewardCategory) }
         let now = ids.nowMs()
         let id = ids.make("e", now)
         var row: [String: JSONValue] = [
@@ -237,6 +245,7 @@ public enum LedgerOps {
         if !cat.isEmpty { row["category"] = .string(input.category) }
         if !input.isTankhah && !input.subcategory.isEmpty { row["subcategory"] = .string(input.subcategory) }
         if input.isTankhah, let p = input.partyId, !p.isEmpty { row["partyId"] = .string(p) }
+        if input.isReward { row["reward"] = .bool(true) }
         if input.isMulti { MultiItem.apply(&row, input.items) }
         applyPayMethod(&row, &st, input)
         var rows = array(st, "expenses")
@@ -263,11 +272,14 @@ public enum LedgerOps {
             if input.category.trimmingCharacters(in: .whitespaces).isEmpty { input.category = row["category"]?.stringValue ?? "کمیسیون" }
             if input.subcategory.trimmingCharacters(in: .whitespaces).isEmpty { input.subcategory = row["subcategory"]?.stringValue ?? "تسویه" }
             input.isTankhah = false
+            input.isReward = false
             input.items = []
         }
+        if input.isReward { input = rewardShape(input); input.isTankhah = false }
         let missing = input.missingFields
         guard missing.isEmpty else { throw LedgerError.invalid(missing) }
-        if !input.isTankhah { learn(&st, input) }
+        if !input.isTankhah && !input.isReward { learn(&st, input) }
+        if input.isReward { addCategoryIfNew(&st, list: "ledgerCategories", ExpenseInput.rewardCategory) }
 
         let oldToman = ImportAnalyzer.toman(rows[i])
         row["desc"] = .string(input.desc)
@@ -278,6 +290,7 @@ public enum LedgerOps {
         if cat.isEmpty { row.removeValue(forKey: "category") } else { row["category"] = .string(input.category) }
         if !input.isTankhah && !input.subcategory.isEmpty { row["subcategory"] = .string(input.subcategory) } else { row.removeValue(forKey: "subcategory") }
         if input.isTankhah, let p = input.partyId, !p.isEmpty { row["partyId"] = .string(p) } else { row.removeValue(forKey: "partyId") }
+        if input.isReward { row["reward"] = .bool(true) } else { row.removeValue(forKey: "reward") }
         // web: an invoice edited through the single fields becomes a single row; edited as multi it keeps its items
         if input.isMulti { row.removeValue(forKey: "partyId"); MultiItem.apply(&row, input.items) } else { row.removeValue(forKey: "items") }
         if !(isCommission && input.keepPayMethod) { applyPayMethod(&row, &st, input) }
@@ -374,11 +387,21 @@ public enum LedgerOps {
         return st
     }
 
+    /// a reward row: category «پاداش», a description even when none is typed, one item, never a check / nasiyeh row
+    static func rewardShape(_ i: ExpenseInput) -> ExpenseInput {
+        var i = i
+        i.isTankhah = false
+        i.items = []
+        i.category = ExpenseInput.rewardCategory
+        if i.desc.trimmingCharacters(in: .whitespaces).isEmpty { i.desc = "پاداش کارفرما" }
+        return i
+    }
+
     // MARK: commission payment
 
     /// Web commSettleBtn with the approved rules (coverage by entry order, running balance).
     public static func settleCommission(_ state: [String: JSONValue], accountId: String, amount: Int, date: JalaliDate,
-                                        ids: IdSource = .system) throws -> (state: [String: JSONValue], settlementId: String) {
+                                        upTo: String? = nil, ids: IdSource = .system) throws -> (state: [String: JSONValue], settlementId: String) {
         guard amount > 0 else { throw LedgerError.noAmount }
         var st = state
         var accounts = array(st, "accounts")
@@ -390,7 +413,8 @@ public enum LedgerOps {
         let expenseId = ids.make("e", now)
 
         var L = ImportAnalyzer.ledger(account: accounts[ai], expenses: array(st, "expenses"))
-        let s = L.settle(key: settleId, amount: amount, date: date, ts: now)
+        L.visibleNumbers = true
+        let s = L.settle(key: settleId, amount: amount, date: date, ts: now, upTo: upTo)
         let desc = L.rows.last?.desc ?? ""
 
         var sets = acc["commissionSettlements"]?.arrayValue ?? []
@@ -399,7 +423,7 @@ public enum LedgerOps {
             "expenseId": .string(expenseId), "calculatedAmount": .int(Int64(s.calculatedAmount)),
             "remainingForStage": .int(Int64(s.remainingForStage)), "isFull": .bool(s.isFull),
             "balanceAfter": .int(Int64(s.balanceAfter ?? 0))
-        ]))
+        ].merging(s.covered.map { ["coveredExpenseIds": .array($0.map { .string($0) })] } ?? [:]) { a, _ in a }))
         acc["commissionSettlements"] = .array(sets)
         accounts[ai] = .object(acc)
         st["accounts"] = .array(accounts)
@@ -427,6 +451,14 @@ public enum LedgerOps {
         ]))
         st["incomes"] = .array(incomes)
         return (st, settleId)
+    }
+
+    /// The rows still waiting for commission in one ledger, numbered like the ledger list, with the running commission.
+    public static func openCommissionRows(_ state: [String: JSONValue], accountId: String) -> [OpenRow] {
+        guard let acc = array(state, "accounts").first(where: { $0["id"]?.idString == accountId }) else { return [] }
+        var L = ImportAnalyzer.ledger(account: acc, expenses: array(state, "expenses"))
+        L.visibleNumbers = true
+        return L.openRows()
     }
 
     /// category of the personal income a commission payment creates (the user's choice for a construction contractor)
