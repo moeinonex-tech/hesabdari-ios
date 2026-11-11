@@ -81,11 +81,29 @@ public enum NotesImport {
         public var problemCount: Int { entries.filter { !$0.problems.isEmpty }.count }
     }
 
+    /// The header a messenger adds to every copied message — Telegram «Moein, [Nov 9, 2026 at 20:27]»,
+    /// «[09.11.26 20:27] Moein:», «معین, [۱۸ آبان ۱۴۰۵ ساعت ۲۰:۲۷]» … : a name (optional), then a [bracket] holding a
+    /// clock time (and in the older form the name after it, ending with «:»). It is dropped, so it never ends up in a
+    /// description; anything else on the same line is kept.
+    static let chatHeader = try! NSRegularExpression(
+        pattern: #"^\s*(?:[^\[\]\n]{1,60}[,،]\s*)?\[[^\]\n]*[0-9۰-۹]{1,2}[:：][0-9۰-۹]{2}[^\]\n]*\]\s*(?:[^:\n]{1,40}:\s*$)?"#)
+
+    public static func stripChatHeader(_ line: String) -> String {
+        let r = NSRange(line.startIndex..., in: line)
+        guard let m = chatHeader.firstMatch(in: line, range: r), let range = Range(m.range, in: line) else { return line }
+        return String(line[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+    }
+
+    static func cleanLines(_ text: String) -> [String] {
+        text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\u{200F}", with: "").replacingOccurrences(of: "\u{200E}", with: "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { stripChatHeader($0.trimmingCharacters(in: .whitespaces)) }.filter { !$0.isEmpty }
+    }
+
     /// order-insensitive reading (see the top of the file)
     public static func parse(_ text: String) -> Result {
-        let lines = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let lines = cleanLines(text)
         var entries: [NotesEntry] = []
         var orphans: [String] = []
         var i = 0

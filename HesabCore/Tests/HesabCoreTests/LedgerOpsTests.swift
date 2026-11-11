@@ -421,3 +421,45 @@ final class RewardAndPartialCommissionTests: XCTestCase {
         XCTAssertEqual(ImportAnalyzer.accountSummary(a, expenses: r.state["expenses"]!.arrayValue!).remaining, 200_000)
     }
 }
+
+/// pasted from Telegram: the «Name, [date at time]» header of each message never becomes part of a row
+final class NotesTelegramPasteTests: XCTestCase {
+    func testTelegramHeadersAreDropped() {
+        let text = """
+        Moein, [Nov 9, 2026 at 20:27]
+        1405/8/17
+        640.000
+        خرید ۴ جفت دستکش کار
+         Moein, [Nov 9, 2026 at 20:28]
+        1405/8/17
+        1.595.000
+        خوراک نهار بتن ریزی
+         Moein, [Nov 9, 2026 at 20:29]
+        1405/8/17
+        500.000
+        انعام راننده پمپ بتن هوایی
+         Moein, [Nov 9, 2026 at 20:31]
+        1405/8/18
+        17.000.000
+        بابت پمپ بتن هوایی 
+        (فاکتور رسمی فردا در این آیتم ادیت میشود)
+        [09.11.26 20:35] معین:
+        ۱۴۰۵/۸/۱۸
+        ۲۵۰.۰۰۰
+        کرایه وانت
+        """
+        let r = NotesImport.parse(text)
+        XCTAssertTrue(r.orphans.isEmpty, "\(r.orphans)")
+        XCTAssertEqual(r.entries.count, 5)
+        XCTAssertEqual(r.entries.map(\.toman), [640_000, 1_595_000, 500_000, 17_000_000, 250_000])
+        XCTAssertEqual(r.entries[0].desc, "خرید ۴ جفت دستکش کار")
+        XCTAssertEqual(r.entries[2].desc, "انعام راننده پمپ بتن هوایی")
+        XCTAssertEqual(r.entries[3].desc, "بابت پمپ بتن هوایی (فاکتور رسمی فردا در این آیتم ادیت میشود)")
+        XCTAssertEqual(r.entries[3].date, JalaliDate(jy: 1405, jm: 8, jd: 18))
+        XCTAssertEqual(r.entries[4].desc, "کرایه وانت")
+        XCTAssertFalse(r.entries.contains { $0.desc.contains("Moein") || $0.desc.contains("[") || $0.desc.contains("معین") })
+        XCTAssertTrue(r.entries.allSatisfy { $0.problems.isEmpty }, "\(r.entries.map(\.problems))")
+        // a description with a time in brackets later in the line is kept
+        XCTAssertEqual(NotesImport.stripChatHeader("جلسه با کارفرما [ساعت 10:30]"), "جلسه با کارفرما [ساعت 10:30]")
+    }
+}
