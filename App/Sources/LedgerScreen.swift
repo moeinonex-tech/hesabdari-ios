@@ -485,9 +485,7 @@ struct CommissionCard: View {
                     .font(AppFont.caption).foregroundStyle(t.soft)
             }
             if let f = open.first, let l = open.last {
-                Label((f.num == l.num ? "ردیف " + Money.persianDigits(f.num) : "ردیف‌های " + Money.persianDigits(f.num) + " تا " + Money.persianDigits(l.num))
-                      + " · " + Money.persianDigits(open.count) + " ردیف باز · جمع " + Fmt.toman(l.cumulativeBase),
-                      systemImage: "list.number")
+                Label(openText(f.num, l.num, total: l.cumulativeBase), systemImage: "list.number")
                     .font(AppFont.caption).foregroundStyle(t.soft)
             }
             Button(action: onSettle) {
@@ -499,6 +497,14 @@ struct CommissionCard: View {
             .buttonStyle(.glass)
         }
         .glassCard()
+    }
+}
+
+extension CommissionCard {
+    func openText(_ a: Int, _ b: Int, total: Int) -> String {
+        let rows: String = a == b ? "ردیف " + Money.persianDigits(a) : "ردیف‌های " + Money.persianDigits(a) + " تا " + Money.persianDigits(b)
+        let count: String = Money.persianDigits(open.count)
+        return rows + " · " + count + " ردیف باز · جمع " + Fmt.toman(total)
     }
 }
 

@@ -654,9 +654,7 @@ struct SettleView: View {
                     LabeledContent("کل قابل پرداخت", value: Fmt.balance(a.remaining)).bold()
                 } footer: {
                     if let f = open.first, let l = open.last {
-                        Text("ردیف‌های باز: " + (f.num == l.num ? "ردیف " + Money.persianDigits(f.num)
-                             : "ردیف " + Money.persianDigits(f.num) + " تا " + Money.persianDigits(l.num))
-                             + " (" + Money.persianDigits(open.count) + " ردیف). پاداش‌ها و تنخواه‌ها کمیسیون ندارند.")
+                        Text(openFooter(f.num, l.num))
                     }
                 }
             }
@@ -712,6 +710,23 @@ struct SettleView: View {
         }
     }
 
+    private func rowsText(_ a: Int, _ b: Int) -> String {
+        let from: String = "ردیف " + Money.persianDigits(a)
+        if a == b { return from }
+        let to: String = Money.persianDigits(b)
+        return from + " تا " + to
+    }
+
+    private func openFooter(_ a: Int, _ b: Int) -> String {
+        let count: String = Money.persianDigits(open.count)
+        return "ردیف‌های باز: " + rowsText(a, b) + " (" + count + " ردیف). پاداش‌ها و تنخواه‌ها کمیسیون ندارند."
+    }
+
+    private func chosenText(_ a: Int, _ b: Int) -> String {
+        let count: String = Money.persianDigits(cut + 1)
+        return rowsText(a, b) + " · " + count + " ردیف"
+    }
+
     /// the amount follows the chosen row until it is typed by hand
     private func setAuto() {
         let v = due > 0 ? Money.persianDigits(Money.format(due)) : ""
@@ -727,8 +742,7 @@ struct SettleView: View {
                         Text(isAll ? "همه‌ی ردیف‌های باز" : "تا ردیف " + Money.persianDigits(c.num))
                             .font(AppFont.bold(16)).foregroundStyle(t.ink)
                         Spacer()
-                        Text("ردیف " + Money.persianDigits(first.num) + (c.num == first.num ? "" : " تا " + Money.persianDigits(c.num))
-                             + " · " + Money.persianDigits(cut + 1) + " ردیف")
+                        Text(chosenText(first.num, c.num))
                             .font(AppFont.caption).foregroundStyle(t.soft)
                     }
                     HStack(spacing: 10) {
