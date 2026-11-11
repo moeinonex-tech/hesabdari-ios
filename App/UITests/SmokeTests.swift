@@ -185,6 +185,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(app.buttons["settle.row.5"].exists, "the reward row must not be open for commission")
         tap(app.buttons["settle.row.4"].firstMatch, "stop at row 4")
         let amount = app.textFields["amount"].firstMatch
+        for _ in 0..<5 where !(amount.exists && amount.isHittable) { app.swipeUp() }   // the field is under the row list
         XCTAssertTrue(amount.waitForExistence(timeout: 3))
         XCTAssertTrue(SearchEngine_latin(amount.value as? String ?? "").contains("340000"), "amount follows the chosen row: \(amount.value ?? "")")
         tap(app.buttons["settle.save"].firstMatch, "save payment")
