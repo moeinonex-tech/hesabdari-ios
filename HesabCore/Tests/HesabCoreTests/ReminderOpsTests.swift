@@ -21,7 +21,10 @@ final class ReminderOpsTests: XCTestCase {
         parts.append(r["category"]?.stringValue ?? "")
         parts.append(r["subcategory"]?.stringValue ?? "")
         parts.append(r["type"]?.stringValue ?? "")
-        parts.append(r["payMethod"]?.stringValue ?? "-")
+        // owner's rule (2026-11): no ledger row without a pay method — a row linked to a debt / installment that the web
+        // left without one is «نسیه» here (a check stays «چک»)
+        let linkedKind = r["linked"]?["kind"]?.stringValue
+        parts.append(r["payMethod"]?.stringValue ?? (linkedKind != nil && linkedKind != "check" ? "nasiyeh" : "-"))
         parts.append(r["linked"]?["kind"]?.stringValue ?? "-")
         parts.append(r["linked"]?["status"]?.stringValue ?? "-")
         return parts.joined(separator: "|")
