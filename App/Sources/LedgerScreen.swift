@@ -59,7 +59,6 @@ struct LedgerRowLine: View {
                 .padding(.top, 1)
         }
         .padding(.vertical, 6)
-        .rewardFrame(row.kind == .reward)
         .contentShape(Rectangle())
     }
 
@@ -90,31 +89,10 @@ struct LedgerRowLine: View {
                 .foregroundStyle(amountColor)
         }
         .padding(.vertical, 6)
-        .rewardFrame(row.kind == .reward)
         .contentShape(Rectangle())
     }
 }
 
-/// a پاداش row sits in its own lime-green frame, everywhere a ledger row is listed
-private struct RewardFrame: ViewModifier {
-    let on: Bool
-    @Environment(\.theme) private var t
-    func body(content: Content) -> some View {
-        if on {
-            content
-                .padding(.horizontal, 8)
-                .background(t.reward.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(t.reward.opacity(0.55), lineWidth: 1.2))
-                .padding(.vertical, 2)
-        } else {
-            content
-        }
-    }
-}
-
-extension View {
-    func rewardFrame(_ on: Bool) -> some View { modifier(RewardFrame(on: on)) }
-}
 
 // MARK: - ledger
 

@@ -488,3 +488,17 @@ final class RowRangeSumTests: XCTestCase {
         XCTAssertEqual(w.from, 3); XCTAssertEqual(w.to, 6); XCTAssertEqual(w.expenses, 600)
     }
 }
+
+final class CommissionTextTests: XCTestCase {
+    func testShortWording() {
+        XCTAssertEqual(CommissionText.short(desc: "پرداخت کمیسیون تا ردیف هزینه \"۲۵\" (خرید میلگرد) تسویه کامل", balanceAfter: 0),
+                       "تا ردیف ۲۵ تسویه شد")
+        XCTAssertEqual(CommissionText.short(desc: "پرداخت کمیسیون ردیف‌های هزینه \"۲۶\" تا \"۴۰\" (سیمان) — مبلغ ۱۰۰ باقی", balanceAfter: 100_000),
+                       "ردیف ۲۶ تا ۴۰ تسویه شد — باقی‌مانده ۱۰۰.۰۰۰")
+        XCTAssertEqual(CommissionText.short(desc: "پرداخت کمیسیون ردیف هزینه \"۷\" (x)", balanceAfter: -50_000),
+                       "ردیف ۷ تسویه شد — اضافه پرداخت ۵۰.۰۰۰")
+        XCTAssertEqual(CommissionText.short(desc: "پرداخت کمیسیون (۱۰٪)", balanceAfter: nil), "پرداخت کمیسیون")
+        // a number inside the description of the expense itself is not taken for a row
+        XCTAssertEqual(CommissionText.rows(in: "پرداخت کمیسیون تا ردیف هزینه \"۱۲\" (خرید \"۴\" جفت دستکش)"), "تا ردیف ۱۲")
+    }
+}

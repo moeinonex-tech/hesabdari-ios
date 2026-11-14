@@ -91,17 +91,17 @@ extension AppModel {
 
         // 1) payments
         h += "<div class=\"head sec\" data-t=\"پرداخت‌های کمیسیون\"><div class=\"c-num\">#</div><div class=\"c-date\">تاریخ</div>"
-            + "<div class=\"c-desc\">شرح (ردیف‌هایی که پوشش داده)</div><div class=\"c-amt\">کمیسیون این مرحله</div>"
+            + "<div class=\"c-desc\">ردیف‌های تسویه‌شده</div><div class=\"c-amt\">کمیسیون این مرحله</div>"
             + "<div class=\"c-amt\">پرداخت</div><div class=\"c-amt\">مانده بعد از آن</div></div>"
         if sets.isEmpty { h += "<div class=\"empty\">هنوز پرداختی برای کمیسیون ثبت نشده</div>" }
         for (i, st) in sets.enumerated() {
             let sid = st["id"]?.idString ?? ""
-            let desc = rowOf[sid]?["desc"]?.stringValue ?? "پرداخت کمیسیون"
-            let partial = !(st["coveredExpenseIds"]?.arrayValue ?? []).isEmpty
             let ba = st["balanceAfter"]?.intValue
+            // only the rows it settled and what is left — not the whole text of the payment row
+            let desc = CommissionText.short(desc: rowOf[sid]?["desc"]?.stringValue ?? "", balanceAfter: ba)
             let baText = ba.map { $0 == 0 ? "تسویه" : ($0 > 0 ? pdfMoney($0) + " بدهی" : pdfMoney(-$0) + " بستانکار") } ?? "—"
             h += "<div class=\"row" + alt(i) + "\"><div class=\"c-num\">" + Money.persianDigits(i + 1) + "</div><div class=\"c-date\">" + date(st["date"])
-                + "</div><div class=\"c-desc\">" + esc(desc) + (partial ? " <span class=\"cm-tag\">تسویه‌ی بخشی</span>" : "")
+                + "</div><div class=\"c-desc\">" + esc(desc)
                 + "</div><div class=\"c-amt\">" + pdfMoney(st["calculatedAmount"]?.intValue ?? 0) + "</div><div class=\"c-amt\">"
                 + pdfMoney(ImportAnalyzer.toman(st)) + "</div><div class=\"c-amt" + ((ba ?? 0) > 0 ? " neg" : "") + "\">" + baText + "</div></div>"
         }

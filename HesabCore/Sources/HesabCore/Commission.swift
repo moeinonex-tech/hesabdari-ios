@@ -350,3 +350,32 @@ public struct CommissionLedger: Sendable {
         rows.removeAll { $0.key == key }
     }
 }
+
+// MARK: - short wording for the commission report
+
+/// The commission report shows a payment only by the rows it settled and what is left:
+/// «تا ردیف ۲۵ تسویه شد», «ردیف ۲۶ تا ۴۰ تسویه شد — باقی‌مانده ۱۰۰٬۰۰۰». The row numbers are the ones written in the
+/// payment row when it was made (pre-existing rows keep their numbers).
+public enum CommissionText {
+    /// numbers quoted in a payment row: «تا ردیف هزینه "۲۵"», «ردیف‌های هزینه "۲۶" تا "۴۰"», «ردیف هزینه "۵"»
+    public static func rows(in desc: String) -> String? {
+        let re = try! NSRegularExpression(pattern: "[\"«“]\\s*([0-9۰-۹]+)\\s*[\"»”]")
+        // only the part before the expense's own description «(…)», so a number quoted there is never read as a row
+        let head = desc.split(separator: "(", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? desc
+        let ns = head as NSString
+        let nums = re.matches(in: head, range: NSRange(location: 0, length: ns.length)).compactMap {
+            Int(SearchEngine.latinDigits(ns.substring(with: $0.range(at: 1))))
+        }
+        guard let first = nums.first else { return nil }
+        if nums.count >= 2, nums[1] != first { return "ردیف " + Money.persianDigits(first) + " تا " + Money.persianDigits(nums[1]) }
+        if head.contains("تا ردیف") { return "تا ردیف " + Money.persianDigits(first) }
+        return "ردیف " + Money.persianDigits(first)
+    }
+
+    public static func short(desc: String, balanceAfter: Int?) -> String {
+        let head = rows(in: desc).map { $0 + " تسویه شد" } ?? "پرداخت کمیسیون"
+        guard let b = balanceAfter, b != 0 else { return head }
+        return head + (b > 0 ? " — باقی‌مانده " + Money.persianDigits(Money.format(b))
+                             : " — اضافه پرداخت " + Money.persianDigits(Money.format(-b)))
+    }
+}
