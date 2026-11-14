@@ -282,15 +282,24 @@ public enum ImportAnalyzer {
         return d <= Jalali.monthLength(y, m)
     }
 
+    /// a row filed by hand under «کمیسیون» (the row itself, or every item of an invoice)
+    public static func isManualCommission(_ e: JSONValue) -> Bool {
+        func isC(_ v: JSONValue?) -> Bool { (v?.stringValue ?? "").trimmingCharacters(in: .whitespaces) == "کمیسیون" }
+        if let items = e["items"]?.arrayValue, !items.isEmpty { return items.allSatisfy { isC($0["category"]) } }
+        return isC(e["category"])
+    }
+
     /// Commission state of one account with the approved rules (legacy settlements kept as stored, D14).
     public static func ledger(account: JSONValue, expenses: [JSONValue]) -> CommissionLedger {
         let accId = account["id"]?.idString ?? ""
         let rows: [LedgerRow] = expenses.filter { $0["accountId"]?.idString == accId }.map { e in
-            LedgerRow(key: e["id"]?.idString ?? "", type: e["type"]?.stringValue ?? "expense",
-                      desc: e["desc"]?.stringValue ?? "", toman: toman(e), date: date(e["date"]),
-                      ts: e["ts"]?.intValue ?? 0, subcategory: e["subcategory"]?.stringValue,
-                      commission: e["commissionSettlementId"]?.idString,
-                      linked: e["linked"].map { _ in "linked" }, reward: e["reward"]?.isTruthy ?? false)
+            var r = LedgerRow(key: e["id"]?.idString ?? "", type: e["type"]?.stringValue ?? "expense",
+                              desc: e["desc"]?.stringValue ?? "", toman: toman(e), date: date(e["date"]),
+                              ts: e["ts"]?.intValue ?? 0, subcategory: e["subcategory"]?.stringValue,
+                              commission: e["commissionSettlementId"]?.idString,
+                              linked: e["linked"].map { _ in "linked" }, reward: e["reward"]?.isTruthy ?? false)
+            r.manualCommission = r.commission == nil && r.type != "tankhah" && isManualCommission(e)
+            return r
         }
         let settlements: [Settlement] = (account["commissionSettlements"]?.arrayValue ?? []).map { s in
             Settlement(key: s["id"]?.idString ?? "", toman: toman(s), date: date(s["date"]), ts: s["ts"]?.intValue ?? 0,

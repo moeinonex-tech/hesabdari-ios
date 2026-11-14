@@ -336,11 +336,19 @@ struct LedgerHomeView: View {
         cards.append(DeckCard("transactions", "تراکنش‌ها", "list.bullet.rectangle") {
             RowsCard(title: "تراکنش‌ها", total: Fmt.count(all.count) + " ردیف", rows: all, date: \.dateValue,
                      amount: { $0.kind == .tankhah ? 0 : $0.toman }, empty: "هنوز تراکنشی ثبت نشده",
-                     export: { await model.ledgerPDF(accountId: a.id, range: nil, withBudget: false) }) { r in
+                     export: { await model.ledgerPDF(accountId: a.id, range: nil, withBudget: false,
+                                                     fileName: Self.rowsPDFName(a.name)) }) { r in
                 ledgerRow(r, colors)
             }
         })
         return cards
+    }
+
+    /// «ردیف هزینه های پروژه کوچه وصال تا ۲۳ آبان ۱۴۰۵» (no characters a file name cannot hold)
+    static func rowsPDFName(_ ledger: String) -> String {
+        let safe = ledger.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let day: String = BackupExporter.formatJalali(AppModel.today)
+        return "ردیف هزینه های پروژه " + safe + " تا " + day
     }
 
     private func ledgerRow(_ r: LedgerRowVM, _ colors: [String: Color]) -> some View {

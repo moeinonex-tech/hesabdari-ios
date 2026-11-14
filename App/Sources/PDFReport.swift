@@ -322,7 +322,7 @@ extension AppModel {
     }
 
     /// `withBudget`: only the reports tab puts the budget in; the transactions card exports without it
-    func ledgerPDF(accountId: String, range: DateRange?, withBudget: Bool = true) async -> ExportFile? {
+    func ledgerPDF(accountId: String, range: DateRange?, withBudget: Bool = true, fileName: String? = nil) async -> ExportFile? {
         guard let a = accounts.first(where: { $0.id == accountId }) else { return nil }
         let all = (state["expenses"]?.arrayValue ?? []).filter { $0["accountId"]?.idString == accountId }
         let list = sortedRecords(range.map { r in all.filter { r.contains(ImportAnalyzer.date($0["date"])) } } ?? all)
@@ -353,7 +353,7 @@ extension AppModel {
         let html = ReportHTML.page(title: "گزارش هزینه‌های «" + a.name + "»", subtitle: subtitle("گزارش هزینه‌ها", range), legend: t.legend,
                                    columns: t.cols, rows: t.rows, empty: "هیچ هزینه‌ای ثبت نشده",
                                    totalLabel: "جمع کل هزینه‌ها تا امروز (تومان)", total: total, cards: cards)
-        return await renderPDF(html, name: "دفتر حساب - " + a.name + " - " + Self.todayTag() + ".pdf")
+        return await renderPDF(html, name: (fileName ?? ("دفتر حساب - " + a.name + " - " + Self.todayTag())) + ".pdf")
     }
 
     func personalPDF(range: DateRange?, withBudget: Bool = true) async -> ExportFile? {

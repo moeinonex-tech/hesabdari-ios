@@ -528,3 +528,23 @@ final class CommissionPayMethodTests: XCTestCase {
         XCTAssertFalse(e.blocking)
     }
 }
+
+final class ManualCommissionTests: XCTestCase {
+    func testHandEnteredCommissionNeverEarnsCommission() {
+        let acc: JSONValue = .object(["id": .string("a"), "name": .string("پ"), "commissionPercent": .int(10),
+                                      "commissionEnabled": .bool(true), "commissionSettlements": .array([])])
+        func row(_ id: String, _ t: Int, _ cat: String) -> JSONValue {
+            .object(["id": .string(id), "accountId": .string("a"), "desc": .string(id), "category": .string(cat), "toman": .int(Int64(t)),
+                     "date": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(1)]), "ts": .int(1)])
+        }
+        let ex = [row("e1", 1_000_000, "مصالح"), row("m1", 300_000, " کمیسیون "), row("e2", 2_000_000, "کارگر")]
+        let s = ImportAnalyzer.accountSummary(acc, expenses: ex)
+        XCTAssertEqual(s.expenseTotal, 3_300_000)       // still in the expenses
+        XCTAssertEqual(s.accrued, 300_000)              // 10% of 3,000,000 only
+        XCTAssertFalse(LedgerOps.openCommissionRows(["accounts": .array([acc]), "expenses": .array(ex)], accountId: "a")
+                        .contains { $0.key == "m1" })
+        let r = LedgerOps.rangeSum(["expenses": .array(ex)], accountId: "a", from: 1, to: 3)
+        XCTAssertEqual(r.commissionPaid, 300_000)
+        XCTAssertEqual(r.expenses, 3_000_000)
+    }
+}

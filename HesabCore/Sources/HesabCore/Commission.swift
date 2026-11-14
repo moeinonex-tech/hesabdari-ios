@@ -21,6 +21,8 @@ import Foundation
 // (4) Partial payment: a payment may cover only the open rows up to a chosen row (e.g. 26–40 of 26–50).
 //     Such a settlement stores the ids it covers (`covered`); the rows after it stay open. A payment that covers
 //     every open row keeps rule (1) (covered = nil), so nothing changes for the usual full payment.
+// (5) A commission entered by hand (an ordinary row in the «کمیسیون» category) counts in the ledger's expenses like
+//     a payment the app makes, and like it never earns commission itself (owner, 2026-11-14).
 
 public struct LedgerRow: Codable, Equatable, Sendable {
     public var key: String
@@ -33,6 +35,7 @@ public struct LedgerRow: Codable, Equatable, Sendable {
     public var commission: String?     // settlement key when this row is a commission payment
     public var linked: String?         // e.g. "check:pending"
     public var reward: Bool            // پاداش: never in the commission base
+    public var manualCommission = false // a hand-entered «کمیسیون» row: never in the commission base
 
     public init(key: String, type: String = "expense", desc: String, toman: Int, date: JalaliDate, ts: Int,
                 subcategory: String? = nil, commission: String? = nil, linked: String? = nil, reward: Bool = false) {
@@ -174,7 +177,7 @@ public struct CommissionLedger: Sendable {
         // rule (4): a partial payment covers exactly its own rows
         let explicit = Set(live.values.flatMap { $0.covered ?? [] })
         return sortedBaseRows.filter { r in
-            r.commission == nil && !r.reward && r.ts > coverTs && !explicit.contains(r.key)
+            r.commission == nil && !r.reward && !r.manualCommission && r.ts > coverTs && !explicit.contains(r.key)
         }
     }
 

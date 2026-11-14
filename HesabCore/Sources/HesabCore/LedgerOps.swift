@@ -606,7 +606,7 @@ extension LedgerOps {
         for e in slice {
             let t = ImportAnalyzer.toman(e)
             if e["type"]?.stringValue == "tankhah" { r.tankhah += t; r.tankhahCount += 1 }
-            else if e["commissionSettlementId"]?.idString != nil { r.commissionPaid += t; r.commissionCount += 1 }
+            else if e["commissionSettlementId"]?.idString != nil || ImportAnalyzer.isManualCommission(e) { r.commissionPaid += t; r.commissionCount += 1 }
             else if e["reward"]?.isTruthy ?? false { r.rewards += t; r.rewardCount += 1 }
             else { r.expenses += t; r.expenseCount += 1 }
         }
