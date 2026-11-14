@@ -188,6 +188,12 @@ final class SmokeTests: XCTestCase {
         for _ in 0..<5 where !(amount.exists && amount.isHittable) { app.swipeUp() }   // the field is under the row list
         XCTAssertTrue(amount.waitForExistence(timeout: 3))
         XCTAssertTrue(SearchEngine_latin(amount.value as? String ?? "").contains("340000"), "amount follows the chosen row: \(amount.value ?? "")")
+        // no payment without a pay method
+        XCTAssertFalse(app.buttons["settle.save"].firstMatch.isEnabled, "save must wait for a pay method")
+        let method = app.buttons["settle.method"].firstMatch
+        for _ in 0..<3 where !(method.exists && method.isHittable) { app.swipeUp() }
+        tap(method, "pay method menu")
+        tap(app.buttons["نقدی"].firstMatch, "cash")
         tap(app.buttons["settle.save"].firstMatch, "save payment")
         sleep(2)
         alive("after partial payment")

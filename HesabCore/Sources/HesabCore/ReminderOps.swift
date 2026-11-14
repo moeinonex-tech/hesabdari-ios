@@ -160,6 +160,7 @@ public enum ReminderOps {
             if kind != "debt" { row["date"] = ref["dueDate"] ?? .null }
             row["linked"] = meta
             if kind == "check" { row["payMethod"] = .string("check") }
+            else if (row["payMethod"]?.stringValue ?? "").isEmpty { row["payMethod"] = .string("nasiyeh") }
             let rid = row["id"]?.idString
             st[targetKey] = .array(LedgerOps.array(st, targetKey).map { $0["id"]?.idString == rid ? .object(row) : $0 })
             return
@@ -174,7 +175,7 @@ public enum ReminderOps {
             "toman": amount, "date": carryDate, "ts": existing?["ts"] ?? .int(Int64(now)), "type": .string("expense"),
             "category": .string(category), "subcategory": .string(subcategory), "linked": meta
         ]
-        if kind == "check" { exp["payMethod"] = .string("check") }
+        exp["payMethod"] = .string(kind == "check" ? "check" : (existing?["payMethod"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } ?? "nasiyeh"))
         var list = LedgerOps.array(st, targetKey)
         list.append(.object(exp))
         st[targetKey] = .array(list)

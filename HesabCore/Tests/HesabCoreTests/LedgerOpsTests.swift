@@ -502,3 +502,29 @@ final class CommissionTextTests: XCTestCase {
         XCTAssertEqual(CommissionText.rows(in: "پرداخت کمیسیون تا ردیف هزینه \"۱۲\" (خرید \"۴\" جفت دستکش)"), "تا ردیف ۱۲")
     }
 }
+
+final class CommissionPayMethodTests: XCTestCase {
+    func testSettlementRowCarriesPayMethod() throws {
+        let st: [String: JSONValue] = [
+            "accounts": .array([.object(["id": .string("a"), "name": .string("پ"), "commissionPercent": .int(10),
+                                         "commissionEnabled": .bool(true), "commissionSettlements": .array([])])]),
+            "expenses": .array([.object(["id": .string("e1"), "accountId": .string("a"), "desc": .string("x"), "toman": .int(1_000_000),
+                                         "date": .object(["jy": .int(1405), "jm": .int(8), "jd": .int(1)]), "ts": .int(1)])]),
+            "incomes": .array([]),
+        ]
+        let r = try LedgerOps.settleCommission(st, accountId: "a", amount: 100_000, date: JalaliDate(jy: 1405, jm: 8, jd: 2),
+                                               payMethod: .hamrahbank, cardId: "c1")
+        let row = r.state["expenses"]!.arrayValue!.last!
+        XCTAssertEqual(row["payMethod"]?.stringValue, "hamrahbank")
+        XCTAssertEqual(row["cardId"]?.stringValue, "c1")
+        XCTAssertEqual(row["category"]?.stringValue, "کمیسیون")
+    }
+
+    func testNotesRowWithoutPayMethodIsIncomplete() {
+        var e = NotesImport.parse("1405/8/17\n640.000\nدستکش").entries[0]
+        e.category = "ابزار"; e.subcategory = "دستکش"
+        XCTAssertTrue(e.blocking)
+        e.payMethod = "cash"
+        XCTAssertFalse(e.blocking)
+    }
+}

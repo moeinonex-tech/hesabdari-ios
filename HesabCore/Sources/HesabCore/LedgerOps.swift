@@ -401,7 +401,8 @@ public enum LedgerOps {
 
     /// Web commSettleBtn with the approved rules (coverage by entry order, running balance).
     public static func settleCommission(_ state: [String: JSONValue], accountId: String, amount: Int, date: JalaliDate,
-                                        upTo: String? = nil, ids: IdSource = .system) throws -> (state: [String: JSONValue], settlementId: String) {
+                                        upTo: String? = nil, payMethod: PayMethod? = nil, cardId: String? = nil,
+                                        ids: IdSource = .system) throws -> (state: [String: JSONValue], settlementId: String) {
         guard amount > 0 else { throw LedgerError.noAmount }
         var st = state
         var accounts = array(st, "accounts")
@@ -430,11 +431,16 @@ public enum LedgerOps {
 
         addCategoryIfNew(&st, list: "ledgerCategories", "کمیسیون")
         var rows = array(st, "expenses")
-        rows.append(.object([
+        var crow: [String: JSONValue] = [
             "id": .string(expenseId), "accountId": .string(accountId), "type": .string("expense"),
             "desc": .string(desc), "category": .string("کمیسیون"), "toman": .int(Int64(amount)),
             "date": self.date(date), "ts": .int(Int64(now)), "commissionSettlementId": .string(settleId)
-        ]))
+        ]
+        if let m = payMethod {
+            crow["payMethod"] = .string(m.rawValue)
+            if m.usesCard, let c = cardId, !c.isEmpty { crow["cardId"] = .string(c) }
+        }
+        rows.append(.object(crow))
         st["expenses"] = .array(rows)
 
         // income (web addIncomeFromCommissionSettlement)

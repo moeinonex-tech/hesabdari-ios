@@ -25,7 +25,7 @@ public struct NotesEntry: Sendable, Equatable, Identifiable {
     }
     /// still missing something that must be filled before saving
     public var blocking: Bool {
-        toman <= 0 || desc.trimmingCharacters(in: .whitespaces).isEmpty
+        toman <= 0 || desc.trimmingCharacters(in: .whitespaces).isEmpty || (payMethod ?? "").isEmpty
             || category.trimmingCharacters(in: .whitespaces).isEmpty || subcategory.trimmingCharacters(in: .whitespaces).isEmpty
     }
 }

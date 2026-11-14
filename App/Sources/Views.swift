@@ -457,7 +457,7 @@ struct ExpenseFormView: View {
             }
 
             Group {
-                Section(isTankhah ? "روش دریافت" : "روش پرداخت") {
+                Section {
                     Picker("روش", selection: $payMethod) {
                         ForEach(methods, id: \.self) { m in
                             Text(m.title).tag(m)
@@ -465,6 +465,12 @@ struct ExpenseFormView: View {
                     }
                     if payMethod.usesCard && !model.activeCards.isEmpty {
                         CardPicker(model: model, cardId: $cardId)
+                    }
+                } header: {
+                    Text(isTankhah ? "روش دریافت" : "روش پرداخت")
+                } footer: {
+                    if editing != nil && (editing?.payMethod ?? "").isEmpty {
+                        Text("این ردیف روش پرداخت نداشت؛ با ذخیره، روشی که این‌جا انتخاب شده ثبت می‌شود.").foregroundStyle(.orange)
                     }
                 }
                 if makesCheck {
@@ -595,8 +601,6 @@ struct ExpenseFormView: View {
                                  partyId: isTankhah ? partyId : nil)
         input.isReward = isReward && !isTankhah && !isCommission
         if isMulti { input.items = items; input.toman = items.reduce(0) { $0 + $1.toman } }
-        // a commission payment that never had a pay method keeps none unless one is chosen now
-        if isCommission && editing?.payMethod == nil && payMethod == loadedPay { input.keepPayMethod = true }
         let ok: Bool
         if multiCheck {
             ok = model.addChecks(CheckInput(amount: 0, party: linkParty, bankName: checkBank, checkNumber: "", sayadId: "", checkSeries: "",
@@ -634,6 +638,8 @@ struct SettleView: View {
     @State private var loaded = false
     @State private var cut = 0
     @State private var open: [OpenRow] = []
+    @State private var payMethod: PayMethod?
+    @State private var cardId: String?
 
     private var balance: Int { model.accounts.first { $0.id == accountId }?.balance ?? 0 }
     private var chosen: OpenRow? { open.indices.contains(cut) ? open[cut] : nil }
@@ -665,6 +671,20 @@ struct SettleView: View {
                 AmountField(title: "مبلغ پرداخت (تومان)", text: $amount)
                 JalaliDateField(title: "تاریخ", date: $date)
             }
+            Section {
+                Picker("روش", selection: $payMethod) {
+                    Text("انتخاب کنید").tag(PayMethod?.none)
+                    ForEach(Self.methods, id: \.self) { m in Text(m.title).tag(PayMethod?.some(m)) }
+                }
+                .accessibilityIdentifier("settle.method")
+                if let m = payMethod, m.usesCard, !model.activeCards.isEmpty {
+                    CardPicker(model: model, cardId: $cardId)
+                }
+            } header: {
+                Text("روش پرداخت")
+            } footer: {
+                if payMethod == nil { Text("برای ثبت، روش پرداخت را انتخاب کنید.").foregroundStyle(.orange) }
+            }
             if let after = model.previewRemaining(accountId: accountId, amount: n, date: date, upTo: upTo) {
                 Section {
                     if !isAll, let c = chosen {
@@ -694,10 +714,12 @@ struct SettleView: View {
             ToolbarItem(placement: .cancellationAction) { Button("انصراف") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("ثبت پرداخت") {
-                    if model.settle(accountId: accountId, amount: n, date: date, upTo: upTo) { Haptics.success(); dismiss() }
+                    guard let m = payMethod else { return }
+                    if model.settle(accountId: accountId, amount: n, date: date, upTo: upTo, payMethod: m,
+                                    cardId: m.usesCard ? cardId : nil) { Haptics.success(); dismiss() }
                 }
                 .bold()
-                .disabled(n <= 0)
+                .disabled(n <= 0 || payMethod == nil)
                 .accessibilityIdentifier("settle.save")
             }
         }
@@ -706,6 +728,7 @@ struct SettleView: View {
             loaded = true
             open = LedgerOps.openCommissionRows(model.state, accountId: accountId)
             cut = max(0, open.count - 1)
+            cardId = model.defaultCard(accountId: accountId)
             setAuto()
         }
     }
@@ -726,6 +749,8 @@ struct SettleView: View {
         let count: String = Money.persianDigits(cut + 1)
         return rowsText(a, b) + " · " + count + " ردیف"
     }
+
+    static let methods: [PayMethod] = [.hamrahbank, .pos, .cash, .transfer]
 
     /// the amount follows the chosen row until it is typed by hand
     private func setAuto() {

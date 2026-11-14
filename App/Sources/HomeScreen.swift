@@ -505,7 +505,8 @@ struct HomeView: View {
 
     private func activityRow(_ item: RecentItem, compact: Bool) -> some View {
         let r = item.row
-        let dot: Color = r.kind == .commission ? .purple : (r.kind == .tankhah ? t.success
+        let isCommission = r.kind == .commission || r.category.trimmingCharacters(in: .whitespaces) == "کمیسیون"
+        let dot: Color = isCommission ? (model.categoryColor("کمیسیون") ?? .purple) : (r.kind == .tankhah ? t.success
             : (r.kind == .reward ? t.reward : (model.categoryColor(r.category) ?? t.accent)))
         let amount = Text(Money.persianDigits(Money.format(r.toman))).font(AppFont.bold(compact ? 12 : 14))
             .foregroundStyle(r.kind == .tankhah ? t.success : (r.kind == .reward ? t.reward : t.ink)).lineLimit(1).minimumScaleFactor(0.7)

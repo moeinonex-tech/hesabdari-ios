@@ -270,8 +270,9 @@ final class AppModel: ObservableObject {
     func add(_ input: ExpenseInput) -> Bool { run { try LedgerOps.addExpense(state, input).state } }
     func edit(rowId: String, _ input: ExpenseInput) -> Bool { run { try LedgerOps.editExpense(state, id: rowId, input) } }
     func delete(rowId: String) -> Bool { run({ try LedgerOps.deleteExpense(state, id: rowId) }, undoMessage: "حذف شد") }
-    func settle(accountId: String, amount: Int, date: JalaliDate, upTo: String? = nil) -> Bool {
-        run { try LedgerOps.settleCommission(state, accountId: accountId, amount: amount, date: date, upTo: upTo).state }
+    func settle(accountId: String, amount: Int, date: JalaliDate, upTo: String? = nil, payMethod: PayMethod, cardId: String?) -> Bool {
+        run { try LedgerOps.settleCommission(state, accountId: accountId, amount: amount, date: date, upTo: upTo,
+                                             payMethod: payMethod, cardId: cardId).state }
     }
 
     func performUndo() {

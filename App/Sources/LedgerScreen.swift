@@ -18,10 +18,12 @@ struct LedgerRowLine: View {
 
     private var dot: Color {
         switch row.kind {
-        case .commission: return .purple
+        // a commission row looks the same whether the app made it (payment) or it was entered by hand:
+        // the colour of the «کمیسیون» category, purple when it has none
+        case .commission: return color ?? .purple
         case .tankhah: return t.success
         case .reward: return t.reward
-        case .expense: return color ?? t.accent
+        case .expense: return color ?? (row.category.trimmingCharacters(in: .whitespaces) == "کمیسیون" ? .purple : t.accent)
         }
     }
     private var amountColor: Color { row.kind == .tankhah ? t.success : (row.kind == .reward ? t.reward : t.ink) }

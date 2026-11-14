@@ -137,10 +137,6 @@ struct NotesImportView: View {
                             }
                             .buttonStyle(.glass)
                         }
-                        Button { answer(nil) } label: {
-                            Label("بدون روش", systemImage: "minus.circle").font(AppFont.medium(13)).padding(.horizontal, 4)
-                        }
-                        .buttonStyle(.glass)
                     }
                 }
                 if let prev = entries[..<i].last?.payMethod, entries.count - i > 1 {
@@ -267,7 +263,7 @@ private struct NotesEntryEditor: View {
             Text(BackupExporter.formatJalali(entry.date)).font(AppFont.medium(13)).foregroundStyle(t.soft)
             Spacer()
             Picker("", selection: Binding(get: { entry.payMethod ?? "" }, set: { entry.payMethod = $0.isEmpty ? nil : $0 })) {
-                Text("بدون روش").tag("")
+                Text("روش پرداخت؟").tag("")
                 ForEach(methods, id: \.0) { Text($0.1).tag($0.0) }
             }
             .labelsHidden()
