@@ -95,7 +95,8 @@ final class SmokeTests: XCTestCase {
             f.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.5)).tap()
             f.typeText(deletes)
         }
-        let left = (f.value as? String ?? "").filter { $0.isNumber }
+        let raw = f.value as? String ?? ""
+        let left = raw == f.placeholderValue ? "" : raw.filter { $0.isNumber }      // an empty field reads its placeholder «۰»
         if !left.isEmpty { dumpTree("clear field: \(left)") }
         XCTAssertTrue(left.isEmpty, "field not empty: \(left)")
     }
