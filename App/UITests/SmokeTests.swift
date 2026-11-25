@@ -63,6 +63,19 @@ final class SmokeTests: XCTestCase {
         tap(del, step)
     }
 
+    /// the undo banner («برگرداندن», 10 s above the dock) can sit over the next control: wait until it is gone
+    private func waitForUndoBannerToGo() {
+        let undo = app.buttons["برگرداندن"].firstMatch
+        let t = Date()
+        while undo.exists && Date().timeIntervalSince(t) < 13 { usleep(250_000) }
+    }
+
+    /// on a failure: what was on screen (tree printed to the log)
+    private func dumpTree(_ step: String) {
+        shot("fail-" + step)
+        print("UITREE-BEGIN \(step)\n" + String(app.debugDescription.prefix(9000)) + "\nUITREE-END")
+    }
+
     private func alive(_ step: String) {
         XCTAssertEqual(app.state, .runningForeground, "app is not running after: \(step)")
     }
@@ -198,8 +211,11 @@ final class SmokeTests: XCTestCase {
         sleep(2)
         alive("after partial payment")
         // the live commission now counts only row 6
+        waitForUndoBannerToGo()
         tap(app.buttons["پرداخت کمیسیون"].firstMatch, "reopen settle")
-        XCTAssertTrue(app.buttons["settle.row.6"].waitForExistence(timeout: 5))
+        let row6 = app.buttons["settle.row.6"]
+        if !row6.waitForExistence(timeout: 5) { dumpTree("reopen settle") }
+        XCTAssertTrue(row6.exists, "settle sheet reopened with row 6")
         XCTAssertFalse(app.buttons["settle.row.3"].exists, "covered rows are gone")
     }
 
@@ -465,9 +481,11 @@ final class SmokeTests: XCTestCase {
         // edit it to 220,000 → −920,000
         let row = labelled("UITest brick")
         for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+        waitForUndoBannerToGo()
         tap(row, "open row")
         let amount2 = app.textFields["amount"].firstMatch
-        XCTAssertTrue(amount2.waitForExistence(timeout: 5), "edit form did not open")
+        if !amount2.waitForExistence(timeout: 5) { dumpTree("open row") }
+        XCTAssertTrue(amount2.exists, "edit form did not open")
         amount2.tap()
         amount2.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 16))
         amount2.typeText("220000")
@@ -476,6 +494,7 @@ final class SmokeTests: XCTestCase {
         expect("−۹۲۰.۰۰۰", "after edit")
 
         // delete it → −700,000
+        waitForUndoBannerToGo()
         for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
         row.press(forDuration: 1.2)
         tap(app.buttons["حذف"].firstMatch, "delete row")
