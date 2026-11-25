@@ -38,7 +38,8 @@ jobs:
       - name: Performance with 20,000 rows (release build)
         run: |
           set -o pipefail
-          swift test --package-path HesabCore -c release -Xswiftc -enable-testing --filter PerformanceTests 2>&1 | tee "$RUNNER_TEMP/perf.log"
+          # optimized build; HESAB_TEST_HELPERS only switches on the test helpers in SafeStore (nothing else)
+          swift test --package-path HesabCore -c release -Xswiftc -enable-testing -Xswiftc -DHESAB_TEST_HELPERS --filter PerformanceTests 2>&1 | tee "$RUNNER_TEMP/perf.log"
           grep -E "^PERF\|" "$RUNNER_TEMP/perf.log" | while read -r l; do echo "::notice title=perf::$l"; done
       - name: Report test counts
         if: always()

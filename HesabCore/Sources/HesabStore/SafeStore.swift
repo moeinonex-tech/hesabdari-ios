@@ -66,7 +66,7 @@ public final class SafeStore {
     }
 }
 
-#if DEBUG
+#if DEBUG || HESAB_TEST_HELPERS
 extension HesabStore {
     /// tests only: makes one stored record unreadable, as a damaged file would be
     public func corruptOneRecordForTesting() throws {
