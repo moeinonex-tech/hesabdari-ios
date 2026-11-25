@@ -274,23 +274,28 @@ final class BackupCheckTests: XCTestCase {
 
     override func tearDownWithError() throws { try? FileManager.default.removeItem(at: dir) }
 
+    /// the synthetic import fixture (no real data): a full, importable state
     private func storeWithData() throws -> HesabStore {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "rich_clean", withExtension: "json", subdirectory: "Goldens/import"))
+        guard case .success(let parsed) = BackupParser.parse(try Data(contentsOf: url)) else { throw NSError(domain: "fixture", code: 1) }
         let s = try HesabStore()
-        try s.save(["accounts": .array([.object(["id": .string("a"), "name": .string("پروژه")])]),
-                    "expenses": .array([.object(["id": .string("e1"), "accountId": .string("a"), "desc": .string("سیمان"),
-                                                 "toman": .int(1_000_000), "date": .object(["jy": .int(1405), "jm": .int(9), "jd": .int(1)])])]),
-                    "personalExpenses": .array([])])
+        try s.save(ImportAnalyzer.analyze(parsed).cleanedState)
         return s
     }
 
+    private func records(_ s: HesabStore) throws -> Int {
+        try s.loadState().values.reduce(0) { $0 + ($1.arrayValue?.count ?? 0) }
+    }
+
     func testRealRestoreTestOfAGoodBackup() throws {
-        let data = try storeWithData().exportBackup(today: J(1405, 9, 4))
+        let store = try storeWithData()
+        let data = try store.exportBackup(today: J(1405, 9, 4))
         let name = BackupNames.endOfDay(J(1405, 9, 4))
         try folder.write(data, name: name)
         let r = BackupCheck.run(folder, name)
         XCTAssertEqual(r.health, .healthy)
-        XCTAssertTrue(r.structureOK); XCTAssertTrue(r.restoreOK); XCTAssertTrue(r.usable)
-        XCTAssertEqual(r.records, 2)
+        XCTAssertTrue(r.structureOK, r.problem ?? ""); XCTAssertTrue(r.restoreOK, r.problem ?? ""); XCTAssertTrue(r.usable)
+        XCTAssertEqual(r.records, try records(store))
         // the file is still a web-format backup: the import parser reads it unchanged
         guard case .success = BackupParser.parse(try Data(contentsOf: dir.appendingPathComponent(name))) else { return XCTFail() }
     }
@@ -306,7 +311,7 @@ final class BackupCheckTests: XCTestCase {
         let old = BackupNames.endOfDay(J(1405, 8, 1))
         try data.write(to: dir.appendingPathComponent(old))
         let r = BackupCheck.run(folder, old)
-        XCTAssertEqual(r.health, .noSidecar); XCTAssertTrue(r.usable)
+        XCTAssertEqual(r.health, .noSidecar); XCTAssertTrue(r.usable, r.problem ?? "")
         // not a backup at all
         try Data("not json".utf8).write(to: dir.appendingPathComponent("x.json"))
         XCTAssertFalse(BackupCheck.run(folder, "x.json").usable)
@@ -319,7 +324,7 @@ final class BackupCheckTests: XCTestCase {
         try folder.writeSidecar(for: name)
         let before = try Data(contentsOf: dir.appendingPathComponent(name))
         let r = BackupCheck.run(folder, name)
-        XCTAssertTrue(r.usable); XCTAssertEqual(r.records, 2)
+        XCTAssertTrue(r.usable, r.problem ?? ""); XCTAssertEqual(r.records, try records(base))
         XCTAssertEqual(try Data(contentsOf: dir.appendingPathComponent(name)), before, "the raw copy itself is untouched")
     }
 }

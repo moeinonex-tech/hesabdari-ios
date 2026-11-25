@@ -237,6 +237,22 @@ final class SmokeTests: XCTestCase {
         alive("read-only mode")
     }
 
+    /// backup policy: a backup with its SHA-256 is made, and the health screen restores it into a throw-away database
+    func testBackupHealthCheck() {
+        app.terminate()
+        app.launchEnvironment["UITEST_OPEN"] = "health"
+        app.launch()
+        let run = app.buttons["backup.health.run"].firstMatch
+        XCTAssertTrue(run.waitForExistence(timeout: 8), "health screen opened")
+        let deadline = Date().addingTimeInterval(6)
+        while !run.isEnabled && Date() < deadline { sleep(1) }
+        tap(run, "check all backups")
+        let summary = app.descendants(matching: .any).matching(identifier: "backup.health.summary").firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 15), "results shown")
+        XCTAssertFalse(app.images["xmark.octagon.fill"].exists, "no backup failed")
+        alive("backup health")
+    }
+
     func testSettingsGearOpens() {
         let gear = app.buttons["settings"].firstMatch
         XCTAssertTrue(gear.waitForExistence(timeout: 10))
