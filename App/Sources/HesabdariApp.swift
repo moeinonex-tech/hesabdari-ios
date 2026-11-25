@@ -263,6 +263,15 @@ final class AppModel: ObservableObject {
     private func apply(_ newState: [String: JSONValue], undoMessage: String? = nil) -> Bool {
         guard let store else { return false }
         if store.isReadOnly { errorMessage = Self.readOnlyMessage; return false }
+        // the day's first change: keep the data as it was before it (start-of-day copy, written once). If that copy
+        // cannot be written, the change is not saved — nothing is put at risk without a clear warning.
+        if hasData && !Backups.hasStartOfDay() {
+            do { try Backups.write(try exportData(), reason: .startOfDay) }
+            catch {
+                errorMessage = "نسخه‌ی «شروع روز» پشتیبان ساخته نشد، پس این تغییر ذخیره نشد تا چیزی بدون پشتیبان از دست نرود. فضای خالی گوشی را بررسی کنید و دوباره امتحان کنید. (\(error.localizedDescription))"
+                return false
+            }
+        }
         let previous = state
         do {
             try store.save(newState)

@@ -4,13 +4,17 @@ import HesabCore
 
 // MARK: - automatic backups (decision D18: daily JSON backup to iCloud Drive, no live sync)
 //
-// Every saved change rewrites TODAY's backup file, so each day keeps its latest state.
-// Files use the web full-backup format (version 1), so the web app can restore them too.
-//   iCloud Drive › دفتر حساب › پشتیبان‌ها   (last 60 files)
-//   Files › On My iPhone › دفتر حساب › پشتیبان‌ها   (last 14 files, works without iCloud too)
-// Before an import replaces the data, a separate "before restore" copy is written.
+// Files use the web full-backup format (version 1), so the web app can restore them too; each has a «.sha256»
+// sidecar written after it. Retention (BackupRetention, owner-approved 2026-11-25):
+//   end of day     rewritten with every change — 14 days (iCloud 60) + one per week × 8 + one per month × 12
+//   start of day   the data as it was before the day's first change, written once — 14 days
+//   before restore written before an import / reset replaces the data — newest 10, own pool
+//   raw database   (.sqlite, when the data could not be read) — never removed automatically
+// Removal is a move into «_حذف‌شده»; deleted for good 30 days later. Retention runs once a day per folder.
+//   iCloud Drive › دفتر حساب › پشتیبان‌ها
+//   Files › On My iPhone › دفتر حساب › پشتیبان‌ها   (works without iCloud too)
 
-enum BackupReason { case daily, beforeRestore }
+enum BackupReason { case daily, startOfDay, beforeRestore }
 
 enum Backups {
     static let folderName = "پشتیبان‌ها"
@@ -19,26 +23,31 @@ enum Backups {
     // UserDefaults keys (read by the settings screen through @AppStorage)
     static let lastAtKey = "backup.lastAt"
     static let lastICloudKey = "backup.lastICloud"       // 1 = in iCloud, 0 = iCloud unavailable, -1 = failed
+    static let retentionDayKey = "backup.retentionDay."  // + "local" / "icloud": the day retention last ran
 
     static var localFolder: URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return docs.appendingPathComponent(folderName, isDirectory: true)
     }
+    static var local: BackupFolder { BackupFolder(url: localFolder) }
+    static let localOptions: Data.WritingOptions = [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
 
     static func fileName(_ reason: BackupReason, now: Date = Date()) -> String {
         let t = Fmt.jalali(now)
-        let day = Money.persianDigits("\(t.jy)-\(t.jm)-\(t.jd)")
         switch reason {
-        case .daily:
-            return "پشتیبان-کامل-اپ - " + day + ".json"
+        case .daily: return BackupNames.endOfDay(t)
+        case .startOfDay: return BackupNames.startOfDay(t)
         case .beforeRestore:
             let c = Calendar(identifier: .gregorian).dateComponents([.hour, .minute, .second], from: now)
-            let time = Money.persianDigits(String(format: "%02d%02d%02d", c.hour ?? 0, c.minute ?? 0, c.second ?? 0))
-            return "قبل-از-بازگردانی - " + day + " - " + time + ".json"
+            return BackupNames.beforeRestore(t, hhmmss: (c.hour ?? 0) * 10000 + (c.minute ?? 0) * 100 + (c.second ?? 0))
         }
     }
 
-    /// Before a restore replaces data that cannot be read: the raw database file, kept next to the JSON backups.
+    /// whether today's start-of-day copy is already there (it is written once, before the day's first change)
+    static func hasStartOfDay(now: Date = Date()) -> Bool { local.exists(fileName(.startOfDay, now: now)) }
+
+    /// Before a restore replaces data that cannot be read: the raw database file, kept next to the JSON backups
+    /// (with its sidecar). Never removed automatically.
     @discardableResult
     static func writeRawDatabase(_ copy: (URL) throws -> Void) throws -> URL {
         try FileManager.default.createDirectory(at: localFolder, withIntermediateDirectories: true)
@@ -47,24 +56,34 @@ enum Backups {
         try copy(url)
         try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
                                                ofItemAtPath: url.path)
+        try local.writeSidecar(for: name, options: localOptions)
         return url
     }
 
     /// iCloud copies are written one after another, newest last (an older copy never lands over a newer one)
     static let iCloudQueue = LatestWinsQueue(label: "backup.icloud")
 
-    /// Writes the local copy synchronously (throws if that fails) and the iCloud copy in the background.
+    /// Writes the local copy (and its sidecar) synchronously — throws if that fails — and the iCloud copy in the
+    /// background. A start-of-day copy is never overwritten.
     @discardableResult
     static func write(_ data: Data, reason: BackupReason) throws -> URL {
-        let fm = FileManager.default
-        try fm.createDirectory(at: localFolder, withIntermediateDirectories: true)
         let name = fileName(reason)
-        let url = localFolder.appendingPathComponent(name)
-        try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-        prune(localFolder, keep: 14)
+        if reason == .startOfDay, local.exists(name) { return localFolder.appendingPathComponent(name) }
+        let url = try local.write(data, name: name, options: localOptions)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastAtKey)
+        runRetentionOncePerDay(local, policy: .local, key: "local")
         copyToICloud(data, name: name)
         return url
+    }
+
+    /// Retention at most once a day per folder (it reads and hashes files, so not on every change).
+    static func runRetentionOncePerDay(_ folder: BackupFolder, policy: BackupRetentionPolicy, key: String) {
+        let today = Fmt.jalali(Date())
+        let tag = BackupNames.endOfDay(today)
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: retentionDayKey + key) != tag else { return }
+        folder.applyRetention(today: today, policy: policy)
+        defaults.set(tag, forKey: retentionDayKey + key)
     }
 
     /// does the signed app carry the iCloud container entitlement? (looks inside its own code signature)
@@ -74,46 +93,29 @@ enum Backups {
             || data.range(of: Data("com.apple.developer.icloud-container-identifiers".utf8)) != nil
     }()
 
+    static var iCloudFolderURL: URL? {
+        FileManager.default.url(forUbiquityContainerIdentifier: iCloudContainer)?
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent(folderName, isDirectory: true)
+    }
+
     static func copyToICloud(_ data: Data, name: String) {
         iCloudQueue.submit(key: name) {
             let fm = FileManager.default
-            guard let base = fm.url(forUbiquityContainerIdentifier: iCloudContainer) else {
+            guard let dir = iCloudFolderURL else {
                 // why: not signed in to iCloud Drive (no identity token) / this build lacks the iCloud permission / other
                 let code = fm.ubiquityIdentityToken == nil ? 0 : (hasICloudEntitlement ? -3 : -2)
                 DispatchQueue.main.async { UserDefaults.standard.set(code, forKey: lastICloudKey) }
                 return
             }
-            let dir = base.appendingPathComponent("Documents", isDirectory: true)
-                .appendingPathComponent(folderName, isDirectory: true)
-            var ok = false
-            do {
-                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-                let dest = dir.appendingPathComponent(name)
-                var coordError: NSError?
-                var writeError: Error?
-                NSFileCoordinator().coordinate(writingItemAt: dest, options: .forReplacing, error: &coordError) { u in
-                    do { try data.write(to: u, options: .atomic) } catch { writeError = error }
-                }
-                ok = coordError == nil && writeError == nil
-                if ok { prune(dir, keep: 60) }
-            } catch {
-                ok = false
-            }
+            // conservative in iCloud: files from another device that are not downloaded are invisible or unreadable,
+            // so they are never healthy and never removed (see BackupRetention)
+            let folder = BackupFolder(url: dir, coordinated: true)
+            let ok = (try? folder.write(data, name: name)) != nil
+            if ok { runRetentionOncePerDay(folder, policy: .iCloud, key: "icloud") }
             let result = ok ? 1 : -1
             DispatchQueue.main.async { UserDefaults.standard.set(result, forKey: lastICloudKey) }
         }
-    }
-
-    /// Keeps the newest `keep` JSON files (by modification date).
-    static func prune(_ dir: URL, keep: Int) {
-        let fm = FileManager.default
-        guard let items = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
-        let jsons = items.filter { $0.pathExtension.lowercased() == "json" }
-        guard jsons.count > keep else { return }
-        let dated = jsons.map { u -> (URL, Date) in
-            ((u), (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
-        }.sorted { $0.1 > $1.1 }
-        for (u, _) in dated.dropFirst(keep) { try? fm.removeItem(at: u) }
     }
 
     static func describeLast() -> String {

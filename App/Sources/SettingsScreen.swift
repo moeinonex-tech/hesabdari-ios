@@ -178,8 +178,12 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("پشتیبان خودکار").font(AppFont.medium(13))
+                NavigationLink { BackupHealthView() } label: {
+                    Label("بررسی سلامت بکاپ‌ها", systemImage: "checkmark.shield")
+                }
+                .accessibilityIdentifier("backup.health")
             } footer: {
-                Text("بعد از هر تغییر، پشتیبان امروز به‌روز می‌شود: در iCloud Drive › دفتر حساب › پشتیبان‌ها و یک نسخه در Files › On My iPhone › دفتر حساب.").font(AppFont.caption)
+                Text("بعد از هر تغییر، پشتیبان امروز به‌روز می‌شود و نسخه‌ی «شروع روز» هم یک بار در روز نگه داشته می‌شود: در iCloud Drive › دفتر حساب › پشتیبان‌ها و یک نسخه در Files › On My iPhone › دفتر حساب. ۱۴ روز آخر، یک نسخه از هر هفته (۸ هفته) و یک نسخه از هر ماه (۱۲ ماه) می‌ماند.").font(AppFont.caption)
             }
             Section {
                 Button { exportFile = model.makeExportFile() } label: {

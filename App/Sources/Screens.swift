@@ -34,6 +34,7 @@ struct RootView: View {
     #if DEBUG
     @State private var uiTestCategories = ProcessInfo.processInfo.environment["UITEST_OPEN"] == "categories"
     @State private var uiTestBackup = ProcessInfo.processInfo.environment["UITEST_OPEN"] == "backup"
+    @State private var uiTestHealth = ProcessInfo.processInfo.environment["UITEST_OPEN"] == "health"
     #endif
 
     var body: some View {
@@ -66,6 +67,10 @@ struct RootView: View {
         }
         .sheet(isPresented: $uiTestBackup) {
             NavigationStack { SectionBackupView(model: model) }
+        }
+        .sheet(isPresented: $uiTestHealth) {
+            NavigationStack { BackupHealthView() }
+                .onAppear { model.backupToday(showErrors: true) }      // so there is a backup to check
         }
         #endif
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .plainText, .data]) { result in
