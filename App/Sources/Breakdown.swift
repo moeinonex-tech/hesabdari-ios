@@ -219,7 +219,7 @@ struct BreakdownCard: View {
         .onDisappear { sweep?.cancel() }
         .onAppear { if pageActive { entrySweep() } }
         .onChange(of: pageActive) { _, now in if now { entrySweep() } }
-        .sheet(item: $share) { f in ActivityView(items: [f.url]) }
+        .shareSheet(item: $share)
     }
 
     @ViewBuilder private var pdfMenu: some View {

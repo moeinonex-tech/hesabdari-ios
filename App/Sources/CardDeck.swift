@@ -389,7 +389,7 @@ struct RowsCard<Row: Identifiable, RowView: View>: View {
             }
         }
         .glassCard()
-        .sheet(item: $share) { f in ActivityView(items: [f.url]) }
+        .shareSheet(item: $share)
     }
 
     private func toggle() {

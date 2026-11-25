@@ -238,3 +238,13 @@ enum Haptics {
     static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
     static func warning() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
 }
+
+/// The screen's width without the deprecated `UIScreen.main` (iOS 26): the active window scene's screen.
+@MainActor
+enum ScreenInfo {
+    static var width: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        return scene?.screen.bounds.width ?? 393
+    }
+}

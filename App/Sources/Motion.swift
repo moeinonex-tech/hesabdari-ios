@@ -300,8 +300,8 @@ struct ChartReveal: ViewModifier {
         Motion.instantly { levels = Array(repeating: 0, count: n); p = f == .neon || kind == .ring ? 0 : 1 }
         let step = n > 0 ? min(0.06, 0.6 / Double(n)) : 0
         job = Task { @MainActor in
-            func grow(_ i: Int, _ a: Animation) { if i < levels.count { withAnimation(a) { levels[i] = 1 } } }
-            func growAll(_ a: Animation) { withAnimation(a) { for i in levels.indices { levels[i] = 1 } } }
+            @MainActor func grow(_ i: Int, _ a: Animation) { if i < levels.count { withAnimation(a) { levels[i] = 1 } } }
+            @MainActor func growAll(_ a: Animation) { withAnimation(a) { for i in levels.indices { levels[i] = 1 } } }
             await Motion.wait(0.18)
             if Task.isCancelled { return }
             switch f {

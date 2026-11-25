@@ -33,7 +33,7 @@ struct CardPDFButton: View {
                 .accessibilityIdentifier(id)
             }
         }
-        .sheet(item: $share) { f in ActivityView(items: [f.url]) }
+        .shareSheet(item: $share)
     }
 }
 

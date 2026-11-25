@@ -13,7 +13,7 @@ packages:
 
 settings:
   base:
-    MARKETING_VERSION: "0.43.5"
+    MARKETING_VERSION: "0.43.6"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: "${TEAM_ID}"
@@ -28,6 +28,8 @@ targets:
       - path: App/Fonts
         buildPhase: resources
       - path: App/Report
+        buildPhase: resources
+      - path: App/PrivacyInfo.xcprivacy
         buildPhase: resources
     dependencies:
       - package: HesabCore

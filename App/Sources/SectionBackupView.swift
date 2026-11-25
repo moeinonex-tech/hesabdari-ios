@@ -36,7 +36,7 @@ struct SectionBackupView: View {
         }
         .navigationTitle("پشتیبان بخشی")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $share) { f in ActivityView(items: [f.url]) }
+        .shareSheet(item: $share)
         .fileImporter(isPresented: $importerOpen, allowedContentTypes: [.json, .data, .plainText]) { result in
             guard let sec = restoring, case .success(let url) = result else { return }
             let scoped = url.startAccessingSecurityScopedResource()

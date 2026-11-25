@@ -85,9 +85,7 @@ struct RootView: View {
                 }
             }
         }
-        .sheet(item: $exportFile) { file in
-            ActivityView(items: [file.url])
-        }
+        .shareSheet(item: $exportFile)
         .alert("پیام", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("باشه", role: .cancel) { model.errorMessage = nil }
         } message: {

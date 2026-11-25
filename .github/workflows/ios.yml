@@ -26,6 +26,11 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
+      - name: Privacy manifest matches the code (required-reason APIs)
+        run: |
+          plutil -lint App/PrivacyInfo.xcprivacy
+          python3 scripts/check_privacy_manifest.py | tee "$RUNNER_TEMP/privacy.log"
+          while read -r l; do echo "::notice title=privacy manifest::$l"; done < "$RUNNER_TEMP/privacy.log"
       - name: Test (Jalali, commission, import, ledger, records, notifications)
         run: |
           set -o pipefail
@@ -152,6 +157,13 @@ jobs:
             CURRENT_PROJECT_VERSION=${{ github.run_number }} 2>&1 | tee "$RUNNER_TEMP/archive.log"
           # Unsigned archive: no Apple Development certificate is created on every run (account limit).
           # The export below signs once with the cloud-managed distribution certificate.
+
+      - name: Privacy manifests in the Release app
+        run: |
+          APP=$(ls -d "$RUNNER_TEMP/Hesabdari.xcarchive/Products/Applications/"*.app | head -1)
+          test -f "$APP/PrivacyInfo.xcprivacy" || { echo "::error title=privacy::PrivacyInfo.xcprivacy is missing from the app"; exit 1; }
+          plutil -lint "$APP/PrivacyInfo.xcprivacy"
+          find "$APP" -name "PrivacyInfo.xcprivacy" | sed "s|$APP/||" | while read -r f; do echo "::notice title=privacy manifest in app::$f"; done
 
       - name: Embed entitlements
         run: |

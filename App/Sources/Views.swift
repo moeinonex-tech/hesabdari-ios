@@ -848,12 +848,37 @@ struct SettleView: View {
 
 struct ActivityView: UIViewControllerRepresentable {
     let items: [Any]
+    var onFinish: () -> Void = {}
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let c = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        c.completionWithItemsHandler = { _, _, _, _ in onFinish() }
+        return c
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+/// Share an exported file; once the share is over the file is deleted (only exports — see TempExports).
+/// The deletion waits a little, so a target still reading the file (AirDrop, Save to Files) is never cut short;
+/// whatever is left (app closed during a share) is removed at the next launch.
+private struct ShareSheet: ViewModifier {
+    @Binding var item: ExportFile?
+
+    func body(content: Content) -> some View {
+        content.sheet(item: $item, onDismiss: {}) { f in
+            ActivityView(items: [f.url]) { ShareSheet.cleanUp(f.url) }
+                .onDisappear { ShareSheet.cleanUp(f.url) }
+        }
+    }
+
+    static func cleanUp(_ url: URL) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { TempExports.remove(url) }
+    }
+}
+
+extension View {
+    func shareSheet(item: Binding<ExportFile?>) -> some View { modifier(ShareSheet(item: item)) }
 }
 
 /// Smart suggestions (web «suggest chips»): the category chips appear while the category is empty, the subcategory

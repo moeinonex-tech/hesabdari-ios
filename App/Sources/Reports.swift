@@ -118,10 +118,8 @@ enum PDFMaker {
 
 extension AppModel {
     func exportFile(name: String, data: Data) -> ExportFile? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         do {
-            try data.write(to: url, options: [.atomic, .completeFileProtection])
-            return ExportFile(url: url)
+            return ExportFile(url: try TempExports.write(data, name: name, options: [.atomic, .completeFileProtection]))
         } catch {
             errorMessage = "فایل ساخته نشد: \(error.localizedDescription)"
             return nil
@@ -260,7 +258,7 @@ struct ReportsView: View {
         .pageSwipe(.reports, $scope, [0, 1, 2, 3, 4])
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: scope) { _, _ in account = nil; editingCards = false }
-        .sheet(item: $share) { f in ActivityView(items: [f.url]) }
+        .shareSheet(item: $share)
     }
 
     // overview

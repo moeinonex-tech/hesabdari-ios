@@ -26,8 +26,8 @@ struct CardsView: View {
         r.isOpaque = true
         guard let img = r.uiImage, let data = img.pngData() else { return }
         let name = (c.bankName.isEmpty ? "کارت" : c.bankName) + ".png"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-        do { try data.write(to: url); shareFile = ExportFile(url: url) } catch { model.errorMessage = error.localizedDescription }
+        do { shareFile = ExportFile(url: try TempExports.write(data, name: name, options: [.atomic, .completeFileProtection])) }
+        catch { model.errorMessage = error.localizedDescription }
     }
 
     var body: some View {
@@ -77,7 +77,7 @@ struct CardsView: View {
         .sheet(item: $editing) { e in
             NavigationStack { CardFormView(model: model, editingId: e.id.isEmpty ? nil : e.id) }
         }
-        .sheet(item: $shareFile) { f in ActivityView(items: [f.url]) }
+        .shareSheet(item: $shareFile)
         .confirmationDialog("این کارت حذف شود؟", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
                             titleVisibility: .visible) {
             Button("حذف", role: .destructive) {

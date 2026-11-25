@@ -352,8 +352,8 @@ struct HomeView: View {
     }
 
     /// one line for a short notice, two for a long one (the card stays slim)
-    private static func rowH(_ it: AttentionItem) -> CGFloat {
-        let oneLine = (UIScreen.main.bounds.width - 32 - 28 - 50) / 6.6
+    @MainActor private static func rowH(_ it: AttentionItem) -> CGFloat {
+        let oneLine = (ScreenInfo.width - 32 - 28 - 50) / 6.6
         return CGFloat(it.text.count) > oneLine ? 58 : attRowH
     }
 
@@ -563,7 +563,8 @@ struct QuoteCard: View {
                 } else {
                     // every word is its own run, so the renderer can move words (Persian letters stay joined)
                     words.enumerated().reduce(Text("")) { acc, w in
-                        acc + Text(w.element + (w.offset < words.count - 1 ? " " : "")).customAttribute(WordTag(i: w.offset))
+                        let word = Text(w.element + (w.offset < words.count - 1 ? " " : "")).customAttribute(WordTag(i: w.offset))
+                        return Text("\(acc)\(word)")
                     }
                     .textRenderer(WordReveal(progress: progress, count: words.count, style: fx, glow: t.accent))
                 }

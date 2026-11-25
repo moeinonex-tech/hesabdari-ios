@@ -8,6 +8,7 @@ struct HesabdariApp: App {
 
     init() {
         AppFont.configureUIKit()
+        TempExports.purgeAll()      // shared files left behind by an earlier run (never backups: see TempExports)
     }
 
     var body: some Scene {
@@ -208,9 +209,7 @@ final class AppModel: ObservableObject {
             let t = Self.today
             let data = try store.exportBackup(today: t)
             let name = "پشتیبان-کامل-اپ - " + Money.persianDigits("\(t.jy)-\(t.jm)-\(t.jd)") + ".json"
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-            try data.write(to: url, options: [.atomic, .completeFileProtection])
-            return ExportFile(url: url)
+            return ExportFile(url: try TempExports.write(data, name: name, options: [.atomic, .completeFileProtection]))
         } catch {
             errorMessage = "خروجی ساخته نشد: \(error.localizedDescription)"
             return nil

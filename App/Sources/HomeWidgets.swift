@@ -44,7 +44,7 @@ struct WidgetGrid<Cell: View>: View {
 
     @AppStorage(HomeWidgetPrefs.key) private var sizesRaw = "{}"
     @AppStorage(Look.cardFxKey) private var cardFxRaw = CardFx.none.rawValue
-    @State private var width: CGFloat = max(300, UIScreen.main.bounds.width - 32)
+    @State private var width: CGFloat = max(300, ScreenInfo.width - 32)
     @State private var liveSize: (key: String, size: WidgetSize)?
     @State private var liveOrder: [String]?
     @State private var dragKey: String?
