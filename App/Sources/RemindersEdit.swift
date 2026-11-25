@@ -596,6 +596,11 @@ struct DueCheckPrompt: ViewModifier {
     }
 
     private func later(_ s: Double) {
+        #if DEBUG
+        // UI performance test: the synthetic 20,000-row data has hundreds of past-due checks; their prompts would
+        // cover the screen for the whole run
+        if ProcessInfo.processInfo.environment["UITEST_SYNTH"] != nil { return }
+        #endif
         DispatchQueue.main.asyncAfter(deadline: .now() + s) { next() }
     }
 
