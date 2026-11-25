@@ -74,8 +74,11 @@ final class AppModel: ObservableObject {
         var openError: String?
         #if DEBUG
         // UI smoke tests (simulator, Debug builds only): start from a small synthetic state in memory
-        if let json = ProcessInfo.processInfo.environment["UITEST_STATE"], let data = json.data(using: .utf8),
-           let st = try? JSONDecoder().decode([String: JSONValue].self, from: data), let mem = try? HesabStore() {
+        let env = ProcessInfo.processInfo.environment
+        // performance test: a synthetic 20,000-row state instead of the small one
+        let synthetic: [String: JSONValue]? = Int(env["UITEST_SYNTH"] ?? "").map { SyntheticLedger.make(rows: $0) }
+        if let st = synthetic ?? env["UITEST_STATE"].flatMap({ $0.data(using: .utf8) })
+            .flatMap({ try? JSONDecoder().decode([String: JSONValue].self, from: $0) }), let mem = try? HesabStore() {
             UserDefaults.standard.set(false, forKey: AppLock.enabledKey)      // no Face ID on the simulator
             UserDefaults.standard.set(false, forKey: "notify.enabled")
             try? mem.save(st)

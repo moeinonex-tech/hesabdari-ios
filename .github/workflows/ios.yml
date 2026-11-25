@@ -34,7 +34,12 @@ jobs:
       - name: Test (Jalali, commission, import, ledger, records, notifications)
         run: |
           set -o pipefail
-          swift test --package-path HesabCore 2>&1 | tee "$RUNNER_TEMP/test.log"
+          swift test --package-path HesabCore --skip PerformanceTests 2>&1 | tee "$RUNNER_TEMP/test.log"
+      - name: Performance with 20,000 rows (release build)
+        run: |
+          set -o pipefail
+          swift test --package-path HesabCore -c release -Xswiftc -enable-testing --filter PerformanceTests 2>&1 | tee "$RUNNER_TEMP/perf.log"
+          grep -E "^PERF\|" "$RUNNER_TEMP/perf.log" | while read -r l; do echo "::notice title=perf::$l"; done
       - name: Report test counts
         if: always()
         run: |
@@ -71,7 +76,9 @@ jobs:
             CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= 2>&1 | tee "$RUNNER_TEMP/ui.log"
       - name: Diagnostics from the UI tests
         if: always()
-        run: grep -h "GEAR-RESULT" "$RUNNER_TEMP/ui.log" | sort -u | head -10 | while read -r l; do echo "::notice title=diag::${l:0:900}"; done || true
+        run: |
+          grep -h "GEAR-RESULT" "$RUNNER_TEMP/ui.log" | sort -u | head -10 | while read -r l; do echo "::notice title=diag::${l:0:900}"; done || true
+          grep -h "PERF-UI|" "$RUNNER_TEMP/ui.log" | grep -v "print(" | sed 's/^.*PERF-UI/PERF-UI/' | awk '!seen[$0]++' | head -20 | while read -r l; do echo "::notice title=perf-ui::$l"; done || true
       - name: Report UI test failures and crashes
         if: failure()
         run: |

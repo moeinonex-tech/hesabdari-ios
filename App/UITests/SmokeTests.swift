@@ -253,6 +253,53 @@ final class SmokeTests: XCTestCase {
         alive("backup health")
     }
 
+    /// stage 3: how long the main screens take with 20,000 synthetic rows (Debug build on the simulator — the numbers
+    /// are for comparing before / after, not the speed of a phone). Printed as «PERF-UI|<step>|<seconds>».
+    func testPerformanceWithTwentyThousandRows() {
+        app.terminate()
+        app.launchEnvironment["UITEST_SYNTH"] = "20000"
+        func time(_ step: String, timeout: TimeInterval = 120, _ until: () -> Bool) {
+            let t = Date()
+            while !until() && Date().timeIntervalSince(t) < timeout { usleep(50_000) }
+            let s = Date().timeIntervalSince(t)
+            print(String(format: "PERF-UI|%@|%.2f%@", step, s, until() ? "" : " (timeout)"))
+        }
+        let start = Date()
+        app.launch()
+        let ledgerTab = app.buttons["دفتر حساب"].firstMatch
+        time("launch → home") { ledgerTab.exists && ledgerTab.isHittable }
+        print(String(format: "PERF-UI|launch total|%.2f", Date().timeIntervalSince(start)))
+
+        ledgerTab.tap()
+        let pdf = app.buttons.matching(identifier: "pdf").firstMatch
+        time("open ledger page") { pdf.exists }
+        for name in ["شخصی", "یادآوری‌ها", "کیف کارت"] {
+            let tab = app.buttons[name].firstMatch
+            tab.tap()
+            time("open " + name, timeout: 30) { tab.exists }       // the first check waits until the app is idle (page drawn)
+        }
+        app.buttons["دفتر حساب"].firstMatch.tap()
+        time("back to ledger") { pdf.exists }
+        for _ in 0..<4 where !(pdf.exists && pdf.isHittable) { app.swipeUp() }
+        pdf.tap()
+        let share = app.descendants(matching: .any).matching(NSPredicate(format:
+            "identifier == 'ActivityListView' OR label == 'Copy' OR label == 'Save to Files' OR label == 'AirDrop'")).firstMatch
+        time("ledger PDF → share sheet") { share.exists }
+        if share.exists { app.swipeDown(); sleep(1) }
+        if app.buttons["Close"].exists { app.buttons["Close"].tap() }
+
+        app.buttons["خانه"].firstMatch.tap()
+        let search = app.buttons["search"].firstMatch
+        time("back to home") { search.exists && search.isHittable }
+        search.tap()
+        let field = app.textFields["search.field"].firstMatch
+        time("open search") { field.exists }
+        field.tap(); field.typeText("سیمان")
+        let result = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "نتیجه در")).firstMatch
+        time("search results") { result.exists }
+        alive("performance run")
+    }
+
     func testSettingsGearOpens() {
         let gear = app.buttons["settings"].firstMatch
         XCTAssertTrue(gear.waitForExistence(timeout: 10))
