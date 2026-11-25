@@ -255,6 +255,16 @@ final class SmokeTests: XCTestCase {
 
     /// stage 3: how long the main screens take with 20,000 synthetic rows (Debug build on the simulator — the numbers
     /// are for comparing before / after, not the speed of a phone). Printed as «PERF-UI|<step>|<seconds>».
+    /// what is on screen at a step of the performance run (app-side launch phases, alerts, a screenshot)
+    private func report(_ step: String) {
+        shot("perf-" + step)
+        let perf = app.descendants(matching: .any).matching(identifier: "debug.perf").firstMatch
+        if perf.exists { print("PERF-UI|app phases (ms)|" + perf.label) }
+        for a in app.alerts.allElementsBoundByIndex { print("PERF-UI|alert at \(step)|" + a.label) }
+        print("PERF-UI|sheets at \(step)|\(app.sheets.count) hittable-dock=\(app.buttons["دفتر حساب"].firstMatch.isHittable)")
+        print("PERFTREE-BEGIN \(step)\n" + String(app.debugDescription.prefix(6000)) + "\nPERFTREE-END")
+    }
+
     func testPerformanceWithTwentyThousandRows() {
         app.terminate()
         app.launchEnvironment["UITEST_SYNTH"] = "20000"
@@ -269,10 +279,12 @@ final class SmokeTests: XCTestCase {
         let ledgerTab = app.buttons["دفتر حساب"].firstMatch
         time("launch → home") { ledgerTab.exists && ledgerTab.isHittable }
         print(String(format: "PERF-UI|launch total|%.2f", Date().timeIntervalSince(start)))
+        report("launch")
 
         ledgerTab.tap()
         let pdf = app.buttons.matching(identifier: "pdf").firstMatch
         time("open ledger page") { pdf.exists }
+        report("ledger")
         for name in ["شخصی", "یادآوری‌ها", "کیف کارت"] {
             let tab = app.buttons[name].firstMatch
             tab.tap()

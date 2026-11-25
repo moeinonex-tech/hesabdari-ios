@@ -68,6 +68,10 @@ struct RootView: View {
                 Text(model.debugBackupNote).font(.system(size: 2)).opacity(0.02).allowsHitTesting(false)
                     .accessibilityIdentifier("debug.backupNote")
             }
+            if !model.debugPerfNote.isEmpty {
+                Text(model.debugPerfNote).font(.system(size: 2)).opacity(0.02).allowsHitTesting(false)
+                    .accessibilityIdentifier("debug.perf")
+            }
         }
         .sheet(isPresented: $uiTestCategories) {
             NavigationStack { CategoryManagerView(model: model) }

@@ -78,17 +78,24 @@ final class AppModel: ObservableObject {
         // UI smoke tests (simulator, Debug builds only): start from a small synthetic state in memory
         let env = ProcessInfo.processInfo.environment
         // performance test: a synthetic 20,000-row state instead of the small one
+        var clock = Date()
+        var phases: [String] = []
+        func phase(_ name: String) { phases.append(name + "=" + String(Int(Date().timeIntervalSince(clock) * 1000))); clock = Date() }
         let synthetic: [String: JSONValue]? = Int(env["UITEST_SYNTH"] ?? "").map { SyntheticLedger.make(rows: $0) }
+        if synthetic != nil { phase("synth") }
         if let st = synthetic ?? env["UITEST_STATE"].flatMap({ $0.data(using: .utf8) })
             .flatMap({ try? JSONDecoder().decode([String: JSONValue].self, from: $0) }), let mem = try? HesabStore() {
             UserDefaults.standard.set(false, forKey: AppLock.enabledKey)      // no Face ID on the simulator
             UserDefaults.standard.set(false, forKey: "notify.enabled")
             try? mem.save(st)
+            if synthetic != nil { phase("seed") }
             // a damaged database (UI test of the read-only safety)
             if ProcessInfo.processInfo.environment["UITEST_CORRUPT"] == "1" { try? mem.corruptOneRecordForTesting() }
             store = SafeStore(mem)
             reload()
+            if synthetic != nil { phase("reload") }
             completePendingBackup()
+            if synthetic != nil { phase("pending"); debugPerfNote = phases.joined(separator: " ") }
             if env["UITEST_MUTATE"] == "1" {      // UI test: one change, so a backup is pending
                 _ = apply(state.merging(["uitestMutation": .int(Int64(Date().timeIntervalSince1970))]) { _, b in b })
                 debugBackupNote += " startOfDay=\(Backups.hasStartOfDay()) pending=\(backupDebouncer.hasPending)"
@@ -344,6 +351,8 @@ final class AppModel: ObservableObject {
     #if DEBUG
     /// UI tests only: what happened to backups (read through a hidden label)
     @Published var debugBackupNote = ""
+    /// UI performance test only: launch phases in ms (synthetic data)
+    @Published var debugPerfNote = ""
     #endif
 
     /// the undo bar; the state to put back lives in `undoTracker`
