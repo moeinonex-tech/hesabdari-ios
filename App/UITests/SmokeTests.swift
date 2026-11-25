@@ -70,6 +70,23 @@ final class SmokeTests: XCTestCase {
         while undo.exists && Date().timeIntervalSince(t) < 13 { usleep(250_000) }
     }
 
+    /// bring an element into the free part of the screen (below the header, above the dock) by dragging the page from
+    /// its edge (outside the cards, so an inner list does not scroll instead); a tap behind the dock would hit the dock
+    private func bringAboveDock(_ e: XCUIElement) {
+        let dockTop = app.buttons["گزارش‌ها"].firstMatch.exists ? app.buttons["گزارش‌ها"].firstMatch.frame.minY - 12 : 760
+        for _ in 0..<10 {
+            guard e.exists else { return }
+            let f = e.frame
+            let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.55))
+            if f.maxY > dockTop {
+                edge.press(forDuration: 0.05, thenDragTo: edge.withOffset(CGVector(dx: 0, dy: -min(250, f.maxY - dockTop + 80))))
+            } else if f.minY < 140 {
+                edge.press(forDuration: 0.05, thenDragTo: edge.withOffset(CGVector(dx: 0, dy: min(250, 220 - f.minY))))
+            } else { return }
+            usleep(400_000)
+        }
+    }
+
     /// on a failure: what was on screen (tree printed to the log)
     private func dumpTree(_ step: String) {
         shot("fail-" + step)
@@ -212,6 +229,7 @@ final class SmokeTests: XCTestCase {
         alive("after partial payment")
         // the live commission now counts only row 6
         waitForUndoBannerToGo()
+        bringAboveDock(app.buttons["پرداخت کمیسیون"].firstMatch)
         tap(app.buttons["پرداخت کمیسیون"].firstMatch, "reopen settle")
         let row6 = app.buttons["settle.row.6"]
         if !row6.waitForExistence(timeout: 5) { dumpTree("reopen settle") }
@@ -479,9 +497,11 @@ final class SmokeTests: XCTestCase {
         expect("−۸۲۰.۰۰۰", "after add")
 
         // edit it to 220,000 → −920,000
-        let row = labelled("UITest brick")
-        for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+        // the row itself (the «جمع ردیف‌ها» card also names it, as «… تا «UITest brick»»)
+        let row = app.descendants(matching: .any).matching(NSPredicate(format:
+            "label CONTAINS %@ AND NOT (label CONTAINS %@)", "UITest brick", "«")).firstMatch
         waitForUndoBannerToGo()
+        bringAboveDock(row)
         tap(row, "open row")
         let amount2 = app.textFields["amount"].firstMatch
         if !amount2.waitForExistence(timeout: 5) { dumpTree("open row") }
@@ -495,7 +515,7 @@ final class SmokeTests: XCTestCase {
 
         // delete it → −700,000
         waitForUndoBannerToGo()
-        for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+        bringAboveDock(row)
         row.press(forDuration: 1.2)
         tap(app.buttons["حذف"].firstMatch, "delete row")
         sleep(1)
