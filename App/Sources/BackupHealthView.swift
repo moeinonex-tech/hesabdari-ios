@@ -109,8 +109,9 @@ struct BackupHealthView: View {
         Task.detached(priority: .userInitiated) {
             var out: [String: BackupCheckReport] = [:]
             for n in names { out[n] = BackupCheck.run(f, n) }
+            let result = out
             await MainActor.run {
-                reports = out
+                reports = result
                 running = false
             }
         }
