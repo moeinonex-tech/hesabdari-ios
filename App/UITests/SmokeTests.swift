@@ -268,53 +268,63 @@ final class SmokeTests: XCTestCase {
     func testPerformanceWithTwentyThousandRows() {
         app.terminate()
         app.launchEnvironment["UITEST_SYNTH"] = "20000"
-        func time(_ step: String, timeout: TimeInterval = 120, _ until: () -> Bool) {
-            let t = Date()
+        // each step is timed from just before its tap: a tap returns only when the app is idle again, so the
+        // drawing of the new page is inside the number
+        func time(_ step: String, since t: Date, timeout: TimeInterval = 120, _ until: () -> Bool) {
             while !until() && Date().timeIntervalSince(t) < timeout { usleep(50_000) }
             let s = Date().timeIntervalSince(t)
             print(String(format: "PERF-UI|%@|%.2f%@", step, s, until() ? "" : " (timeout)"))
         }
+        /// a coordinate tap (no element re-check after the event, which a long page drawing can trip)
+        func press(_ e: XCUIElement) { e.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
         let start = Date()
         app.launch()
         let ledgerTab = app.buttons["دفتر حساب"].firstMatch
-        time("launch → home") { ledgerTab.exists && ledgerTab.isHittable }
-        print(String(format: "PERF-UI|launch total|%.2f", Date().timeIntervalSince(start)))
+        time("launch → home (incl. launch)", since: start) { ledgerTab.exists && ledgerTab.isHittable }
         report("launch")
 
-        ledgerTab.tap()
+        var t0 = Date()
+        press(ledgerTab)
         let pdf = app.buttons.matching(identifier: "pdf").firstMatch
-        time("open ledger page") { pdf.exists }
+        time("open ledger page", since: t0) { pdf.exists }
         report("ledger")
         for name in ["شخصی", "یادآوری‌ها", "کیف کارت"] {
             let tab = app.buttons[name].firstMatch
-            tab.tap()
-            time("open " + name, timeout: 30) { tab.exists }       // the first check waits until the app is idle (page drawn)
+            guard tab.waitForExistence(timeout: 30) else { print("PERF-UI|open \(name)|skipped (no tab)"); continue }
+            t0 = Date()
+            press(tab)
+            time("open " + name, since: t0, timeout: 60) { tab.exists }
         }
-        app.buttons["دفتر حساب"].firstMatch.tap()
-        time("back to ledger") { pdf.exists }
+        t0 = Date()
+        press(app.buttons["دفتر حساب"].firstMatch)
+        time("back to ledger", since: t0) { pdf.exists }
         // a slow page is reported (timeout above), not turned into a failure of the whole suite
         if pdf.exists {
             for _ in 0..<4 where !(pdf.exists && pdf.isHittable) { app.swipeUp() }
+            t0 = Date()
             pdf.tap()
             let share = app.descendants(matching: .any).matching(NSPredicate(format:
                 "identifier == 'ActivityListView' OR label == 'Copy' OR label == 'Save to Files' OR label == 'AirDrop'")).firstMatch
-            time("ledger PDF → share sheet") { share.exists }
+            time("ledger PDF → share sheet", since: t0) { share.exists }
             if share.exists { app.swipeDown(); sleep(1) }
             if app.buttons["Close"].exists { app.buttons["Close"].tap() }
         } else {
             print("PERF-UI|ledger PDF → share sheet|skipped (page not drawn)")
         }
 
-        app.buttons["خانه"].firstMatch.tap()
+        t0 = Date()
+        press(app.buttons["خانه"].firstMatch)
         let search = app.buttons["search"].firstMatch
-        time("back to home") { search.exists && search.isHittable }
+        time("back to home", since: t0) { search.exists && search.isHittable }
         guard search.exists else { print("PERF-UI|search|skipped (home not drawn)"); return }
+        t0 = Date()
         search.tap()
         let field = app.textFields["search.field"].firstMatch
-        time("open search") { field.exists }
+        time("open search", since: t0) { field.exists }
         field.tap(); field.typeText("سیمان")
+        t0 = Date()
         let result = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "نتیجه در")).firstMatch
-        time("search results") { result.exists }
+        time("search results (after typing)", since: t0) { result.exists }
         alive("performance run")
     }
 
