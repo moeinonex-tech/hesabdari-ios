@@ -87,6 +87,19 @@ final class SmokeTests: XCTestCase {
         }
     }
 
+    /// empty a text field: the cursor lands where the tap was (the amount field is right-to-left with grouped digits),
+    /// so delete from both ends; deletes at the start of the text do nothing
+    private func clearField(_ f: XCUIElement) {
+        let deletes = String(repeating: XCUIKeyboardKey.delete.rawValue, count: 24)
+        for dx in [0.97, 0.03] {
+            f.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.5)).tap()
+            f.typeText(deletes)
+        }
+        let left = (f.value as? String ?? "").filter { $0.isNumber }
+        if !left.isEmpty { dumpTree("clear field: \(left)") }
+        XCTAssertTrue(left.isEmpty, "field not empty: \(left)")
+    }
+
     /// on a failure: what was on screen (tree printed to the log)
     private func dumpTree(_ step: String) {
         shot("fail-" + step)
@@ -506,8 +519,7 @@ final class SmokeTests: XCTestCase {
         let amount2 = app.textFields["amount"].firstMatch
         if !amount2.waitForExistence(timeout: 5) { dumpTree("open row") }
         XCTAssertTrue(amount2.exists, "edit form did not open")
-        amount2.tap()
-        amount2.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 16))
+        clearField(amount2)
         amount2.typeText("220000")
         tap(app.buttons["ذخیره"].firstMatch, "save edit")
         sleep(1)
