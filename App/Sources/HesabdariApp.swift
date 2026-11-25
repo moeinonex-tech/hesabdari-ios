@@ -44,9 +44,8 @@ struct Choice: Identifiable, Hashable {
 }
 
 struct UndoItem: Identifiable {
-    let id = UUID()
+    let id: UUID
     let message: String
-    let previous: [String: JSONValue]
 }
 
 struct ExportFile: Identifiable {
@@ -64,10 +63,13 @@ final class AppModel: ObservableObject {
     @Published var infoMessage: String?
     @Published var lastImportText: String?
 
-    private let store: HesabStore?
+    private let store: SafeStore?
+    /// set when the stored data could not be read: nothing is saved until it can (see SafeStore)
+    @Published private(set) var readOnlyReason: String?
+    static let readOnlyMessage = "داده‌های ذخیره‌شده خوانده نشدند. برای اینکه چیزی از دست نرود، ثبت و ویرایش قفل شد و پشتیبان‌گیری خودکار هم متوقف شد. پشتیبان‌های قبلی سالم‌اند؛ از تنظیمات › داده‌ها می‌توانید یکی را بازگردانید."
 
     init() {
-        var opened: HesabStore?
+        var opened: SafeStore?
         var openError: String?
         #if DEBUG
         // UI smoke tests (simulator, Debug builds only): start from a small synthetic state in memory
@@ -76,14 +78,16 @@ final class AppModel: ObservableObject {
             UserDefaults.standard.set(false, forKey: AppLock.enabledKey)      // no Face ID on the simulator
             UserDefaults.standard.set(false, forKey: "notify.enabled")
             try? mem.save(st)
-            store = mem
+            // a damaged database (UI test of the read-only safety)
+            if ProcessInfo.processInfo.environment["UITEST_CORRUPT"] == "1" { try? mem.corruptOneRecordForTesting() }
+            store = SafeStore(mem)
             reload()
             return
         }
         #endif
         do {
             let url = try AppModel.databaseURL()
-            opened = try HesabStore(path: url.path)
+            opened = SafeStore(try HesabStore(path: url.path))
             try? FileManager.default.setAttributes(
                 [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
         } catch {
@@ -108,8 +112,19 @@ final class AppModel: ObservableObject {
 
     func reload() {
         guard let store else { return }
-        state = (try? store.loadState()) ?? [:]
+        undoTracker.invalidate()
+        undo = nil
+        if let loaded = store.load() {
+            state = loaded
+            readOnlyReason = nil
+        } else {
+            // never show "empty" and save it over the real data: read-only until the data can be read again
+            state = [:]
+            readOnlyReason = store.readFailure ?? "?"
+            errorMessage = Self.readOnlyMessage
+        }
         hasData = !store.isEmpty
+        guard readOnlyReason == nil else { return }
         // commission incomes belong to «مدیریت پیمان ساختمان» (the user's rule) — one-time move of older ones
         if hasData, let migrated = LedgerOps.migrateCommissionIncomes(state) { _ = apply(migrated, undoMessage: nil) }
         if hasData { Notifier.sync(state) }
@@ -137,7 +152,7 @@ final class AppModel: ObservableObject {
     func confirmImport() {
         guard let report = pending, report.canImport, let store else { return }
         if hasData {   // safety copy of the current data before it is replaced
-            do { try Backups.write(try exportData(), reason: .beforeRestore) }
+            do { try safetyCopy() }
             catch { errorMessage = "قبل از جایگزینی، پشتیبان از داده‌ی فعلی ساخته نشد؛ ورود انجام نشد: \(error.localizedDescription)"; return }
         }
         do {
@@ -154,11 +169,10 @@ final class AppModel: ObservableObject {
     /// web factoryResetAllData — a safety copy is written first; without it nothing is deleted.
     func factoryReset() -> Bool {
         guard let store else { return false }
-        do { try Backups.write(try exportData(), reason: .beforeRestore) }
+        do { try safetyCopy() }
         catch { errorMessage = "پشتیبان ایمنی ساخته نشد؛ چیزی پاک نشد: \(error.localizedDescription)"; return false }
         do {
             try store.wipe()
-            undo = nil
             reload()
             lastImportText = nil
             Notifier.sync([:])
@@ -166,6 +180,17 @@ final class AppModel: ObservableObject {
         } catch {
             errorMessage = "پاک‌سازی انجام نشد: \(error.localizedDescription)"
             return false
+        }
+    }
+
+    /// The copy kept before a restore / reset replaces the data: a JSON backup, or — when the data cannot be read —
+    /// the raw database file itself, so nothing is lost either way.
+    private func safetyCopy() throws {
+        guard let store else { throw LedgerError.notFound }
+        if store.isReadOnly {
+            try Backups.writeRawDatabase { try store.copyDatabase(to: $0) }
+        } else {
+            try Backups.write(try exportData(), reason: .beforeRestore)
         }
     }
 
@@ -231,23 +256,30 @@ final class AppModel: ObservableObject {
 
     // MARK: changes (each one saved in one transaction)
 
+    /// the undo bar; the state to put back lives in `undoTracker`
     @Published var undo: UndoItem?
+    private var undoTracker = UndoTracker<[String: JSONValue]>()
     private var unlockedUntil = Date.distantPast
 
     private func apply(_ newState: [String: JSONValue], undoMessage: String? = nil) -> Bool {
         guard let store else { return false }
+        if store.isReadOnly { errorMessage = Self.readOnlyMessage; return false }
         let previous = state
         do {
             try store.save(newState)
             state = newState
             backupToday()
             Notifier.sync(newState)
-            if let m = undoMessage {
-                let item = UndoItem(message: m, previous: previous)
-                undo = item
+            // every change gets a number: an older undo can never wipe a newer change
+            if let offer = undoTracker.didChange(previous: previous, message: undoMessage) {
+                undo = UndoItem(id: offer.id, message: offer.message)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-                    if self?.undo?.id == item.id { self?.undo = nil }
+                    guard let self else { return }
+                    undoTracker.expire(offer.id)
+                    if undo?.id == offer.id { undo = nil }
                 }
+            } else {
+                undo = nil
             }
             return true
         } catch {
@@ -276,9 +308,13 @@ final class AppModel: ObservableObject {
     }
 
     func performUndo() {
-        guard let u = undo else { return }
         undo = nil
-        _ = apply(u.previous)
+        guard undoTracker.offer != nil else { return }      // its time ran out
+        guard let previous = undoTracker.takeUndo() else {
+            errorMessage = "بعد از آن، تغییر دیگری ثبت شده؛ برای اینکه آن تغییر از بین نرود، برگرداندن انجام نشد."
+            return
+        }
+        _ = apply(previous)
     }
 
     /// What the commission balance would be after a payment (preview only, nothing is saved).

@@ -38,6 +38,21 @@ enum Backups {
         }
     }
 
+    /// Before a restore replaces data that cannot be read: the raw database file, kept next to the JSON backups.
+    @discardableResult
+    static func writeRawDatabase(_ copy: (URL) throws -> Void) throws -> URL {
+        try FileManager.default.createDirectory(at: localFolder, withIntermediateDirectories: true)
+        let name = fileName(.beforeRestore).replacingOccurrences(of: ".json", with: ".sqlite")
+        let url = localFolder.appendingPathComponent(name)
+        try copy(url)
+        try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                                               ofItemAtPath: url.path)
+        return url
+    }
+
+    /// iCloud copies are written one after another, newest last (an older copy never lands over a newer one)
+    static let iCloudQueue = LatestWinsQueue(label: "backup.icloud")
+
     /// Writes the local copy synchronously (throws if that fails) and the iCloud copy in the background.
     @discardableResult
     static func write(_ data: Data, reason: BackupReason) throws -> URL {
@@ -60,7 +75,7 @@ enum Backups {
     }()
 
     static func copyToICloud(_ data: Data, name: String) {
-        DispatchQueue.global(qos: .utility).async {
+        iCloudQueue.submit(key: name) {
             let fm = FileManager.default
             guard let base = fm.url(forUbiquityContainerIdentifier: iCloudContainer) else {
                 // why: not signed in to iCloud Drive (no identity token) / this build lacks the iCloud permission / other
@@ -115,7 +130,7 @@ enum Backups {
 extension AppModel {
     /// Rewrites today's backup with the current data. Silent on success; a failure is shown once.
     func backupToday(showErrors: Bool = false) {
-        guard hasData else { return }
+        guard hasData, readOnlyReason == nil else { return }    // never back up a state that could not be read
         do {
             try Backups.write(try exportData(), reason: .daily)
         } catch {

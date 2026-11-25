@@ -226,6 +226,17 @@ final class SmokeTests: XCTestCase {
         alive("range card")
     }
 
+    /// audit #1: a damaged database opens read-only with a clear message instead of an empty ledger that saves over it
+    func testUnreadableDataOpensReadOnly() {
+        app.terminate()
+        app.launchEnvironment["UITEST_CORRUPT"] = "1"
+        app.launch()
+        let msg = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "خوانده نشدند")).firstMatch
+        XCTAssertTrue(msg.waitForExistence(timeout: 8), "read-only message shown")
+        tap(app.buttons["باشه"].firstMatch, "dismiss read-only message")
+        alive("read-only mode")
+    }
+
     func testSettingsGearOpens() {
         let gear = app.buttons["settings"].firstMatch
         XCTAssertTrue(gear.waitForExistence(timeout: 10))
