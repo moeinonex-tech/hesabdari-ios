@@ -305,7 +305,9 @@ struct LedgerHomeView: View {
             let commission = model.rows(accountId: a.id)
                 .filter { $0.kind == .commission || ($0.kind == .expense && $0.category.trimmingCharacters(in: .whitespaces) == "کمیسیون") }
                 .reduce(0) { $0 + $1.toman }
-            LedgerHero(account: a, budget: model.budget(accountId: a.id), commission: commission, onBudget: { budgetAccount = a.id }) { sheet = .new }
+            LedgerHero(account: a, budget: model.budget(accountId: a.id), commission: commission,
+                       tankhah: AccountOps.tankhahRemaining(model.state, accountId: a.id),
+                       onBudget: { budgetAccount = a.id }) { sheet = .new }
         })
         if a.commissionEnabled || a.percent != 0 {
             cards.append(DeckCard("commission", "کمیسیون", "percent") {
@@ -388,6 +390,8 @@ struct LedgerHero: View {
     let budget: Int
     /// commission paid out of this ledger (its commission rows); > 0 shows the net total next to the gross one
     var commission: Int = 0
+    /// ledgers with tankhah: what is left of it, live (the same figures as the ledger PDF); nil = no tankhah, nothing shown
+    var tankhah: TankhahRemaining? = nil
     var onBudget: (() -> Void)? = nil
     let onAdd: () -> Void
     @Environment(\.theme) private var t
@@ -431,6 +435,7 @@ struct LedgerHero: View {
                 .padding(.horizontal, 12).padding(.vertical, 9)
                 .background(t.ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
+            if let tk = tankhah { tankhahBox(tk) }
             if budget > 0 {
                 let pct = min(1, Double(account.expenseTotal) / Double(budget))
                 GradientBar(value: pct, from: t.accent, to: pct >= 0.8 ? t.warning : t.accent2)
@@ -453,6 +458,25 @@ struct LedgerHero: View {
             .buttonStyle(.glassProminent)
         }
         .glassCard()
+    }
+
+    /// «مانده تنخواه» like the PDF's «تنخواه (کل دفتر)» card: a minus sign and the warning colour when overspent
+    private func tankhahBox(_ tk: TankhahRemaining) -> some View {
+        let left = tk.remaining
+        let text = (left < 0 ? "−" : "") + Money.persianDigits(Money.format(abs(left)))
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Label("مانده تنخواه", systemImage: "banknote").font(AppFont.caption).foregroundStyle(t.soft)
+            Spacer(minLength: 8)
+            Text(text).font(AppFont.bold(17)).foregroundStyle(left < 0 ? t.danger : t.success)
+                .contentTransition(.numericText()).animation(.snappy, value: left)
+            Text("تومان").font(AppFont.caption).foregroundStyle(t.soft)
+        }
+        .lineLimit(1).minimumScaleFactor(0.8)
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background((left < 0 ? t.danger : t.success).opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("مانده تنخواه " + text + " تومان")
+        .accessibilityIdentifier("ledger.tankhahRemaining")
     }
 }
 

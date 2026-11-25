@@ -330,9 +330,9 @@ extension AppModel {
         let t = expenseTable(list, showPay: true)
         var cards: [ReportHTML.Card] = []
         // web tankhahRemainingInfo: the whole ledger
-        if all.contains(where: { $0["type"]?.stringValue == "tankhah" }) {
-            let tk = all.filter { $0["type"]?.stringValue == "tankhah" }.reduce(0) { $0 + ImportAnalyzer.toman($1) }
-            let spent = all.filter { $0["type"]?.stringValue != "tankhah" }.reduce(0) { $0 + ImportAnalyzer.toman($1) }
+        // (the same numbers as the ledger's main card: AccountOps.tankhahRemaining)
+        if let r = AccountOps.tankhahRemaining(state, accountId: accountId) {
+            let tk = r.tankhah, spent = r.spent
             cards.append(.init(title: "تنخواه (کل دفتر) — مبالغ به تومان",
                                values: [("جمع تنخواه", money(tk), false), ("جمع هزینه‌ها", money(spent), false),
                                         ("باقی‌مانده تنخواه", money(tk - spent), tk - spent < 0)]))

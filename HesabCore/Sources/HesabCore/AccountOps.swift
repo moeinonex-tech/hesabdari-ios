@@ -20,6 +20,14 @@ public struct TankhahPartyGroup: Sendable {
     public let rows: [[String: JSONValue]]
 }
 
+/// «تنخواه (کل دفتر)»: tankhah received, expenses of the ledger, and what is left of the tankhah (negative = overspent)
+public struct TankhahRemaining: Equatable, Sendable {
+    public let tankhah: Int
+    public let spent: Int
+    public var remaining: Int { tankhah - spent }
+    public init(tankhah: Int, spent: Int) { self.tankhah = tankhah; self.spent = spent }
+}
+
 public enum AccountOps {
     public typealias State = [String: JSONValue]
 
@@ -227,6 +235,17 @@ public enum AccountOps {
         list.append(.object(["id": .string(id), "type": .string("person"), "name": .string(name)]))
         st["tankhahParties"] = .array(list)
         return (st, id)
+    }
+
+    /// web tankhahRemainingInfo (the whole ledger, no date range): the «تنخواه (کل دفتر)» card of the ledger PDF.
+    /// nil when the ledger has no tankhah row — then there is nothing to show (never a misleading 0).
+    /// The ledger PDF and the ledger's main card both read this one function.
+    public static func tankhahRemaining(_ st: State, accountId: String) -> TankhahRemaining? {
+        let all = LedgerOps.array(st, "expenses").filter { $0["accountId"]?.idString == accountId }
+        guard all.contains(where: { $0["type"]?.stringValue == "tankhah" }) else { return nil }
+        let tk = all.filter { $0["type"]?.stringValue == "tankhah" }.reduce(0) { $0 + ImportAnalyzer.toman($1) }
+        let spent = all.filter { $0["type"]?.stringValue != "tankhah" }.reduce(0) { $0 + ImportAnalyzer.toman($1) }
+        return TankhahRemaining(tankhah: tk, spent: spent)
     }
 
     /// web tankhahPartyReportData: tankhah rows of one account grouped by party, biggest total first.

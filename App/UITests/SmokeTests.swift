@@ -431,6 +431,72 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(labelled("UITest cement").waitForExistence(timeout: 5), "the new row is not in the list")
     }
 
+    /// «مانده تنخواه» on the ledger's main card: −700,000 for the fixture (tankhah 7,000,000; expenses 7,700,000, as in
+    /// the PDF), and it follows add, edit and delete at once
+    func testTankhahRemainingOnLedgerCard() {
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        let box = app.descendants(matching: .any).matching(identifier: "ledger.tankhahRemaining").firstMatch
+        XCTAssertTrue(box.waitForExistence(timeout: 6), "tankhah remainder on the main card")
+        func expect(_ figure: String, _ step: String) {
+            let p = NSPredicate(format: "label CONTAINS %@", figure)
+            let ok = XCTNSPredicateExpectation(predicate: p, object: box)
+            XCTAssertEqual(XCTWaiter().wait(for: [ok], timeout: 5), .completed, "\(step): \(box.label)")
+        }
+        expect("−۷۰۰.۰۰۰", "start")
+
+        // add 120,000 → −820,000
+        let add = labelled("ثبت هزینه یا تنخواه")
+        for _ in 0..<3 where !(add.exists && add.isHittable) { app.swipeUp() }
+        tap(add, "open form")
+        let desc = app.textFields["شرح"].firstMatch
+        XCTAssertTrue(desc.waitForExistence(timeout: 5), "form did not open")
+        desc.tap(); desc.typeText("UITest brick")
+        let cat = app.textFields["نوع هزینه"].firstMatch
+        cat.tap(); cat.typeText("Materials")
+        let sub = app.textFields["زیردسته"].firstMatch
+        sub.tap(); sub.typeText("Brick")
+        let amount = app.textFields["amount"].firstMatch
+        amount.tap(); amount.typeText("120000")
+        tap(app.buttons["ذخیره"].firstMatch, "save expense")
+        sleep(1)
+        for _ in 0..<3 where !box.isHittable { app.swipeDown() }
+        expect("−۸۲۰.۰۰۰", "after add")
+
+        // edit it to 220,000 → −920,000
+        let row = labelled("UITest brick")
+        for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+        tap(row, "open row")
+        let amount2 = app.textFields["amount"].firstMatch
+        XCTAssertTrue(amount2.waitForExistence(timeout: 5), "edit form did not open")
+        amount2.tap()
+        amount2.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 16))
+        amount2.typeText("220000")
+        tap(app.buttons["ذخیره"].firstMatch, "save edit")
+        sleep(1)
+        expect("−۹۲۰.۰۰۰", "after edit")
+
+        // delete it → −700,000
+        for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+        row.press(forDuration: 1.2)
+        tap(app.buttons["حذف"].firstMatch, "delete row")
+        sleep(1)
+        expect("−۷۰۰.۰۰۰", "after delete")
+        alive("tankhah remainder")
+    }
+
+    /// a ledger without tankhah: the main card looks as before (no tankhah remainder)
+    func testNoTankhahRemainderWithoutTankhah() {
+        app.terminate()
+        let noTankhah = Self.fixture.split(separator: "\n").filter { !$0.contains("\"type\": \"tankhah\"") }.joined(separator: "\n")
+            .replacingOccurrences(of: ",\\s*\\]", with: "]", options: .regularExpression)     // no comma left before «]»
+        app.launchEnvironment["UITEST_STATE"] = noTankhah
+        app.launch()
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        XCTAssertTrue(labelled("جمع هزینه‌ها").waitForExistence(timeout: 6), "main card")
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "ledger.tankhahRemaining").firstMatch.exists,
+                       "no tankhah remainder on a ledger without tankhah")
+    }
+
     /// building a PDF from a card (category breakdown / transactions) works and opens the share sheet
     func testPDFExportFromLedger() {
         tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
