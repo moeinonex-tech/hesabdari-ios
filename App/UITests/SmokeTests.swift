@@ -314,6 +314,31 @@ final class SmokeTests: XCTestCase {
             print("PERF-UI|ledger PDF → share sheet|skipped (page not drawn)")
         }
 
+        // Excel of this ledger, from «گزارش‌ها» (opens on the ledger it was opened from)
+        let reports = app.buttons["گزارش‌ها"].firstMatch
+        if reports.waitForExistence(timeout: 10) {
+            t0 = Date()
+            press(reports)
+            let excel = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Excel'")).firstMatch
+            time("open reports (ledger)", since: t0, timeout: 60) { excel.exists }
+            if excel.exists {
+                for _ in 0..<6 where !excel.isHittable { app.swipeUp() }
+                t0 = Date()
+                excel.tap()
+                let share = app.descendants(matching: .any).matching(NSPredicate(format:
+                    "identifier == 'ActivityListView' OR label == 'Copy' OR label == 'Save to Files' OR label == 'AirDrop'")).firstMatch
+                time("ledger Excel → share sheet", since: t0, timeout: 60) { share.exists }
+                XCTAssertTrue(share.exists, "Excel share sheet")
+                XCTAssertFalse(labelled("ساخته نشد").exists, "Excel failed")
+                if share.exists { app.swipeDown(); sleep(1) }
+                if app.buttons["Close"].exists { app.buttons["Close"].tap() }
+            } else {
+                XCTFail("no Excel button on the reports page")
+            }
+        } else {
+            XCTFail("no reports button")
+        }
+
         t0 = Date()
         press(app.buttons["خانه"].firstMatch)
         let search = app.buttons["search"].firstMatch
@@ -323,10 +348,11 @@ final class SmokeTests: XCTestCase {
         search.tap()
         let field = app.textFields["search.field"].firstMatch
         time("open search", since: t0) { field.exists }
-        field.tap(); field.typeText("سیمان")
-        t0 = Date()
+        field.tap()
+        t0 = Date()                                              // typing included: the search runs on each letter
+        field.typeText("سیمان")
         let result = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "نتیجه در")).firstMatch
-        time("search results (after typing)", since: t0) { result.exists }
+        time("type «سیمان» → results", since: t0) { result.exists }
         if app.keyboards.count > 0 { app.swipeDown() }           // keyboard away so the dock can be tapped
         let back = app.navigationBars.buttons.firstMatch
         if back.exists && back.isHittable { back.tap() }         // leave search (a pushed page)
