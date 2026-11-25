@@ -56,7 +56,9 @@ struct ExportFile: Identifiable {
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published private(set) var state: [String: JSONValue] = [:]
+    @Published private(set) var state: [String: JSONValue] = [:] { didSet { stateVersion &+= 1 } }
+    /// changes whenever `state` does (caches such as the search index are rebuilt when it moves on)
+    private(set) var stateVersion = 0
     @Published private(set) var hasData = false
     @Published var pending: ImportReport?
     @Published var errorMessage: String?
@@ -86,6 +88,11 @@ final class AppModel: ObservableObject {
             if ProcessInfo.processInfo.environment["UITEST_CORRUPT"] == "1" { try? mem.corruptOneRecordForTesting() }
             store = SafeStore(mem)
             reload()
+            completePendingBackup()
+            if env["UITEST_MUTATE"] == "1" {      // UI test: one change, so a backup is pending
+                _ = apply(state.merging(["uitestMutation": .int(Int64(Date().timeIntervalSince1970))]) { _, b in b })
+                debugBackupNote += " startOfDay=\(Backups.hasStartOfDay()) pending=\(backupDebouncer.hasPending)"
+            }
             return
         }
         #endif
@@ -100,6 +107,42 @@ final class AppModel: ObservableObject {
         store = opened
         errorMessage = openError
         reload()
+        completePendingBackup()
+    }
+
+    /// The app was closed while an end-of-day backup was still waiting: write it now, from the stored data.
+    private func completePendingBackup() {
+        let marker = UserDefaultsBackupMarker()
+        guard marker.isSet else { return }
+        guard hasData, readOnlyReason == nil else { return }      // never from data that could not be read
+        backupToday()
+        marker.isSet = false
+        #if DEBUG
+        debugBackupNote = "pendingCompleted"
+        #endif
+    }
+
+    /// Back up the current state soon (the app became active: today's backup should exist), in the background.
+    func scheduleBackup() {
+        guard hasData, readOnlyReason == nil else { return }
+        backupDebouncer.schedule(state)
+    }
+
+    /// The app goes to the background: write a pending backup now, with the time iOS allows for it.
+    func flushPendingBackup() {
+        guard backupDebouncer.hasPending else { return }
+        let debouncer = backupDebouncer
+        var task = UIBackgroundTaskIdentifier.invalid
+        task = UIApplication.shared.beginBackgroundTask(withName: "backup") {
+            UIApplication.shared.endBackgroundTask(task)
+            task = .invalid
+        }
+        DispatchQueue.global(qos: .utility).async {
+            debouncer.flush()
+            DispatchQueue.main.async {
+                if task != .invalid { UIApplication.shared.endBackgroundTask(task); task = .invalid }
+            }
+        }
     }
 
     static func databaseURL() throws -> URL {
@@ -109,7 +152,7 @@ final class AppModel: ObservableObject {
     }
 
     /// today's date in Iran (Asia/Tehran), whatever time zone the phone is set to
-    static var today: JalaliDate {
+    nonisolated static var today: JalaliDate {
         let c = Fmt.gregorian.dateComponents([.year, .month, .day], from: Date())
         return Jalali.toJalali(c.year ?? 2000, c.month ?? 1, c.day ?? 1)
     }
@@ -160,6 +203,7 @@ final class AppModel: ObservableObject {
             catch { errorMessage = "قبل از جایگزینی، پشتیبان از داده‌ی فعلی ساخته نشد؛ ورود انجام نشد: \(error.localizedDescription)"; return }
         }
         do {
+            backupDebouncer.cancel()      // a backup of the replaced data must not land after the import
             try store.replaceAll(with: report.cleanedState, sourceExportedAtJalali: report.exportedAtJalali,
                                  reportLines: report.summaryLines + report.issues.map(\.title))
             pending = nil
@@ -176,6 +220,7 @@ final class AppModel: ObservableObject {
         do { try safetyCopy() }
         catch { errorMessage = "پشتیبان ایمنی ساخته نشد؛ چیزی پاک نشد: \(error.localizedDescription)"; return false }
         do {
+            backupDebouncer.cancel()
             try store.wipe()
             reload()
             lastImportText = nil
@@ -221,7 +266,26 @@ final class AppModel: ObservableObject {
 
     // read models
 
+    /// Stage 3: read models are cached per state version (pure memoization — same results, rebuilt on any change).
+    private var readCache = ReadCache()
+    private struct ReadCache {
+        var version = -1
+        var accounts: [AccountImportSummary]?
+        var rows: [String: [LedgerRowVM]] = [:]
+    }
+    private func freshCache() {
+        if readCache.version != stateVersion { readCache = ReadCache(); readCache.version = stateVersion }
+    }
+
     var accounts: [AccountImportSummary] {
+        freshCache()
+        if let a = readCache.accounts { return a }
+        let a = computeAccounts()
+        readCache.accounts = a
+        return a
+    }
+
+    private func computeAccounts() -> [AccountImportSummary] {
         let expenses = state["expenses"]?.arrayValue ?? []
         return (state["accounts"]?.arrayValue ?? []).map { ImportAnalyzer.accountSummary($0, expenses: expenses) }
     }
@@ -231,6 +295,14 @@ final class AppModel: ObservableObject {
 
     /// Rows of one account in the web order (date, then entry time), numbered like the web ledger.
     func rows(accountId: String) -> [LedgerRowVM] {
+        freshCache()
+        if let r = readCache.rows[accountId] { return r }
+        let r = computeRows(accountId: accountId)
+        readCache.rows[accountId] = r
+        return r
+    }
+
+    private func computeRows(accountId: String) -> [LedgerRowVM] {
         let mine = (state["expenses"]?.arrayValue ?? []).filter { $0["accountId"]?.idString == accountId }
         let sorted = mine.enumerated().sorted { a, b in
             let da = ImportAnalyzer.date(a.element["date"]), db = ImportAnalyzer.date(b.element["date"])
@@ -258,6 +330,22 @@ final class AppModel: ObservableObject {
 
     // MARK: changes (each one saved in one transaction)
 
+    /// Stage 3: the end-of-day backup is written 2 s after the last change, in the background, from a snapshot of the
+    /// saved state (same bytes as an export from the database). Start-of-day and before-restore copies are not delayed.
+    let backupDebouncer: BackupDebouncer = {
+        var delay: TimeInterval = 2
+        #if DEBUG
+        if let d = Double(ProcessInfo.processInfo.environment["UITEST_BACKUP_DELAY"] ?? "") { delay = d }
+        #endif
+        return BackupDebouncer(delay: delay, marker: UserDefaultsBackupMarker()) { snapshot in
+            Backups.writeDailySnapshot(snapshot)
+        }
+    }()
+    #if DEBUG
+    /// UI tests only: what happened to backups (read through a hidden label)
+    @Published var debugBackupNote = ""
+    #endif
+
     /// the undo bar; the state to put back lives in `undoTracker`
     @Published var undo: UndoItem?
     private var undoTracker = UndoTracker<[String: JSONValue]>()
@@ -279,7 +367,7 @@ final class AppModel: ObservableObject {
         do {
             try store.save(newState)
             state = newState
-            backupToday()
+            backupDebouncer.schedule(newState)
             Notifier.sync(newState)
             // every change gets a number: an older undo can never wipe a newer change
             if let offer = undoTracker.didChange(previous: previous, message: undoMessage) {

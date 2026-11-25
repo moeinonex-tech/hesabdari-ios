@@ -118,6 +118,13 @@ enum Backups {
         }
     }
 
+    /// Stage 3: the end-of-day backup from a snapshot of the saved state (background queue). Same bytes as
+    /// `AppModel.exportData()` would give for that state; a failure here leaves the database untouched.
+    static func writeDailySnapshot(_ snapshot: [String: JSONValue]) {
+        guard let data = try? BackupExporter.encode(state: snapshot, now: Date(), today: AppModel.today) else { return }
+        _ = try? write(data, reason: .daily)
+    }
+
     static func describeLast() -> String {
         let ts = UserDefaults.standard.double(forKey: lastAtKey)
         guard ts > 0 else { return "هنوز پشتیبانی گرفته نشده" }
@@ -131,7 +138,7 @@ enum Backups {
 
 extension AppModel {
     /// Rewrites today's backup with the current data. Silent on success; a failure is shown once.
-    func backupToday(showErrors: Bool = false) {
+    func backupToday(showErrors: Bool = false) {   // synchronous, from the database (settings button, launch, import)
         guard hasData, readOnlyReason == nil else { return }    // never back up a state that could not be read
         do {
             try Backups.write(try exportData(), reason: .daily)

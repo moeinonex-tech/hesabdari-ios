@@ -53,12 +53,20 @@ final class PerformanceTests: XCTestCase {
         ms("search text (all)") { _ = SearchEngine.find(st, query: "سیمان", scope: .all) }
         ms("search two words") { _ = SearchEngine.find(st, query: "پمپ هوایی", scope: .all) }
         ms("search amount") { _ = SearchEngine.find(st, query: "۱۲۰,۰۰۰", scope: .all) }
+        var index: SearchIndex!
+        ms("search index build (once per change)") { index = SearchIndex(st) }
+        ms("search with index: text") { _ = index.find(query: "سیمان") }
+        ms("search with index: two words") { _ = index.find(query: "پمپ هوایی") }
+        ms("search with index: amount") { _ = index.find(query: "۱۲۰,۰۰۰") }
 
         // backup, excel, import
         let today = JalaliDate(jy: 1405, jm: 9, jd: 4)
         var backup = Data()
         try ms("backup JSON (from database)") { backup = try store.exportBackup(today: today) }
         print("PERF|backup size KB|\(backup.count / 1024)")
+        var snap = Data()
+        try ms("backup JSON (from the saved snapshot, background)") { snap = try BackupExporter.encode(state: st, now: Date(), today: today) }
+        XCTAssertEqual(snap.count, backup.count)
         ms("backup SHA-256") { _ = BackupFolder.sha256Hex(backup) }
         ms("excel (5 ledgers)") {
             _ = XLSXWriter.make(sheets: (1...5).map { (name: "پروژه \($0)", rows: ExportBuilder.excel(ExportBuilder.ledger(st, accountId: "acc\($0)", range: nil))) })

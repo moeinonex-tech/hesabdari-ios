@@ -370,6 +370,12 @@ public enum BackupExporter {
         return Money.persianDigits(d.jd) + " " + m + " " + Money.persianDigits(d.jy)
     }
 
+    /// The bytes of a full backup file of `state` — the one encoding used everywhere (database export and the
+    /// background backup from a snapshot), so both give exactly the same file.
+    public static func encode(state: [String: JSONValue], now: Date, today: JalaliDate) throws -> Data {
+        try JSONCoding.encode(envelope(state: state, now: now, today: today), pretty: true)
+    }
+
     /// Same envelope as the web full backup (version 1), so the web app can restore it.
     public static func envelope(state: [String: JSONValue], now: Date, today: JalaliDate) -> JSONValue {
         let iso = ISO8601DateFormatter()

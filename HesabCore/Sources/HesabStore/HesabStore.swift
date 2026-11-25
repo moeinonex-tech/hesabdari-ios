@@ -79,16 +79,20 @@ public final class HesabStore {
     static func write(_ state: [String: JSONValue], _ db: Database) throws {
             try db.execute(sql: "DELETE FROM record")
             try db.execute(sql: "DELETE FROM root")
+            // stage 3: one prepared statement and one encoder for all rows — the same SQL and the same JSON text
+            // (JSONCoding.string's options) as one statement / encoder per row, without rebuilding them 20,000 times
+            let insertRecord = try db.makeStatement(sql: "INSERT INTO record(collection, ord, id, json) VALUES (?, ?, ?, ?)")
+            let encoder = JSONCoding.compactEncoder()
+            func text(_ v: JSONValue) throws -> String { String(decoding: try encoder.encode(v), as: UTF8.self) }
             for key in state.keys.sorted() {
                 let value = state[key] ?? .null
                 if case .array(let items) = value, !items.isEmpty, items.allSatisfy({ $0.objectValue != nil }) {
                     for (i, item) in items.enumerated() {
-                        try db.execute(sql: "INSERT INTO record(collection, ord, id, json) VALUES (?, ?, ?, ?)",
-                                       arguments: [key, i, item["id"]?.idString, try JSONCoding.string(item)])
+                        try insertRecord.execute(arguments: [key, i, item["id"]?.idString, try text(item)])
                     }
                 } else {
                     try db.execute(sql: "INSERT INTO root(key, json) VALUES (?, ?)",
-                                   arguments: [key, try JSONCoding.string(value)])
+                                   arguments: [key, try text(value)])
                 }
             }
     }
@@ -111,12 +115,17 @@ public final class HesabStore {
                 let json: String = row["json"]
                 state[key] = try JSONCoding.decode(Data(json.utf8))
             }
-            var collections: [String: [JSONValue]] = [:]
+            // stage 3: the rows are decoded in parallel (each with its own decoder), then put back in their stored order —
+            // the same values as decoding them one after another
+            var names: [String] = []
+            var texts: [String] = []
             for row in try Row.fetchAll(db, sql: "SELECT collection, json FROM record ORDER BY collection, ord") {
-                let c: String = row["collection"]
-                let json: String = row["json"]
-                collections[c, default: []].append(try JSONCoding.decode(Data(json.utf8)))
+                names.append(row["collection"])
+                texts.append(row["json"])
             }
+            let values = try JSONCoding.decodeAll(texts)
+            var collections: [String: [JSONValue]] = [:]
+            for (i, c) in names.enumerated() { collections[c, default: []].append(values[i]) }
             for (c, items) in collections { state[c] = .array(items) }
             return state
         }
@@ -135,7 +144,6 @@ public final class HesabStore {
 
     /// Full backup in the web format (version 1). CVV is never present because it is never stored.
     public func exportBackup(now: Date = Date(), today: JalaliDate) throws -> Data {
-        let env = BackupExporter.envelope(state: try loadState(), now: now, today: today)
-        return try JSONCoding.encode(env, pretty: true)
+        try BackupExporter.encode(state: try loadState(), now: now, today: today)
     }
 }

@@ -80,8 +80,13 @@ struct SearchView: View {
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
 
     /// every hit, all places (scope chips show their own counts from this)
+    /// stage 3: the search index of the current data, built once off the main thread (same results as find)
+    @State private var index: (version: Int, index: SearchIndex)?
+
     private var everything: [SearchResult] {
-        trimmed.isEmpty ? [] : SearchEngine.find(model.state, query: trimmed, scope: .all, limit: 5000)
+        guard !trimmed.isEmpty else { return [] }
+        if let index, index.version == model.stateVersion { return index.index.find(query: trimmed, limit: 5000) }
+        return SearchEngine.find(model.state, query: trimmed, scope: .all, limit: 5000)
     }
 
     private func inLedgerFilter(_ r: SearchResult) -> Bool {
@@ -132,6 +137,12 @@ struct SearchView: View {
         .scrollDismissesKeyboard(.interactively)
         .background(AppBackground())
         .navigationTitle("جستجو")
+        .task(id: model.stateVersion) {
+            let version = model.stateVersion
+            let st = model.state
+            let built = await Task.detached(priority: .userInitiated) { SearchIndex(st) }.value
+            if version == model.stateVersion { index = (version, built) }
+        }
         .onAppear {
             // a ledger that no longer exists → back to every ledger
             if !ledgerId.isEmpty, !model.accounts.contains(where: { $0.id == ledgerId }) { ledgerId = "" }

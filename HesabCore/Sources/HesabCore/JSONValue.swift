@@ -107,4 +107,36 @@ public enum JSONCoding {
     public static func string(_ value: JSONValue) throws -> String {
         String(decoding: try encode(value), as: UTF8.self)
     }
+
+    /// the encoder `encode(_:pretty: false)` uses, to reuse for many values (same output)
+    public static func compactEncoder() -> JSONEncoder {
+        let e = JSONEncoder()
+        e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return e
+    }
+
+    /// Decodes many JSON texts in parallel; the result is in the same order, each value exactly what `decode` gives.
+    public static func decodeAll(_ texts: [String]) throws -> [JSONValue] {
+        let n = texts.count
+        guard n > 512 else { return try texts.map { try decode(Data($0.utf8)) } }
+        var out = [JSONValue?](repeating: nil, count: n)
+        var firstError: Error?
+        let lock = NSLock()
+        let chunks = max(1, min(ProcessInfo.processInfo.activeProcessorCount * 2, n / 256))
+        out.withUnsafeMutableBufferPointer { buf in
+            let base = buf.baseAddress!
+            DispatchQueue.concurrentPerform(iterations: chunks) { c in
+                let decoder = JSONDecoder()
+                var i = c * n / chunks
+                let end = (c + 1) * n / chunks
+                while i < end {
+                    do { (base + i).pointee = try decoder.decode(JSONValue.self, from: Data(texts[i].utf8)) }
+                    catch { lock.lock(); if firstError == nil { firstError = error }; lock.unlock(); return }
+                    i += 1
+                }
+            }
+        }
+        if let e = firstError { throw e }
+        return out.map { $0! }
+    }
 }

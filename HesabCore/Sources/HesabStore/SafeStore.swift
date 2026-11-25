@@ -75,6 +75,10 @@ extension HesabStore {
         }
     }
 
+    public func storedRowTextsForTesting() throws -> [String] {
+        try dbQueue.read { db in try String.fetchAll(db, sql: "SELECT json FROM record ORDER BY collection, ord") }
+    }
+
     public func recordCountForTesting() throws -> Int {
         try dbQueue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM record") ?? 0 }
     }

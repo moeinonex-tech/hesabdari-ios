@@ -56,12 +56,19 @@ struct RootView: View {
             }
         }
         .onChange(of: phase) { _, p in
-            if p == .background { lock.didEnterBackground() }
-            if p == .active { lock.didBecomeActive(); model.backupToday(); if model.hasData { Notifier.sync(model.state) } }
+            if p == .background { lock.didEnterBackground(); model.flushPendingBackup() }
+            // stage 3: today's backup in the background instead of a full export from the database on every return
+            if p == .active { lock.didBecomeActive(); model.scheduleBackup(); if model.hasData { Notifier.sync(model.state) } }
         }
         .modifier(DueCheckPrompt(model: model, blocked: lock.locked || !model.hasData))
         .preferredColorScheme(Appearance(rawValue: appearanceRaw)?.scheme)
         #if DEBUG
+        .overlay(alignment: .topLeading) {      // UI tests only: what happened to backups (invisible)
+            if !model.debugBackupNote.isEmpty {
+                Text(model.debugBackupNote).font(.system(size: 2)).opacity(0.02).allowsHitTesting(false)
+                    .accessibilityIdentifier("debug.backupNote")
+            }
+        }
         .sheet(isPresented: $uiTestCategories) {
             NavigationStack { CategoryManagerView(model: model) }
         }

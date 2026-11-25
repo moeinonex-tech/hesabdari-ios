@@ -126,15 +126,41 @@ public enum SearchEngine {
     /// the party, the ledger, check number, bank…); a number also matches the amount. Results are grouped (each ledger
     /// is its own group, so ledgers never mix), newest first inside a group.
     public static func find(_ st: [String: JSONValue], query: String, scope: SearchScope, limit: Int = 300) -> [SearchResult] {
+        guard let match = matcher(query) else { return [] }
+        var out: [SearchResult] = []
+        visit(st, scope: scope) { hay, amount, make in
+            if match(hay, amount) { out.append(make()) }
+        }
+        return order(out, limit: limit)
+    }
+
+    /// The test for one record: a number in the query also matches the amount; otherwise every word must appear.
+    static func matcher(_ query: String) -> ((String, Int?) -> Bool)? {
         let words = norm(query).split(separator: " ").map(String.init)
-        guard !words.isEmpty else { return [] }
+        guard !words.isEmpty else { return nil }
         let number = digits(query)
-        func s(_ v: JSONValue?) -> String { v?.stringValue ?? v?.idString ?? "" }
-        func hit(_ fields: [String], amount: Int?) -> Bool {
+        return { hay, amount in
             if let n = number, let a = amount, String(a).contains(n) { return true }
-            let hay = norm(fields.joined(separator: " "))
             return words.allSatisfy { hay.contains($0) }
         }
+    }
+
+    /// groups in order, newest first inside a group
+    static func order(_ out: [SearchResult], limit: Int) -> [SearchResult] {
+        Array(out.enumerated().sorted { x, y in
+            let a = x.element, b = y.element
+            if a.groupOrder != b.groupOrder { return a.groupOrder < b.groupOrder }
+            if let da = a.date, let db = b.date, da != db { return da > db }
+            return x.offset > y.offset
+        }.map(\.element).prefix(limit))
+    }
+
+    /// Every record in the scope, in order: its normalized text (what the words are looked for in), its amount (what a
+    /// number is looked for in) and how to make its result row.
+    static func visit(_ st: [String: JSONValue], scope: SearchScope,
+                      _ each: (_ hay: String, _ amount: Int?, _ make: () -> SearchResult) -> Void) {
+        func s(_ v: JSONValue?) -> String { v?.stringValue ?? v?.idString ?? "" }
+        func hay(_ fields: [String]) -> String { norm(fields.joined(separator: " ")) }
         func items(_ e: JSONValue) -> [String] {
             (e["items"]?.arrayValue ?? []).flatMap { [s($0["desc"]), s($0["category"]), s($0["subcategory"])] }
         }
@@ -142,7 +168,6 @@ public enum SearchEngine {
             [s(e["category"]), s(e["subcategory"])].filter { !$0.isEmpty }.joined(separator: " / ")
         }
         func dateText(_ d: JalaliDate) -> String { Money.persianDigits("\(d.jy)/\(d.jm)/\(d.jd)") }
-        var out: [SearchResult] = []
 
         if scope.ledger {
             let accounts = (st["accounts"]?.arrayValue ?? []).filter { scope.accountId == nil || $0["id"]?.idString == scope.accountId }
@@ -154,73 +179,96 @@ public enum SearchEngine {
                     let tankhah = e["type"]?.stringValue == "tankhah"
                     let party = tkParties.first { $0["id"]?.idString == e["partyId"]?.idString && e["partyId"]?.idString != nil }.map { s($0["name"]) } ?? ""
                     let amount = ImportAnalyzer.toman(e)
-                    guard hit([s(e["desc"]), s(e["category"]), s(e["subcategory"]), party, tankhah ? "تنخواه" : ""] + items(e), amount: amount) else { continue }
-                    let d = ImportAnalyzer.date(e["date"])
-                    let title = nonEmpty(e["desc"]) ?? (tankhah && !party.isEmpty ? "تنخواه از " + party : nil) ?? nonEmpty(e["category"]) ?? "(بدون توضیح)"
-                    let sub = [dateText(d), tankhah ? party : cat(e)].filter { !$0.isEmpty }.joined(separator: " · ")
-                    out.append(SearchResult(kind: .expense, recordId: s(e["id"]), accountId: aid, tag: tankhah ? "تنخواه" : ((e["reward"]?.isTruthy ?? false) ? "پاداش" : "هزینه"),
+                    each(hay([s(e["desc"]), s(e["category"]), s(e["subcategory"]), party, tankhah ? "تنخواه" : ""] + items(e)), amount) {
+                        let d = ImportAnalyzer.date(e["date"])
+                        let title = nonEmpty(e["desc"]) ?? (tankhah && !party.isEmpty ? "تنخواه از " + party : nil) ?? nonEmpty(e["category"]) ?? "(بدون توضیح)"
+                        let sub = [dateText(d), tankhah ? party : cat(e)].filter { !$0.isEmpty }.joined(separator: " · ")
+                        return SearchResult(kind: .expense, recordId: s(e["id"]), accountId: aid, tag: tankhah ? "تنخواه" : ((e["reward"]?.isTruthy ?? false) ? "پاداش" : "هزینه"),
                                             title: title, sub: sub, amount: amount, group: "دفتر «" + name + "»", groupOrder: 10 + ai,
-                                            date: d, isTankhah: tankhah))
+                                            date: d, isTankhah: tankhah)
+                    }
                 }
             }
         }
         if scope.personal {
             for e in st["personalExpenses"]?.arrayValue ?? [] {
                 let amount = ImportAnalyzer.toman(e)
-                guard hit([s(e["desc"]), s(e["category"]), s(e["subcategory"])] + items(e), amount: amount) else { continue }
-                let d = ImportAnalyzer.date(e["date"])
-                out.append(SearchResult(kind: .personal, recordId: s(e["id"]), accountId: nil, tag: "شخصی",
+                each(hay([s(e["desc"]), s(e["category"]), s(e["subcategory"])] + items(e)), amount) {
+                    let d = ImportAnalyzer.date(e["date"])
+                    return SearchResult(kind: .personal, recordId: s(e["id"]), accountId: nil, tag: "شخصی",
                                         title: nonEmpty(e["desc"]) ?? nonEmpty(e["category"]) ?? "(بدون توضیح)",
                                         sub: [dateText(d), cat(e)].filter { !$0.isEmpty }.joined(separator: " · "), amount: amount,
-                                        group: "هزینه‌های شخصی", groupOrder: 1000, date: d))
+                                        group: "هزینه‌های شخصی", groupOrder: 1000, date: d)
+                }
             }
         }
         if scope.income {
             for i in st["incomes"]?.arrayValue ?? [] {
                 let amount = ImportAnalyzer.toman(i)
-                guard hit([s(i["desc"]), s(i["category"]), s(i["subcategory"]), s(i["accountName"])], amount: amount) else { continue }
-                let d = ImportAnalyzer.date(i["date"])
-                out.append(SearchResult(kind: .income, recordId: s(i["id"]), accountId: nil, tag: "درآمد",
+                each(hay([s(i["desc"]), s(i["category"]), s(i["subcategory"]), s(i["accountName"])]), amount) {
+                    let d = ImportAnalyzer.date(i["date"])
+                    return SearchResult(kind: .income, recordId: s(i["id"]), accountId: nil, tag: "درآمد",
                                         title: nonEmpty(i["desc"]) ?? nonEmpty(i["category"]) ?? "(بدون توضیح)",
                                         sub: [dateText(d), cat(i)].filter { !$0.isEmpty }.joined(separator: " · "), amount: amount,
-                                        group: "درآمدها", groupOrder: 1001, date: d))
+                                        group: "درآمدها", groupOrder: 1001, date: d)
+                }
             }
         }
         if scope.reminders {
             let status = ["pending": "در انتظار وصول", "cashed": "وصول شد", "bounced": "برگشت خورد", "cancelled": "باطل شد"]
             for c in st["reminderChecks"]?.arrayValue ?? [] {
                 let amount = c["amount"]?.intValue ?? 0
-                guard hit([s(c["party"]), s(c["checkNumber"]), s(c["sayadId"]), s(c["bankName"]), s(c["description"]),
-                           s(c["category"]), s(c["subcategory"]), "چک"], amount: amount) else { continue }
-                let d = ImportAnalyzer.date(c["dueDate"])
-                let num = s(c["checkNumber"])
-                out.append(SearchResult(kind: .check, recordId: s(c["id"]), accountId: nil, tag: "چک",
+                each(hay([s(c["party"]), s(c["checkNumber"]), s(c["sayadId"]), s(c["bankName"]), s(c["description"]),
+                          s(c["category"]), s(c["subcategory"]), "چک"]), amount) {
+                    let d = ImportAnalyzer.date(c["dueDate"])
+                    let num = s(c["checkNumber"])
+                    return SearchResult(kind: .check, recordId: s(c["id"]), accountId: nil, tag: "چک",
                                         title: (nonEmpty(c["party"]) ?? "چک بدون طرف") + (num.isEmpty ? "" : " · " + Money.persianDigits(num)),
                                         sub: ["سررسید " + dateText(d), s(c["bankName"]), status[s(c["status"])] ?? ""].filter { !$0.isEmpty }.joined(separator: " · "),
-                                        amount: amount, group: "چک‌ها", groupOrder: 1002, date: d))
+                                        amount: amount, group: "چک‌ها", groupOrder: 1002, date: d)
+                }
             }
             for p in st["reminderPersons"]?.arrayValue ?? [] {
                 let insts = p["installments"]?.arrayValue ?? []
                 let remaining = insts.filter { !($0["paid"]?.isTruthy ?? false) }.reduce(0) { $0 + ($1["amount"]?.intValue ?? 0) }
-                guard hit([s(p["name"])] + insts.flatMap { [s($0["description"]), s($0["category"])] }, amount: remaining) else { continue }
-                let creditor = p["type"]?.stringValue == "creditor"
-                out.append(SearchResult(kind: .person, recordId: s(p["id"]), accountId: nil, tag: creditor ? "طلبکار" : "بدهکار",
+                each(hay([s(p["name"])] + insts.flatMap { [s($0["description"]), s($0["category"])] }), remaining) {
+                    let creditor = p["type"]?.stringValue == "creditor"
+                    return SearchResult(kind: .person, recordId: s(p["id"]), accountId: nil, tag: creditor ? "طلبکار" : "بدهکار",
                                         title: s(p["name"]), sub: Money.persianDigits(insts.count) + " قسط · مانده", amount: remaining,
-                                        group: "بدهکاران و طلبکاران", groupOrder: 1003))
+                                        group: "بدهکاران و طلبکاران", groupOrder: 1003)
+                }
             }
             for a in st["appointments"]?.arrayValue ?? [] {
-                guard hit([s(a["title"]), s(a["note"]), s(a["location"]?["label"]), "قرار"], amount: nil) else { continue }
-                let d = ImportAnalyzer.date(a["date"])
-                out.append(SearchResult(kind: .appointment, recordId: s(a["id"]), accountId: nil, tag: "قرار", title: s(a["title"]),
+                each(hay([s(a["title"]), s(a["note"]), s(a["location"]?["label"]), "قرار"]), nil) {
+                    let d = ImportAnalyzer.date(a["date"])
+                    return SearchResult(kind: .appointment, recordId: s(a["id"]), accountId: nil, tag: "قرار", title: s(a["title"]),
                                         sub: [dateText(d), s(a["time"])].filter { !$0.isEmpty }.joined(separator: " · "), amount: 0,
-                                        group: "قرارها", groupOrder: 1004, date: d))
+                                        group: "قرارها", groupOrder: 1004, date: d)
+                }
             }
         }
-        return Array(out.enumerated().sorted { x, y in
-            let a = x.element, b = y.element
-            if a.groupOrder != b.groupOrder { return a.groupOrder < b.groupOrder }
-            if let da = a.date, let db = b.date, da != db { return da > db }
-            return x.offset > y.offset
-        }.map(\.element).prefix(limit))
+    }
+}
+
+/// Stage 3: the home search over everything («کلی»), with each record's text normalized once.
+/// Built once for a state (off the main thread in the app), then every keystroke only compares — the same results,
+/// in the same order, as `SearchEngine.find(st, query:, scope: .all)`.
+public struct SearchIndex: Sendable {
+    struct Entry: Sendable {
+        let hay: String
+        let amount: Int?
+        let result: SearchResult
+    }
+    let entries: [Entry]
+
+    public init(_ st: [String: JSONValue]) {
+        var list: [Entry] = []
+        SearchEngine.visit(st, scope: .all) { hay, amount, make in list.append(Entry(hay: hay, amount: amount, result: make())) }
+        entries = list
+    }
+
+    public func find(query: String, limit: Int = 300) -> [SearchResult] {
+        guard let match = SearchEngine.matcher(query) else { return [] }
+        return SearchEngine.order(entries.filter { match($0.hay, $0.amount) }.map(\.result), limit: limit)
     }
 }
