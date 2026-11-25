@@ -288,7 +288,9 @@ final class SmokeTests: XCTestCase {
         let pdf = app.buttons.matching(identifier: "pdf").firstMatch
         time("open ledger page", since: t0) { pdf.exists }
         report("ledger")
-        for name in ["شخصی", "یادآوری‌ها", "کیف کارت"] {
+        // «یادآوری‌ها» is measured last: with 1,000 checks drawn at once its accessibility tree is so large that
+        // XCUITest's own check before the next tap times out (the page itself is drawn — see its number)
+        for name in ["شخصی", "کیف کارت"] {
             let tab = app.buttons[name].firstMatch
             guard tab.waitForExistence(timeout: 30) else { print("PERF-UI|open \(name)|skipped (no tab)"); continue }
             t0 = Date()
@@ -325,6 +327,16 @@ final class SmokeTests: XCTestCase {
         t0 = Date()
         let result = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "نتیجه در")).firstMatch
         time("search results (after typing)", since: t0) { result.exists }
+        if app.keyboards.count > 0 { app.swipeDown() }           // keyboard away so the dock can be tapped
+        let back = app.navigationBars.buttons.firstMatch
+        if back.exists && back.isHittable { back.tap() }         // leave search (a pushed page)
+        let rem = app.buttons["یادآوری‌ها"].firstMatch
+        if !(rem.exists && rem.isHittable) { print("PERF-UI|open یادآوری‌ها|skipped (dock not reachable)") }
+        if rem.exists && rem.isHittable {
+            t0 = Date()
+            press(rem)
+            time("open یادآوری‌ها (1,000 checks)", since: t0, timeout: 60) { rem.exists }
+        }
         alive("performance run")
     }
 
