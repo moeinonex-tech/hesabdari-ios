@@ -344,9 +344,16 @@ struct LedgerHomeView: View {
         return cards
     }
 
-    /// «ردیف هزینه های پروژه کوچه وصال تا ۲۳ آبان ۱۴۰۵» (no characters a file name cannot hold)
+    /// «ردیف هزینه های پروژه کوچه وصال تا ۲۳ آبان ۱۴۰۵» (no characters a file name cannot hold; a ledger already
+    /// called «پروژه …» does not repeat the word)
     static func rowsPDFName(_ ledger: String) -> String {
-        let safe = ledger.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        var safe = ledger.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespaces)
+        // «پروژه کوچه وصال» → «کوچه وصال», so «پروژه» is written once
+        if safe.hasPrefix("پروژه") {
+            let rest = safe.dropFirst("پروژه".count).trimmingCharacters(in: CharacterSet(charactersIn: " \u{200C}-–_"))
+            if !rest.isEmpty { safe = rest }
+        }
         let day: String = BackupExporter.formatJalali(AppModel.today)
         return "ردیف هزینه های پروژه " + safe + " تا " + day
     }
