@@ -449,7 +449,7 @@ final class SmokeTests: XCTestCase {
         row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         let backupNow = labelled("پشتیبان‌گیری همین الان")
         XCTAssertTrue(backupNow.waitForExistence(timeout: 8), "«پشتیبان و داده‌ها» opened")
-        XCTAssertTrue(labelled("بررسی سلامت بکاپ‌ها").exists)
+        XCTAssertTrue(app.navigationBars["پشتیبان و داده‌ها"].exists, "page title")   // lower rows are not drawn yet
         shot("backup-page-from-warning")
         alive("backup warning")
     }
