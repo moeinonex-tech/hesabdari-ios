@@ -589,9 +589,16 @@ final class SmokeTests: XCTestCase {
             })
         }
         func openCopy(_ step: String) {
+            waitForUndoBannerToGo()
             bringAboveDock(row)
+            print("DUP-PRESS \(step) frame=\(row.frame) type=\(row.elementType.rawValue) label=\(row.label)")
             row.press(forDuration: 1.2)
-            tap(app.buttons["ثبت مشابه"].firstMatch, step)
+            let item = app.buttons["ثبت مشابه"].firstMatch
+            if !item.waitForExistence(timeout: 4) {
+                shot("duplicate-menu-missing")
+                dumpTree("no «ثبت مشابه» after a long press (\(step))")
+            }
+            tap(item, step)
             XCTAssertTrue(app.navigationBars["ثبت مشابه"].waitForExistence(timeout: 5), "copy form title")
         }
 
