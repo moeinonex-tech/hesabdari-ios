@@ -465,6 +465,49 @@ final class SmokeTests: XCTestCase {
         alive("fresh backup")
     }
 
+    /// settings, tidied: one «ظاهر و صفحه‌ی خانه» page; «پشتیبان و داده‌ها» in groups, every option still there
+    func testSettingsGroups() {
+        let gear = app.buttons["settings"].firstMatch
+        XCTAssertTrue(gear.waitForExistence(timeout: 10))
+        sleep(1)
+        gear.tap()
+        let look = labelled("ظاهر و صفحه‌ی خانه")
+        XCTAssertTrue(look.waitForExistence(timeout: 6), "one row for appearance and home")
+        XCTAssertFalse(app.staticTexts["ظاهر"].exists, "no separate «ظاهر» row")
+        shot("settings-hub")
+        look.tap()
+        XCTAssertTrue(app.navigationBars["ظاهر و صفحه‌ی خانه"].waitForExistence(timeout: 5), "appearance page")
+        XCTAssertTrue(labelled("رنگ اصلی").exists, "palette")
+        let widgets = labelled("ویجت‌های خانه")
+        for _ in 0..<4 where !widgets.exists { app.swipeUp() }
+        XCTAssertTrue(widgets.exists, "home widgets on the same page")
+        XCTAssertTrue(labelled("جمله‌های انگیزشی").exists, "quotes on the same page")
+        widgets.tap()
+        XCTAssertTrue(app.navigationBars["ویجت‌های خانه"].waitForExistence(timeout: 5), "widgets page opens")
+        app.navigationBars.buttons.firstMatch.tap()
+        sleep(1)
+        app.navigationBars.buttons.firstMatch.tap()
+
+        let data = labelled("پشتیبان و داده‌ها")
+        XCTAssertTrue(data.waitForExistence(timeout: 5))
+        data.tap()
+        XCTAssertTrue(app.navigationBars["پشتیبان و داده‌ها"].waitForExistence(timeout: 5), "data page")
+        for t in ["وضعیت پشتیبان", "آخرین پشتیبان", "بررسی سلامت بکاپ‌ها", "پشتیبان‌گیری همین الان"] {
+            XCTAssertTrue(labelled(t).exists, "missing: \(t)")
+        }
+        shot("settings-data-top")
+        let wipe = labelled("پاک‌سازی (هیستوری یادگیری / همه‌ی اطلاعات)")
+        for _ in 0..<5 where !(wipe.exists && wipe.isHittable) { app.swipeUp() }
+        for t in ["خروجی پشتیبان کامل", "ورود دوباره‌ی پشتیبان", "پشتیبان و بازیابی هر بخش جداگانه", "حذف اطلاعات"] {
+            XCTAssertTrue(labelled(t).exists, "missing: \(t)")
+        }
+        shot("settings-data-bottom")
+        wipe.tap()
+        XCTAssertTrue(app.navigationBars["پاک‌سازی"].waitForExistence(timeout: 5), "delete page opens (nothing pressed)")
+        XCTAssertTrue(labelled("پاک کردن تمامی اطلاعات اپ").exists)
+        alive("settings groups")
+    }
+
     func testSettingsGearOpens() {
         let gear = app.buttons["settings"].firstMatch
         XCTAssertTrue(gear.waitForExistence(timeout: 10))

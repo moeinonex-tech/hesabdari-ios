@@ -30,11 +30,9 @@ struct SettingsView: View {
         Form {
             Section {
                 NavigationLink { appearancePage } label: {
-                    SettingsRow(icon: "paintbrush.fill", tint: .indigo, title: "ظاهر",
-                                detail: (Palette(rawValue: paletteRaw)?.title ?? "") + " · " + (Appearance(rawValue: appearanceRaw)?.title ?? ""))
-                }
-                NavigationLink { homePage } label: {
-                    SettingsRow(icon: "house.fill", tint: .blue, title: "صفحه‌ی خانه", detail: "ویجت‌ها و جمله‌های انگیزشی")
+                    SettingsRow(icon: "paintbrush.fill", tint: .indigo, title: "ظاهر و صفحه‌ی خانه",
+                                detail: (Palette(rawValue: paletteRaw)?.title ?? "") + " · " + (Appearance(rawValue: appearanceRaw)?.title ?? "")
+                                    + " · ویجت‌ها")
                 }
             }
 
@@ -88,7 +86,7 @@ struct SettingsView: View {
     }
 
     private var appearancePage: some View {
-        page("ظاهر") {
+        page("ظاهر و صفحه‌ی خانه") {
             Section {
                 ForEach(Palette.allCases) { p in
                     let c = p.colors(scheme)
@@ -123,13 +121,6 @@ struct SettingsView: View {
             } header: {
                 Text("روشن و تیره").font(AppFont.medium(13))
             }
-            AppearanceSection()
-            MotionSettingsSection()
-        }
-    }
-
-    private var homePage: some View {
-        page("صفحه‌ی خانه") {
             Section {
                 NavigationLink { WidgetsSettingsView(model: model) } label: {
                     Label("ویجت‌های خانه", systemImage: "square.grid.2x2")
@@ -137,9 +128,13 @@ struct SettingsView: View {
                 NavigationLink { QuotesSettingsView(model: model) } label: {
                     Label("جمله‌های انگیزشی", systemImage: "quote.bubble")
                 }
+            } header: {
+                Text("صفحه‌ی خانه").font(AppFont.medium(13))
             } footer: {
                 Text("برای جابه‌جا کردن یا تغییر اندازه‌ی ویجت‌ها، روی یک ویجت در صفحه‌ی خانه انگشت نگه دارید.").font(AppFont.caption)
             }
+            AppearanceSection()
+            MotionSettingsSection()
         }
     }
 
@@ -176,6 +171,14 @@ struct SettingsView: View {
             Section {
                 LabeledContent("آخرین پشتیبان", value: lastBackupAt > 0 ? Backups.describeLast() : "هنوز گرفته نشده")
                 LabeledContent("iCloud Drive", value: iCloudText)
+                NavigationLink { BackupHealthView() } label: {
+                    Label("بررسی سلامت بکاپ‌ها", systemImage: "checkmark.shield")
+                }
+                .accessibilityIdentifier("backup.health")
+            } header: {
+                Text("وضعیت پشتیبان").font(AppFont.medium(13))
+            }
+            Section {
                 Button {
                     model.backupToday(showErrors: true)
                     Haptics.success()
@@ -184,10 +187,6 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("پشتیبان خودکار").font(AppFont.medium(13))
-                NavigationLink { BackupHealthView() } label: {
-                    Label("بررسی سلامت بکاپ‌ها", systemImage: "checkmark.shield")
-                }
-                .accessibilityIdentifier("backup.health")
             } footer: {
                 Text("بعد از هر تغییر، پشتیبان امروز به‌روز می‌شود و نسخه‌ی «شروع روز» هم یک بار در روز نگه داشته می‌شود: در iCloud Drive › دفتر حساب › پشتیبان‌ها و یک نسخه در Files › On My iPhone › دفتر حساب. ۱۴ روز آخر، یک نسخه از هر هفته (۸ هفته) و یک نسخه از هر ماه (۱۲ ماه) می‌ماند.").font(AppFont.caption)
             }
@@ -198,22 +197,22 @@ struct SettingsView: View {
                 Button { showImporter = true } label: {
                     Label("ورود دوباره‌ی پشتیبان", systemImage: "square.and.arrow.down")
                 }
-            } header: {
-                Text("فایل پشتیبان").font(AppFont.medium(13))
-            } footer: {
-                Text(model.lastImportText ?? "قالب فایل همان پشتیبان کامل اپ وب است.").font(AppFont.caption)
-            }
-            Section {
                 NavigationLink { SectionBackupView(model: model) } label: {
                     Label("پشتیبان و بازیابی هر بخش جداگانه", systemImage: "square.stack.3d.up")
                 }
+            } header: {
+                Text("فایل پشتیبان (پیشرفته)").font(AppFont.medium(13))
             } footer: {
-                Text("فقط دفتر حساب، فقط شخصی، فقط درآمد، فقط یادآوری‌ها یا فقط کیف کارت — به صورت فایل JSON (برای بازیابی) یا متن (برای خواندن و فرستادن).").font(AppFont.caption)
+                Text((model.lastImportText ?? "قالب فایل همان پشتیبان کامل اپ وب است.")
+                     + "\nبخش جداگانه: فقط دفتر حساب، فقط شخصی، فقط درآمد، فقط یادآوری‌ها یا فقط کیف کارت — به صورت فایل JSON (برای بازیابی) یا متن (برای خواندن و فرستادن).")
+                    .font(AppFont.caption)
             }
             Section {
                 NavigationLink { DangerZoneView(model: model) } label: {
                     Label("پاک‌سازی (هیستوری یادگیری / همه‌ی اطلاعات)", systemImage: "trash").foregroundStyle(t.danger)
                 }
+            } header: {
+                Text("حذف اطلاعات").font(AppFont.medium(13))
             }
         }
     }
