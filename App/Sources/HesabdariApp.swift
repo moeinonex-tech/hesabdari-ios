@@ -69,6 +69,8 @@ final class AppModel: ObservableObject {
     private let store: SafeStore?
     /// set when the stored data could not be read: nothing is saved until it can (see SafeStore)
     @Published private(set) var readOnlyReason: String?
+    /// backup warnings for «نیازمند توجه» (see BackupAttention.swift; read-only, never changes a backup)
+    @Published var backupAttention: [AttentionItem] = []
     static let readOnlyMessage = "داده‌های ذخیره‌شده خوانده نشدند. برای اینکه چیزی از دست نرود، ثبت و ویرایش قفل شد و پشتیبان‌گیری خودکار هم متوقف شد. پشتیبان‌های قبلی سالم‌اند؛ از تنظیمات › داده‌ها می‌توانید یکی را بازگردانید."
 
     init() {

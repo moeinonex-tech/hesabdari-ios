@@ -82,7 +82,7 @@ extension AppModel {
 
     /// Attention box (simplified port of the web home: budget, checks, installments).
     var attentionItems: [AttentionItem] {
-        var items: [AttentionItem] = []
+        var items: [AttentionItem] = backupAttention         // data safety first
         let today = Self.today
         let todayN = Jalali.j2d(today.jy, today.jm, today.jd)
         func days(_ v: JSONValue?) -> Int? {

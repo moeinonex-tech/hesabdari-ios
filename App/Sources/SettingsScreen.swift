@@ -11,6 +11,8 @@ struct SettingsView: View {
     @ObservedObject var model: AppModel
     @Binding var showImporter: Bool
     @Binding var exportFile: ExportFile?
+    /// opened from a backup warning on the home screen: the «پشتیبان و داده‌ها» page itself
+    var onlyDataPage = false
     @AppStorage("palette") private var paletteRaw = Palette.web.rawValue
     @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
     @AppStorage(AppLock.enabledKey) private var lockEnabled = true
@@ -21,6 +23,10 @@ struct SettingsView: View {
     @Environment(\.theme) private var t
 
     var body: some View {
+        if onlyDataPage { dataPage } else { hub }
+    }
+
+    private var hub: some View {
         Form {
             Section {
                 NavigationLink { appearancePage } label: {

@@ -435,6 +435,36 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(after.label.contains("pendingCompleted"), "the next launch wrote the pending backup: \(after.label)")
     }
 
+    /// «نیازمند توجه»: an old backup is reported and its row opens «پشتیبان و داده‌ها».
+    /// The time of the last backup is pinned by a launch argument (it outranks what the app writes), so the
+    /// backup the app makes on launch does not hide the warning; the app's backup code is not touched.
+    func testOldBackupWarningOpensBackupPage() {
+        app.terminate()
+        app.launchArguments += ["-backup.lastAt", "1000"]
+        app.launch()
+        let row = app.descendants(matching: .any).matching(identifier: "attention.backup-stale").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 20), "old-backup warning on the home screen")
+        XCTAssertTrue(row.label.contains("پشتیبان تازه‌ای گرفته نشده"), row.label)
+        shot("backup-warning")
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let backupNow = labelled("پشتیبان‌گیری همین الان")
+        XCTAssertTrue(backupNow.waitForExistence(timeout: 8), "«پشتیبان و داده‌ها» opened")
+        XCTAssertTrue(labelled("بررسی سلامت بکاپ‌ها").exists)
+        shot("backup-page-from-warning")
+        alive("backup warning")
+    }
+
+    /// a fresh, healthy backup: no backup warning at all
+    func testNoBackupWarningWhenBackupIsFresh() {
+        // the app writes today's backup seconds after opening; the warning waits and looks again before showing
+        sleep(10)
+        let any = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'attention.backup-'")).firstMatch
+        if any.exists { print("BACKUP-WARNING " + any.identifier + " " + any.label); dumpTree("unexpected backup warning") }
+        XCTAssertFalse(any.exists, "no backup warning with a fresh backup")
+        XCTAssertTrue(labelled("فعلاً موردی نیست").exists, "attention card is empty")
+        alive("fresh backup")
+    }
+
     func testSettingsGearOpens() {
         let gear = app.buttons["settings"].firstMatch
         XCTAssertTrue(gear.waitForExistence(timeout: 10))

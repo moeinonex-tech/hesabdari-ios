@@ -16,6 +16,9 @@ struct HomeView: View {
     @Environment(\.theme) private var t
     @State private var appeared = false
     @State private var showSettings = false
+    @State private var showBackupPage = false
+    @AppStorage(Backups.lastAtKey) private var lastBackupAt: Double = 0
+    @AppStorage(Backups.lastICloudKey) private var lastICloud: Int = -2
     @State private var showSearch = false
     @State private var showShortcutEditor = false
     @State private var showAppointment = false
@@ -119,6 +122,13 @@ struct HomeView: View {
         .navigationDestination(isPresented: $showSearch) {
             SearchView(model: model)
         }
+        .navigationDestination(isPresented: $showBackupPage) {
+            SettingsView(model: model, showImporter: $showImporter, exportFile: $exportFile, onlyDataPage: true)
+        }
+        // backup warnings: looked at again whenever a backup is written or the iCloud result changes
+        .task(id: "\(lastBackupAt)|\(lastICloud)|\(model.hasData)|\(model.readOnlyReason ?? "")") {
+            await model.refreshBackupAttention()
+        }
         .onAppear { withAnimation(.spring(duration: 0.55)) { appeared = true } }
         .sheet(isPresented: $showShortcutEditor) { NavigationStack { ShortcutsEditorView(model: model) } }
         .sheet(isPresented: $showAppointment) { Themed { NavigationStack { AppointmentFormView(model: model, editingId: nil) } } }
@@ -160,6 +170,7 @@ struct HomeView: View {
                 if point.y < y + h + Self.attGap { item = it; break }
                 y += h + Self.attGap
             }
+            if item?.id.hasPrefix("backup-") == true { Haptics.tap(); showBackupPage = true; return }
             tab = item?.id.hasPrefix("budget") == true ? .ledger : .reminders
         case "financial", "activity": tab = .ledger
         case "shortcuts":
@@ -405,6 +416,8 @@ struct HomeView: View {
         .padding(.horizontal, 10).padding(.vertical, 7)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("attention." + item.id)
     }
 
     @ViewBuilder
