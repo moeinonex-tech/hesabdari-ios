@@ -448,7 +448,12 @@ struct HomeView: View {
             Text(a.name).font(AppFont.bold(compact ? 12 : 13)).foregroundStyle(t.ink).lineLimit(1)
             FxNumber(a.expenseTotal) { Money.persianDigits(Money.format($0)) }.font(AppFont.heavy(compact ? 17 : 18)).foregroundStyle(t.accent)
                 .lineLimit(1).minimumScaleFactor(0.55)
-            Text("تومان").font(AppFont.caption).foregroundStyle(t.soft)
+            HStack(spacing: 4) {
+                Text("تومان").font(AppFont.caption).foregroundStyle(t.soft)
+                Spacer(minLength: 2)
+                // only ledgers with تنخواه; the same figure as the ledger card and the PDF (AccountOps.tankhahRemaining)
+                if let tk = AccountOps.tankhahRemaining(model.state, accountId: a.id) { tankhahPill(tk, accountId: a.id) }
+            }
             Spacer(minLength: 0)
             if budget > 0 {
                 let pct = min(1, Double(a.expenseTotal) / Double(budget))
@@ -461,6 +466,24 @@ struct HomeView: View {
         .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(t.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// «مانده تنخواه» on a ledger tile: green, or red with a warning sign when more than the تنخواه was spent
+    private func tankhahPill(_ tk: TankhahRemaining, accountId: String) -> some View {
+        let left = tk.remaining
+        let text = (left < 0 ? "−" : "") + Money.persianDigits(Money.format(abs(left)))
+        let color = left < 0 ? t.danger : t.success
+        return HStack(spacing: 3) {
+            Image(systemName: left < 0 ? "exclamationmark.triangle.fill" : "banknote").font(.system(size: 9, weight: .bold))
+            Text("تنخواه " + text).font(AppFont.bold(11)).contentTransition(.numericText()).animation(.snappy, value: left)
+        }
+        .foregroundStyle(color)
+        .lineLimit(1).minimumScaleFactor(0.6)
+        .padding(.horizontal, 6).padding(.vertical, 2)
+        .background(color.opacity(0.12), in: Capsule())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("مانده تنخواه " + text + " تومان")
+        .accessibilityIdentifier("home.tankhah." + accountId)
     }
 
     @ViewBuilder

@@ -626,6 +626,39 @@ final class SmokeTests: XCTestCase {
         alive("duplicate row")
     }
 
+    /// the home «دفترها» tile: the tankhah remainder, the same figure as the ledger's main card; red when negative,
+    /// green when positive, absent for a ledger without tankhah
+    func testTankhahRemainderOnHomeTile() {
+        let pill = app.descendants(matching: .any).matching(identifier: "home.tankhah.a1").firstMatch
+        XCTAssertTrue(pill.waitForExistence(timeout: 8), "tankhah on the home tile")
+        XCTAssertTrue(pill.label.contains("−۷۰۰.۰۰۰"), "negative: \(pill.label)")
+        shot("home-tankhah-negative")
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        let box = app.descendants(matching: .any).matching(identifier: "ledger.tankhahRemaining").firstMatch
+        XCTAssertTrue(box.waitForExistence(timeout: 6), "ledger card")
+        XCTAssertTrue(box.label.contains("−۷۰۰.۰۰۰"), "same figure on the ledger card: \(box.label)")
+
+        // positive: without the 4,000,000 reward row → 7,000,000 − 3,700,000 = 3,300,000
+        app.terminate()
+        let positive = Self.fixture.split(separator: "\n").filter { !$0.contains("\"id\": \"e6\"") }.joined(separator: "\n")
+        app.launchEnvironment["UITEST_STATE"] = positive
+        app.launch()
+        XCTAssertTrue(pill.waitForExistence(timeout: 8), "tankhah on the home tile (positive)")
+        XCTAssertTrue(pill.label.contains("۳.۳۰۰.۰۰۰") && !pill.label.contains("−"), "positive: \(pill.label)")
+        shot("home-tankhah-positive")
+
+        // no tankhah: nothing on the tile
+        app.terminate()
+        let noTankhah = Self.fixture.split(separator: "\n").filter { !$0.contains("\"type\": \"tankhah\"") }.joined(separator: "\n")
+            .replacingOccurrences(of: ",\\s*\\]", with: "]", options: .regularExpression)
+        app.launchEnvironment["UITEST_STATE"] = noTankhah
+        app.launch()
+        XCTAssertTrue(labelled("پروژه آزمایشی").waitForExistence(timeout: 8), "home tile")
+        sleep(1)
+        XCTAssertFalse(pill.exists, "no tankhah on a ledger without tankhah")
+        alive("home tankhah")
+    }
+
     /// a ledger without tankhah: the main card looks as before (no tankhah remainder)
     func testNoTankhahRemainderWithoutTankhah() {
         app.terminate()
