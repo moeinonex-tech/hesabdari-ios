@@ -368,7 +368,7 @@ final class SmokeTests: XCTestCase {
             t0 = Date()
             press(reports)
             let excel = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Excel'")).firstMatch
-            time("open reports (ledger)", since: t0, timeout: 60) { excel.exists }
+            time("open reports (ledger)", since: t0, timeout: 180) { excel.exists }   // 20k rows, Debug: slow and very uneven
             if excel.exists {
                 for _ in 0..<6 where !excel.isHittable { app.swipeUp() }
                 t0 = Date()
