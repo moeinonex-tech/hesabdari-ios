@@ -13,7 +13,7 @@ packages:
 
 settings:
   base:
-    MARKETING_VERSION: "0.45.5"
+    MARKETING_VERSION: "0.46.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: "${TEAM_ID}"
@@ -77,6 +77,7 @@ targets:
           - Vazirmatn-ExtraBold.ttf
         NSFaceIDUsageDescription: برای باز کردن دفتر حساب با Face ID
         NSRemindersFullAccessUsageDescription: برای افزودن سررسید چک، قسط و قرار به اپ Reminders گوشی
+        NSPhotoLibraryAddUsageDescription: برای ذخیره‌ی تصویر کارت بانکی در گالری عکس‌ها
 
   HesabdariUITests:
     type: bundle.ui-testing

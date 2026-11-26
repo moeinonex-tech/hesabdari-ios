@@ -101,7 +101,8 @@ jobs:
 
   testflight:
     name: Archive and upload to TestFlight
-    needs: core-tests
+    # only after the logic and the simulator UI tests have passed in the same run
+    needs: [core-tests, ui-smoke]
     # Runs only when the owner enables it (repository variable TESTFLIGHT_ENABLED=true),
     # and never for pull requests. Saves macOS minutes.
     if: >-

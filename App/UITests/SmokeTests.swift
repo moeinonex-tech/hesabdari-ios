@@ -508,6 +508,31 @@ final class SmokeTests: XCTestCase {
         alive("settings groups")
     }
 
+    /// wallet: «اشتراک به صورت عکس» → «Save Image». Saving to Photos needs NSPhotoLibraryAddUsageDescription;
+    /// without it iOS stops the app. With it, iOS asks for permission and the app keeps running.
+    func testCardImageSaveToPhotosDoesNotCrash() {
+        tap(app.buttons["کیف کارت"].firstMatch, "dock cards")
+        let card = labelled("بانک ملت")
+        XCTAssertTrue(card.waitForExistence(timeout: 8), "card")
+        card.press(forDuration: 1.2)
+        tap(app.buttons["اشتراک به صورت عکس"].firstMatch, "share as image")
+        let save = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Save Image' OR label == 'ذخیره‌ی تصویر'")).firstMatch
+        if !save.waitForExistence(timeout: 10) { dumpTree("no Save Image in the share sheet") }
+        XCTAssertTrue(save.exists, "Save Image")
+        save.tap()
+        // the system's Photos permission question (from SpringBoard), if it comes
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let alert = springboard.alerts.firstMatch
+        if alert.waitForExistence(timeout: 6) {
+            print("PHOTOS-ALERT " + alert.label)
+            let allow = alert.buttons.matching(NSPredicate(format: "label CONTAINS 'Allow' OR label == 'OK'")).firstMatch
+            if allow.exists { allow.tap() } else { alert.buttons.element(boundBy: 0).tap() }
+        }
+        sleep(3)
+        shot("card-image-saved")
+        alive("save card image to Photos")
+    }
+
     func testSettingsGearOpens() {
         let gear = app.buttons["settings"].firstMatch
         XCTAssertTrue(gear.waitForExistence(timeout: 10))
