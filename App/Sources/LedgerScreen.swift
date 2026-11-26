@@ -99,11 +99,12 @@ struct LedgerRowLine: View {
 // MARK: - ledger
 
 enum LedgerSheet: Identifiable {
-    case new, edit(LedgerRowVM), settle
+    case new, edit(LedgerRowVM), settle, duplicate(LedgerRowVM)
     var id: String {
         switch self {
         case .new: return "new"
         case .edit(let r): return "edit-" + r.rowId
+        case .duplicate(let r): return "dup-" + r.rowId
         case .settle: return "settle"
         }
     }
@@ -222,6 +223,7 @@ struct LedgerHomeView: View {
                         switch s {
                         case .new: ExpenseFormView(model: model, accountId: id, editing: nil)
                         case .edit(let r): ExpenseFormView(model: model, accountId: id, editing: r)
+                        case .duplicate(let r): ExpenseFormView(model: model, accountId: id, editing: nil, template: r)
                         case .settle: SettleView(model: model, accountId: id)
                         }
                     }
@@ -365,6 +367,10 @@ struct LedgerHomeView: View {
             .onTapGesture { guarded(r) { sheet = .edit(r) } }
             .contextMenu {
                 Button { guarded(r) { sheet = .edit(r) } } label: { Label("ویرایش", systemImage: "pencil") }
+                if r.kind != .commission {
+                    // a new row like this one, dated today (the old row is not touched, so no lock or link check)
+                    Button { sheet = .duplicate(r) } label: { Label("ثبت مشابه", systemImage: "plus.square.on.square") }
+                }
                 Button(role: .destructive) {
                     guarded(r) { if model.delete(rowId: r.rowId) { Haptics.warning() } }
                 } label: { Label("حذف", systemImage: "trash") }

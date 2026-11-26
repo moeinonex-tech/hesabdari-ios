@@ -341,6 +341,9 @@ struct ExpenseFormView: View {
     @ObservedObject var model: AppModel
     let accountId: String
     let editing: LedgerRowVM?
+    /// «ثبت مشابه»: a new row pre-filled from this one (kind, category, party, description, amount, payment method),
+    /// dated today. Nothing is saved until ✓, and it is saved like any new row (number, id: new; settlements untouched).
+    var template: LedgerRowVM? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var isTankhah = false
@@ -523,7 +526,7 @@ struct ExpenseFormView: View {
                 }
             }
         }
-        .navigationTitle(editing == nil ? "ثبت جدید" : "ویرایش")
+        .navigationTitle(editing != nil ? "ویرایش" : (template != nil ? "ثبت مشابه" : "ثبت جدید"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("انصراف") { dismiss() } }
@@ -553,6 +556,18 @@ struct ExpenseFormView: View {
             payMethod = r.payMethod.flatMap(PayMethod.init(rawValue:)) ?? PayMethod.defaultFor(tankhah: isTankhah)
             cardId = r.cardId; partyId = r.partyId
             loadedPay = payMethod
+            let its = model.items(ofRow: "expenses", r.rowId)
+            if its.count > 1 && r.kind != .tankhah { items = its; itemCount = its.count }
+        } else if let r = template, r.kind != .commission {
+            // a copy: date stays today; number, id and settlement are never copied (a new row gets its own)
+            isTankhah = r.kind == .tankhah
+            isReward = r.kind == .reward
+            desc = r.desc; category = r.category; subcategory = r.subcategory
+            amount = r.toman > 0 ? Money.persianDigits(Money.format(r.toman)) : ""
+            let method = r.payMethod.flatMap(PayMethod.init(rawValue:))
+            payMethod = method.flatMap { methods.contains($0) ? $0 : nil } ?? PayMethod.defaultFor(tankhah: isTankhah)
+            cardId = payMethod.usesCard ? (r.cardId ?? model.defaultCard(accountId: accountId)) : model.defaultCard(accountId: accountId)
+            partyId = isTankhah ? r.partyId : nil
             let its = model.items(ofRow: "expenses", r.rowId)
             if its.count > 1 && r.kind != .tankhah { items = its; itemCount = its.count }
         } else {

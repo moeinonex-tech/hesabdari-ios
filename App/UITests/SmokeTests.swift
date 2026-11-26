@@ -566,6 +566,59 @@ final class SmokeTests: XCTestCase {
         alive("tankhah remainder")
     }
 
+    /// «ثبت مشابه»: the form opens filled from the row, dated today; cancel saves nothing; ✓ adds one new row
+    /// through the normal add (the tankhah remainder moves by exactly the copied amount)
+    func testDuplicateRow() {
+        tap(app.buttons["دفتر حساب"].firstMatch, "dock ledger")
+        let box = app.descendants(matching: .any).matching(identifier: "ledger.tankhahRemaining").firstMatch
+        XCTAssertTrue(box.waitForExistence(timeout: 6), "main card")
+        func expect(_ figure: String, _ step: String) {
+            let ok = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", figure), object: box)
+            XCTAssertEqual(XCTWaiter().wait(for: [ok], timeout: 5), .completed, "\(step): \(box.label)")
+        }
+        expect("−۷۰۰.۰۰۰", "start")
+        let rows = app.descendants(matching: .any).matching(NSPredicate(format:
+            "label CONTAINS %@ AND NOT (label CONTAINS %@)", "میلگرد", "«"))
+        let row = rows.firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "row «میلگرد»")
+        let before = rows.count
+        func latin(_ s: String) -> String {
+            String(s.compactMap { c -> Character? in
+                if let v = "۰۱۲۳۴۵۶۷۸۹".firstIndex(of: c) { return Character(String("۰۱۲۳۴۵۶۷۸۹".distance(from: "۰۱۲۳۴۵۶۷۸۹".startIndex, to: v))) }
+                return c.isASCII && c.isNumber ? c : nil
+            })
+        }
+        func openCopy(_ step: String) {
+            bringAboveDock(row)
+            row.press(forDuration: 1.2)
+            tap(app.buttons["ثبت مشابه"].firstMatch, step)
+            XCTAssertTrue(app.navigationBars["ثبت مشابه"].waitForExistence(timeout: 5), "copy form title")
+        }
+
+        // 1) the form is filled from the row; cancel → nothing saved
+        openCopy("open copy")
+        XCTAssertEqual(app.textFields["شرح"].firstMatch.value as? String, "میلگرد", "description")
+        XCTAssertEqual(app.textFields["نوع هزینه"].firstMatch.value as? String, "مصالح", "category")
+        XCTAssertEqual(app.textFields["زیردسته"].firstMatch.value as? String, "آهن", "subcategory")
+        XCTAssertEqual(latin(app.textFields["amount"].firstMatch.value as? String ?? ""), "2500000", "amount")
+        shot("duplicate-form")
+        tap(app.buttons["انصراف"].firstMatch, "cancel copy")
+        sleep(1)
+        expect("−۷۰۰.۰۰۰", "after cancel")
+        XCTAssertEqual(rows.count, before, "cancel saved nothing")
+
+        // 2) ✓ → one new row of 2,500,000 (remainder −700,000 → −3,200,000); the old row stays
+        openCopy("open copy again")
+        tap(app.buttons["ذخیره"].firstMatch, "save copy")
+        sleep(1)
+        for _ in 0..<3 where !box.isHittable { app.swipeDown() }
+        expect("−۳.۲۰۰.۰۰۰", "after save")
+        XCTAssertGreaterThan(rows.count, before, "a new row")
+        for i in 0..<min(rows.count, 4) { print("DUP-ROW " + rows.element(boundBy: i).label) }
+        shot("duplicate-saved")
+        alive("duplicate row")
+    }
+
     /// a ledger without tankhah: the main card looks as before (no tankhah remainder)
     func testNoTankhahRemainderWithoutTankhah() {
         app.terminate()
